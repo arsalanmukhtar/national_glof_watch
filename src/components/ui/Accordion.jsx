@@ -7,7 +7,12 @@ export function AccordionItem({ title, defaultOpen = false, children, icon, clas
     <Disclosure defaultOpen={defaultOpen} as="div" className={cn('border-b border-day-border dark:border-night-border last:border-b-0', className)}>
       {({ open }) => (
         <>
-          <Disclosure.Button className="flex w-full items-center justify-between gap-3 py-2.5 px-1 text-sm font-medium text-day-text dark:text-night-text hover:text-brand-700 dark:hover:text-brand-200 transition-colors">
+          <Disclosure.Button
+            className={cn(
+              'flex w-full items-center justify-between gap-3 py-2.5 px-2 text-sm font-medium text-day-text dark:text-night-text hover:text-brand-700 dark:hover:text-brand-200 transition-colors',
+              open && 'bg-brand-50 dark:bg-night-border',
+            )}
+          >
             <span className="flex items-center gap-2">
               {icon}
               <span>{title}</span>
