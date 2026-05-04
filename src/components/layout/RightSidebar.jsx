@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X } from 'lucide-react';
+import { FileBarChart, X } from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
 import { MEDIA_SECTIONS } from './MediaSwitcher';
 import { cn } from '@/utils/cn';
@@ -40,6 +40,24 @@ export default function RightSidebar({ className }) {
             </Tooltip>
           );
         })}
+
+        <div className="my-1 h-px w-8 bg-day-border dark:bg-night-border" />
+
+        <Tooltip label="Generate Weather Report" side="left">
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              // TODO: wire to backend report generation endpoint.
+              console.log('[report] Generate Weather Report clicked');
+            }}
+            aria-label="Generate Weather Report"
+            className="btn-icon btn-ghost transition-colors"
+          >
+            <FileBarChart className="h-5 w-5" />
+          </motion.button>
+        </Tooltip>
       </div>
 
       <AnimatePresence initial={false}>

@@ -1,13 +1,19 @@
 import { useState } from 'react';
-import { AlertTriangle, Film } from 'lucide-react';
+import { Film } from 'lucide-react';
 import { motion } from 'framer-motion';
 import VideosPanel from '@/components/dashboard/VideoPanels';
 import AlertsPanel from '@/components/dashboard/AlertsPanel';
+import AnimatedAlertTriangle from '@/components/ui/AnimatedAlertTriangle';
 import { cn } from '@/utils/cn';
 
 export const MEDIA_SECTIONS = [
   { id: 'videos', label: 'Videos', icon: Film, render: () => <VideosPanel compact /> },
-  { id: 'alerts', label: 'Alerts', icon: AlertTriangle, render: () => <AlertsPanel compact /> },
+  {
+    id: 'alerts',
+    label: 'Alerts',
+    icon: AnimatedAlertTriangle,
+    render: () => <AlertsPanel compact />,
+  },
 ];
 
 export default function MediaSwitcher({ initial = 'videos', className }) {

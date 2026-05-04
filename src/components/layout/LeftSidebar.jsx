@@ -9,10 +9,10 @@ import { cn } from '@/utils/cn';
 const SECTIONS = [
   {
     id: 'parameters',
-    label: 'Parameters',
+    label: 'PMD Parameters',
     icon: SlidersHorizontal,
     headerIcon: SlidersHorizontal,
-    title: 'Parameters',
+    title: 'PMD Parameters',
     grow: false,
     render: () => <ParametersPanel />,
   },

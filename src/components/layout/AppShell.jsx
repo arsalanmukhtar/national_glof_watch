@@ -29,7 +29,7 @@ export default function AppShell({ children }) {
         <section className="mb-4">
           <header className="mb-2 flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-brand-700 dark:text-brand-200" />
-            <span className="label-base">Parameters</span>
+            <span className="label-base">PMD Parameters</span>
           </header>
           <ParametersPanel />
         </section>
