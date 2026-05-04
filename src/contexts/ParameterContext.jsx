@@ -14,11 +14,13 @@ export function ParameterProvider({ children }) {
   const [statuses, setStatuses] = useState({});
   // currently-refreshing element id, or 'ALL' for refresh-all, else null
   const [busy, setBusy] = useState(null);
+  // station whose attribute panel is open at bottom-right of the map
+  const [selectedStation, setSelectedStation] = useState(null);
 
-  const select = useCallback(
-    (id) => setSelected((prev) => (prev === id ? null : id)),
-    [],
-  );
+  const select = useCallback((id) => {
+    setSelected((prev) => (prev === id ? null : id));
+    setSelectedStation(null); // clear stale detail when switching parameters
+  }, []);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -78,6 +80,8 @@ export function ParameterProvider({ children }) {
         refresh,
         refreshAll,
         busy,
+        selectedStation,
+        setSelectedStation,
       }}
     >
       {children}

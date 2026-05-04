@@ -48,6 +48,11 @@ export async function storeElement(element) {
       stationsUpserted += 1;
 
       const value = s.value == null || s.value === '' ? null : Number(s.value);
+      // Always store under the canonical element we requested. The upstream
+      // labels per-station readings inconsistently (e.g. requesting
+      // "Compact GAS State (WPs)" returns stations tagged "Battery Voltage";
+      // "Istantaneous Flow" comes back as "Istantaneous flow"), which would
+      // otherwise orphan the rows from the frontend's lookups.
       const insert = await client.query(
         `INSERT INTO station_readings (station_id, element, value, unit, last_update)
          VALUES ($1, $2, $3, $4, $5)
@@ -55,7 +60,7 @@ export async function storeElement(element) {
          RETURNING id`,
         [
           stationId,
-          s.element ?? element,
+          element,
           Number.isFinite(value) ? value : null,
           s.unit ?? null,
           s.lastUpdate ?? null,

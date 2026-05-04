@@ -67,7 +67,10 @@ export function toGeoJSON(pmdResponse, element) {
         properties: {
           stationId: s.stationId,
           stationName: s.stationName,
-          element: s.element,
+          // Use the canonical element we asked for, not s.element — the
+          // upstream sometimes returns a different label per station
+          // (e.g. "Battery Voltage" rows for a "Compact GAS State (WPs)" query).
+          element,
           value: s.value,
           unit: s.unit,
           lastUpdate: s.lastUpdate,

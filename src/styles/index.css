@@ -90,59 +90,9 @@
 }
 
 /* ----------------------------------------------------------------------- */
-/* Mapbox control overrides — minimal, theme-aware, tighter than defaults. */
-/* These live outside @layer so they reliably override the imported        */
-/* mapbox-gl.css cascade.                                                  */
+/* Mapbox scale control — only native control we keep; rest replaced by    */
+/* MapControls.jsx. Lives outside @layer to override mapbox-gl.css.        */
 /* ----------------------------------------------------------------------- */
-.mapboxgl-ctrl-group {
-  background-color: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: 1px solid theme('colors.day.border');
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-  overflow: hidden;
-}
-
-.dark .mapboxgl-ctrl-group {
-  background-color: rgba(42, 51, 58, 0.92);
-  border-color: theme('colors.night.border');
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-}
-
-.mapboxgl-ctrl-group button {
-  width: 28px;
-  height: 28px;
-  background-color: transparent;
-}
-
-.mapboxgl-ctrl-group button + button {
-  border-top: 1px solid theme('colors.day.border');
-}
-
-.dark .mapboxgl-ctrl-group button + button {
-  border-top-color: theme('colors.night.border');
-}
-
-.mapboxgl-ctrl-group button:not(:disabled):hover {
-  background-color: rgba(15, 23, 42, 0.05);
-}
-
-.dark .mapboxgl-ctrl-group button:not(:disabled):hover {
-  background-color: rgba(255, 255, 255, 0.08);
-}
-
-/* Mapbox ships icons as dark SVGs on transparent buttons; invert for night. */
-.dark .mapboxgl-ctrl-group .mapboxgl-ctrl-icon {
-  filter: invert(0.92) brightness(1.1);
-}
-
-/* Compass needle keeps its color so north stays readable */
-.dark .mapboxgl-ctrl-compass .mapboxgl-ctrl-icon {
-  filter: invert(0.92) brightness(1.1);
-}
-
-/* Scale control */
 .mapboxgl-ctrl-scale {
   background-color: rgba(255, 255, 255, 0.85);
   border-color: theme('colors.day.border');
@@ -155,4 +105,12 @@
   background-color: rgba(42, 51, 58, 0.85);
   border-color: theme('colors.night.border');
   color: theme('colors.night.text');
+}
+
+/* Hide the Mapbox wordmark + bottom-left attribution per project request.   */
+/* Mapbox ToS may require attribution to be visible in production — confirm */
+/* before shipping to NDMA stakeholders.                                    */
+.mapboxgl-ctrl-logo,
+.mapboxgl-ctrl-bottom-left {
+  display: none !important;
 }

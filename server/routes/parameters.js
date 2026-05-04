@@ -40,6 +40,57 @@ parametersRouter.get('/status', async (_req, res) => {
   }
 });
 
+// GET /api/parameters/:element/latest
+// DB-backed: latest reading per station for the given element, as GeoJSON.
+// This is what the map renders — drains from local DB so we don't hit PMD
+// upstream on every parameter click.
+parametersRouter.get('/:element/latest', async (req, res) => {
+  const element = decodeURIComponent(req.params.element);
+  if (!isValidElement(element)) {
+    return res.status(400).json({ error: `Unknown element: ${element}` });
+  }
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT ON (sr.station_id)
+              s.station_id,
+              s.station_name,
+              s.lat,
+              s.lon,
+              sr.element,
+              sr.value,
+              sr.unit,
+              sr.last_update,
+              sr.fetched_at
+         FROM station_readings sr
+         JOIN stations s ON s.station_id = sr.station_id
+        WHERE sr.element = $1
+        ORDER BY sr.station_id, sr.last_update DESC NULLS LAST`,
+      [element],
+    );
+
+    res.json({
+      type: 'FeatureCollection',
+      metadata: { element, count: rows.length, source: 'db' },
+      features: rows.map((r) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [Number(r.lon), Number(r.lat)] },
+        properties: {
+          stationId: Number(r.station_id),
+          stationName: r.station_name,
+          element: r.element,
+          value: r.value,
+          unit: r.unit,
+          lastUpdate: r.last_update?.toISOString?.() ?? r.last_update,
+          fetchedAt: r.fetched_at?.toISOString?.() ?? r.fetched_at,
+        },
+      })),
+    });
+  } catch (err) {
+    console.error('[GET latest]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/parameters/:element/geojson
 // Fetch live data from PMD for one element, return as GeoJSON FeatureCollection.
 parametersRouter.get('/:element/geojson', async (req, res) => {
