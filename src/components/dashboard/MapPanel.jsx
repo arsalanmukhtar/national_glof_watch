@@ -34,6 +34,9 @@ const RIPPLE_MAX_R = 22;
 
 export default function MapPanel({ className, onMapReady }) {
   const containerRef = useRef(null);
+  // Wraps the map canvas + every overlay (geocoder, legend, table, controls);
+  // this is what fullscreen targets so the overlays come along.
+  const wrapperRef = useRef(null);
   const mapRef = useRef(null);
   const [basemap, setBasemap] = useState(DEFAULT_BASEMAP);
   const [mapInstance, setMapInstance] = useState(null);
@@ -255,11 +258,14 @@ export default function MapPanel({ className, onMapReady }) {
       transition={{ duration: 0.4 }}
       className={cn('card-base overflow-hidden flex flex-col min-h-0', className)}
     >
-      <div className="relative flex-1 min-h-0 bg-slate-200 dark:bg-night-bg">
+      <div
+        ref={wrapperRef}
+        className="relative flex-1 min-h-0 bg-slate-200 dark:bg-night-bg"
+      >
         <div ref={containerRef} className="absolute inset-0" />
         <BasemapSwitcher current={basemap} onChange={changeBasemap} />
         <MapGeocoder map={mapInstance} />
-        <MapControls map={mapInstance} fullscreenTarget={containerRef.current} />
+        <MapControls map={mapInstance} fullscreenTarget={wrapperRef.current} />
         <MapLegend />
         <StationsTable />
       </div>

@@ -78,7 +78,7 @@ export default function StationsTable() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
       className={cn(
-        'absolute right-2 bottom-2 z-10 w-[300px] rounded-md shadow-md overflow-hidden',
+        'absolute right-2 bottom-2 z-10 w-[340px] rounded-md shadow-md overflow-hidden',
         'bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm',
         'border border-day-border dark:border-night-border',
       )}
@@ -208,11 +208,11 @@ export default function StationsTable() {
                 <table className="w-full text-[11px] table-fixed">
                   <thead className="sticky top-0 bg-day-bg/95 dark:bg-night-bg/95 backdrop-blur-sm border-b border-day-border dark:border-night-border">
                     <tr className="text-day-muted dark:text-night-muted">
-                      <th className="text-left font-medium px-2.5 py-1 w-[42%]">Station</th>
+                      <th className="text-left font-medium px-2.5 py-1 w-[50%]">Station</th>
                       <th className="text-left font-medium px-2.5 py-1">
                         Value{unitForSelected ? ` (${unitForSelected})` : ''}
                       </th>
-                      <th className="text-left font-medium px-2.5 py-1 w-[92px]">Updated</th>
+                      <th className="text-left font-medium px-2.5 py-1 w-[88px]">Updated</th>
                     </tr>
                   </thead>
                   <tbody>
