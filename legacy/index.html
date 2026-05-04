@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>GLOF Watch</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous" />
+    <link rel="stylesheet" href="template/style.css" />
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.9.4/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.9.4/mapbox-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="icon" href="data/ndma_logo.png" type="image/icon type">
+</head>
+<!-- _______________________________________________________________________________________________________________________________________________________ -->
+
+<body>
+    <video id="bg_video" src="data/bg_video.mp4" autoplay loop muted></video>
+    <nav class="navbar navbar-light" style="background-color:#002060; outline: solid rgb(0, 0, 0) 2px; margin: 0; padding: 0; width: 100%; height: 70px;">
+        <img class="logo" src="data/ndma_logo.webp" alt="NDMA Logo">
+        <div class="flex-1 text-center heading-container">
+            <div class="bg-glass">
+                N-2
+            </div>
+            <span class="text-white text-5xl font-semibold text-shadow" style="font-family: 'Segoi UI', sans-serif !important; font-weight: 700;">National GLOF Watch</span>
+        </div>
+        <button class="fullscreen-button" id="fullscreenToggle" type="button" onclick="toggleMapFullscreen()" aria-label="Toggle map fullscreen" title="Toggle map fullscreen">
+            <svg xmlns="http://www.w3.org/2000/svg" class="fullscreen-icon" viewBox="0 0 16 16" fill="white" aria-hidden="true">
+                <path d="M1 1h5v2H3v3H1V1zm10 0h4v5h-2V3h-2V1zM1 10h2v3h3v2H1v-5zm12 0h2v5h-5v-2h3v-3z"/>
+            </svg>
+        </button>
+        <button class="menu-button" id="menuToggle">
+            <svg xmlns="http://www.w3.org/2000/svg" class="menu-icon" viewBox="0 0 16 16" fill="white">
+              <path
+                d="M1.5 0A1.5 1.5 0 0 0 0 1.5v2A1.5 1.5 0 0 0 1.5 5h13A1.5 1.5 0 0 0 16 3.5v-2A1.5 1.5 0 0 0 14.5 0zm1 2h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1 0-1m9.927.427A.25.25 0 0 1 12.604 2h.792a.25.25 0 0 1 .177.427l-.396.396a.25.25 0 0 1-.354 0zM0 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm1 3v2a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2zm14-1V8a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v2zM2 8.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5m0 4a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 0 1h-6a.5.5 0 0 1-.5-.5" />
+            </svg>
+        </button>
+    </nav>
+    <div id="map">
+        <div id="lake-map-preview" aria-live="polite">
+            <button class="panel-expand-btn" type="button" onclick="openPanelModal('lakeMapPreview')" title="Open map in modal view" aria-label="Open map preview in modal view">
+                <i class="fas fa-up-right-and-down-left-from-center"></i>
+            </button>
+            <img id="lake-map-preview-img" alt="Lake map preview" />
+            <div id="lake-map-preview-caption">Map Preview</div>
+        </div>
+        <div id="station-forecast-widget" aria-live="polite" aria-label="Station forecast graph">
+            <div id="station-forecast-header">
+                <div id="station-forecast-header-text">
+                    <div id="station-forecast-title">Station Forecast</div>
+                    <div id="station-forecast-subtitle">Click a station point to view forecast.</div>
+                </div>
+                <button id="station-forecast-close" type="button" onclick="closeStationForecastWidget()" aria-label="Close station forecast">&times;</button>
+            </div>
+            <div id="station-forecast-chart-wrap">
+                <canvas id="stationForecastChart"></canvas>
+            </div>
+        </div>
+        <div id="station-animation-panel" aria-live="polite" aria-label="Station points forecast animation controls">
+            <div id="station-animation-top-row">
+                <div id="station-animation-title">Station Forecast Animation</div>
+                <button id="station-animation-play-btn" type="button" onclick="toggleStationAnimationPlay()" aria-label="Play station forecast animation">&#9654;</button>
+            </div>
+            <div id="station-animation-meta-row">
+                <div id="station-animation-date">Date: --</div>
+                <div id="station-animation-range">Values: --</div>
+            </div>
+            <input type="range" id="station-animation-slider" min="0" max="0" value="0" step="0.01" oninput="handleStationAnimationSlider(this.value)" aria-label="Station forecast timeline slider">
+            <div id="station-animation-legend">
+                <span>Low</span>
+                <div id="station-animation-legend-bar"></div>
+                <span>High</span>
+            </div>
+        </div>
+        <div id="risk-zonation-legend" aria-live="polite" aria-label="Risk zonation legend">
+            <div id="risk-zonation-legend-title">Risk Zonation</div>
+            <div id="risk-zonation-legend-items"></div>
+        </div>
+        <div id="active-layers-legend" aria-live="polite" aria-label="Enabled layers legend">
+            <div id="active-layers-legend-items"></div>
+        </div>
+    </div>
+
+    <!-- LST Floating Control Panel -->
+    <div id="lst-panel">
+        <div class="lst-bar">
+            <span class="lst-title">&#127777; <strong id="lst-month-label">January</strong> 2025</span>
+            <div class="lst-slider-wrap">
+                <input type="range" id="lst-month-slider" class="lst-slider" min="1" max="12" value="1" oninput="changeLSTMonth(this.value)">
+                <div class="lst-month-ticks">
+                    <span>J</span><span>F</span><span>M</span><span>A</span>
+                    <span>M</span><span>J</span><span>J</span><span>A</span>
+                    <span>S</span><span>O</span><span>N</span><span>D</span>
+                </div>
+            </div>
+            <button class="lst-icon-btn" id="lst-play-btn" onclick="toggleLSTPlay()" title="Play/Pause months">&#9654;</button>
+            <button class="lst-icon-btn" id="lst-opacity-btn" onclick="toggleLSTOpacityBar()" title="Opacity">&#9680;</button>
+            <button class="lst-close-btn" onclick="closeLSTPanel()">&#x2715;</button>
+        </div>
+        <div id="lst-opacity-row">
+            <span class="lst-opacity-label">Opacity: <strong id="lst-opacity-value">100%</strong></span>
+            <input type="range" id="lst-opacity-slider" class="lst-slider" min="0" max="100" value="100" oninput="changeLSTOpacity(this.value)">
+        </div>
+        <div class="lst-legend-row">
+            <div class="lst-legend-bar">
+                <span>-40</span><span>-20</span><span>0</span><span>20</span><span>40&deg;C</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======== CHARTS ROW — below the map ======== -->
+    <div id="charts-row">
+
+        <!-- Chart 1: Glacial Lake Area -->
+        <div class="chart-card" id="chart-card-1">
+            <div class="chart-card-header">
+                <div class="chart-card-title">
+                    <i class="fas fa-water"></i>
+                    <span>Glacial Lake Area Monitoring (m&sup2;)</span>
+                </div>
+                <select id="lake-select" onchange="updateLakeChart()">
+                    <option value="ALL">&#127790; All Lakes</option>
+                    <optgroup label="── Ghizer ──">
+                        <option value="DIST:GHIZER">&#128205; All Ghizer Lakes</option>
+                        <option value="Darkut">Darkut Glacial Lake</option>
+                        <option value="Badswat">Badswat Glacial Lake</option>
+                        <option value="Ishkoman">Ishkoman Glacial Lake</option>
+                    </optgroup>
+                    <optgroup label="── Chitral ──">
+                        <option value="DIST:CHITRAL">&#128205; All Chitral Lakes</option>
+                        <option value="Thalo 2">Thalo 2 Glacial Lake</option>
+                        <option value="Pindoru Chaat">Pindoru Chaat Glacial Lake</option>
+                        <option value="Near Chatiboi">Near Chatiboi Glacial Lake</option>
+                        <option value="Chatiboi">Chatiboi Glacial Lake</option>
+                        <option value="Lasht">Lasht Glacial Lake</option>
+                        <option value="Reshun">Reshun Glacial Lake</option>
+                        <option value="Brep">Brep Glacial Lake</option>
+                    </optgroup>
+                    <optgroup label="── Upper Dir ──">
+                        <option value="DIST:UPPER DIR">&#128205; All Upper Dir Lakes</option>
+                        <option value="Thalo 1">Thalo 1 Glacial Lake</option>
+                    </optgroup>
+                    <optgroup label="── Hunza Nagar ──">
+                        <option value="DIST:HUNZA NAGAR">&#128205; All Hunza Nagar Lakes</option>
+                        <option value="Ultar">Ultar Glacial Lake</option>
+                    </optgroup>
+                </select>
+            </div>
+            <div class="chart-canvas-wrap">
+                <canvas id="lakeAreaChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 2: Volume District-wise -->
+        <div class="chart-card" id="chart-card-2">
+            <div class="chart-card-header">
+                <div class="chart-card-title">
+                    <i class="fas fa-mountain"></i>
+                    <span>Glacial Lake Volume Monitoring (m&sup3;)</span>
+                </div>
+                <select id="vol-lake-select" onchange="updateVolumeChart()">
+                    <option value="ALL">&#127790; All Lakes</option>
+                    <optgroup label="── Ghizer ──">
+                        <option value="DIST:GHIZER">&#128205; All Ghizer Lakes</option>
+                        <option value="Darkut">Darkut Glacial Lake</option>
+                        <option value="Badswat">Badswat Glacial Lake</option>
+                        <option value="Ishkoman">Ishkoman Glacial Lake</option>
+                    </optgroup>
+                    <optgroup label="── Chitral ──">
+                        <option value="DIST:CHITRAL">&#128205; All Chitral Lakes</option>
+                        <option value="Thalo 2">Thalo 2 Glacial Lake</option>
+                        <option value="Pindoru Chaat">Pindoru Chaat Glacial Lake</option>
+                        <option value="Near Chatiboi">Near Chatiboi Glacial Lake</option>
+                        <option value="Chatiboi">Chatiboi Glacial Lake</option>
+                        <option value="Lasht">Lasht Glacial Lake</option>
+                        <option value="Reshun">Reshun Glacial Lake</option>
+                        <option value="Brep">Brep Glacial Lake</option>
+                    </optgroup>
+                    <optgroup label="── Upper Dir ──">
+                        <option value="DIST:UPPER DIR">&#128205; All Upper Dir Lakes</option>
+                        <option value="Thalo 1">Thalo 1 Glacial Lake</option>
+                    </optgroup>
+                    <optgroup label="── Hunza Nagar ──">
+                        <option value="DIST:HUNZA NAGAR">&#128205; All Hunza Nagar Lakes</option>
+                        <option value="Ultar">Ultar Glacial Lake</option>
+                    </optgroup>
+                </select>
+            </div>
+            <div class="chart-canvas-wrap">
+                <canvas id="lakeVolumeChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+    <!-- ======== END CHARTS ROW ======== -->
+
+    <div id="controlChart">
+        <button class="panel-expand-btn" type="button" onclick="openPanelModal('controlChart')" title="Open chart in modal view" aria-label="Open control chart in modal view">
+            <i class="fas fa-up-right-and-down-left-from-center"></i>
+        </button>
+        <div id="flourish-wrap">
+            <iframe src="https://flo.uri.sh/visualisation/27852382/embed" frameborder="0" allowfullscreen scrolling="no"></iframe>
+        </div>
+    </div>
+
+    <div id="glaciersDataContainer">
+        <button class="panel-expand-btn" type="button" onclick="openPanelModal('glaciersDataContainer')" title="Open image in modal view" aria-label="Open glaciers data in modal view">
+            <i class="fas fa-up-right-and-down-left-from-center"></i>
+        </button>
+        <img src="data/basemap-icons/Glaciers_data.png" alt="Glaciers Data" id="glaciersDataImg">
+    </div>
+
+    <div id="panelModal" class="panel-modal" onclick="handlePanelModalBackdrop(event)">
+        <div class="panel-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="panelModalTitle">
+            <button class="panel-modal-close" type="button" onclick="closePanelModal()" aria-label="Close modal view">&times;</button>
+            <div class="panel-modal-header">
+                <h3 id="panelModalTitle"></h3>
+            </div>
+            <div id="panelModalBody" class="panel-modal-body"></div>
+        </div>
+    </div>
+
+    <video id="top_video" src="data/badswat1.mp4" autoplay loop muted controls></video>
+    <div id="top_video_warning_chart">
+        <button class="panel-expand-btn" type="button" onclick="openPanelModal('top_video_warning_chart')" title="Open high temp warning in modal view" aria-label="Open high temp warning in modal view">
+            <i class="fas fa-up-right-and-down-left-from-center"></i>
+        </button>
+        <div id="top_warning_wrap">
+            <iframe src="https://flo.uri.sh/visualisation/28273388/embed#theme=dark" frameborder="0" allowfullscreen scrolling="no"></iframe>
+        </div>
+    </div>
+    <video id="bot_video" src="data/badswat2.mp4" autoplay loop muted controls></video>
+
+    <!-- _____________________________________________________________________________________________________________________________________________________________ -->
+<div id="menu">
+    <div class="accordion" id="menu-accordion">
+        <div class="quick-toggle-sections">
+            <div class="quick-toggle-section">
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="inventory-toggle" onchange="toggleGlacialLakesInventory(this.checked)">
+                    <label class="form-check-label" for="inventory-toggle">Glacial Lakes Inventory</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-akah-toggle" onchange="toggleQuickAkahLayer(this.checked)">
+                    <label class="form-check-label" for="quick-akah-toggle">AKAH Layer</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-populated-places-toggle" onchange="toggleQuickPopulatedPlaces(this.checked)">
+                    <label class="form-check-label" for="quick-populated-places-toggle">Populated Places</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-gmrc-wapda-toggle" onchange="toggleQuickGmrcWapda(this.checked)">
+                    <label class="form-check-label" for="quick-gmrc-wapda-toggle">GMRC, WAPDA</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-glof-ii-toggle" onchange="toggleQuickGlofII(this.checked)">
+                    <label class="form-check-label" for="quick-glof-ii-toggle">GLOF II, PMD</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-glof-ii-damaged-toggle" onchange="toggleQuickGlofIIDamagedStations(this.checked)">
+                    <label class="form-check-label" for="quick-glof-ii-damaged-toggle">GLOF II Damaged Stations</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-akah-stations-toggle" onchange="toggleQuickAkahStations(this.checked)">
+                    <label class="form-check-label" for="quick-akah-stations-toggle">AKAH Stations</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-undp-all-sensors-toggle" onchange="toggleQuickUndpAllSensors(this.checked)">
+                    <label class="form-check-label" for="quick-undp-all-sensors-toggle">UNDP All sensors</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-flood-susceptibility-toggle" onchange="toggleFloodSusceptibility(this.checked)">
+                    <label class="form-check-label" for="quick-flood-susceptibility-toggle">Flood Susceptibility</label>
+                </div>
+            </div>
+
+            <div class="quick-toggle-section">
+                <div class="quick-toggle-title">2025</div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-vulsites-2025-toggle" onchange="toggleQuickVulnerableSites2025(this.checked)">
+                    <label class="form-check-label" for="quick-vulsites-2025-toggle">Vulnerable Sites</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-vullakes-2025-toggle" onchange="toggleQuickVulnerableLakes2025(this.checked)">
+                    <label class="form-check-label" for="quick-vullakes-2025-toggle">Vulnerable Lakes 2025</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-incident-2025-toggle" onchange="toggleQuickIncident2025(this.checked)">
+                    <label class="form-check-label" for="quick-incident-2025-toggle">Incident</label>
+                </div>
+            </div>
+
+            <div class="quick-toggle-section">
+                <div class="quick-toggle-title">2026</div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-vulsites-2026-toggle" onchange="toggleQuickVulnerableSites2026(this.checked)">
+                    <label class="form-check-label" for="quick-vulsites-2026-toggle">Vulnerable Sites 2026</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-vullakes-2026-toggle" onchange="toggleQuickVulnerableLakes2026(this.checked)">
+                    <label class="form-check-label" for="quick-vullakes-2026-toggle">Vulnerable Lakes 2026</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-station-points-toggle" onchange="toggleQuickStationPoints(this.checked)">
+                    <label class="form-check-label" for="quick-station-points-toggle">Station Points</label>
+                </div>
+                <div class="form-check form-switch quick-toggle-item">
+                    <input class="form-check-input" type="checkbox" role="switch" id="quick-high-temp-2026-toggle" onchange="showHighTempWarning(this.checked)">
+                    <label class="form-check-label" for="quick-high-temp-2026-toggle">High Temp Warning</label>
+                </div>
+            </div>
+        </div>
+        <!--________________________________________________________ -->
+        <!--______________________ Boundaries _______________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="boundaries-heading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#boundaries-collapse" aria-expanded="false" aria-controls="boundaries-collapse">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Boundaries</u></span>
+            </button>
+            </h2>
+            <div id="boundaries-collapse" class="accordion-collapse collapse" aria-labelledby="boundaries-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="national-boundary-toggle" onclick="toggleLayersVisibility(map1, ['national-boundary-layer'])">
+                        <label class="form-check-label" for="national-boundary-toggle">National Boundary</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="provincial-boundary-toggle" onclick="toggleLayersVisibility(map1, ['provincial-boundary-layer'])">
+                        <label class="form-check-label" for="provincial-boundary-toggle">Provincial Boundary</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="district-boundary-toggle" onclick="toggleLayersVisibility(map1, ['district-boundary-layer', 'district-boundary-label-layer'])">
+                        <label class="form-check-label" for="district-boundary-toggle">District Boundary</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!--________________________________________________________ -->
+        <!--___________________ Risk Zonation ______________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="risk-zonation-heading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#risk-zonation-collapse" aria-expanded="false" aria-controls="risk-zonation-collapse">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Risk Zonation</u></span>
+            </button>
+            </h2>
+            <div id="risk-zonation-collapse" class="accordion-collapse collapse" aria-labelledby="risk-zonation-heading">
+                <div class="accordion-body">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="risk-zonation-ava-toggle" onchange="toggleAkahHazardType('ava', this.checked)">
+                        <label class="form-check-label" for="risk-zonation-ava-toggle">Avalanche</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="risk-zonation-dbf-toggle" onchange="toggleAkahHazardType('dbf', this.checked)">
+                        <label class="form-check-label" for="risk-zonation-dbf-toggle">Debris Flow</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="risk-zonation-bnk-toggle" onchange="toggleAkahHazardType('bnk', this.checked)">
+                        <label class="form-check-label" for="risk-zonation-bnk-toggle">Bank Erosion</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="risk-zonation-fld-toggle" onchange="toggleAkahHazardType('fld', this.checked)">
+                        <label class="form-check-label" for="risk-zonation-fld-toggle">Flood</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="risk-zonation-lds-toggle" onchange="toggleAkahHazardType('lds', this.checked)">
+                        <label class="form-check-label" for="risk-zonation-lds-toggle">Landslide</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="risk-zonation-rkf-toggle" onchange="toggleAkahHazardType('rkf', this.checked)">
+                        <label class="form-check-label" for="risk-zonation-rkf-toggle">Rockfall</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="risk-zonation-ufl-toggle" onchange="toggleAkahHazardType('ufl', this.checked)">
+                        <label class="form-check-label" for="risk-zonation-ufl-toggle">Urban Flooding</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!--________________________________________________________ -->
+        <!--________________________ Badswat________________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="badswat-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#badswat-collapse" aria-expanded="true" aria-controls="badswat-collapse " 
+                onclick="accordionZoom(map1, 'badswat-line', 8, 36.2923495548913, 73.2770059513156);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Badswat</u></span>
+            </button>
+            
+            </h2>
+            <div id="badswat-collapse" class="accordion-collapse collapse" aria-labelledby="badswat-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="badswat-glacier-toggle" data-popup="true" data-layer="badswat-glacier-layer" onclick="toggleLayersVisibility(map1, ['badswat-glacier-layer', 'badswat-glacier-line'])">
+                        <label class="form-check-label" for="badswat-glacier-toggle">Badswat Glacier</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="badswat-lake-toggle" data-popup="true" data-layer="badswat-lake-layer" onclick="toggleLayersVisibility(map1, ['badswat-lake-layer'])">
+                        <label class="form-check-label" for="badswat-lake-toggle">Badswat Lake</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="badswat-fault-toggle" data-popup="true" data-layer="badswat-fault-layer" onclick="toggleLayersVisibility(map1, ['badswat-faultline-layer'])">
+                        <label class="form-check-label" for="badswat-fault-toggle">Faultline</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="ishkoman-river-toggle" data-popup="true" data-layer="ishkomen-river-layer" onclick="toggleLayersVisibility(map1, ['ishkoman-river-layer'])">
+                        <label class="form-check-label" for="ishkoman-river-toggle">Ishkomen River</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="karambar-lake-toggle" data-popup="true" data-layer="karambar-lake-layer" onclick="toggleLayersVisibility(map1, ['karambar-lake-layer'])">
+                        <label class="form-check-label" for="karambar-lake-toggle">Karambar Lake</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="badswat-risk-toggle" data-popup="true" data-layer="badswat-risk-layer" onclick="toggleLayersVisibility(map1, ['badswat-risk-layer'])">
+                        <label class="form-check-label" for="badswat-risk-toggle">Risk Zonation</label>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+        <!--________________________________________________________ -->
+        <!--________________________ Pindoru Chaat ________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="pindoru-heading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#pindoru-collapse" aria-expanded="false" aria-controls="pindoru-collapse"
+                onclick="accordionZoom(map1, '', 12, 36.197, 71.799);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Pindoru Chaat</u></span>
+                </button>
+            </h2>
+            <div id="pindoru-collapse" class="accordion-collapse collapse" aria-labelledby="pindoru-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="pindoru-lake-toggle" onclick="toggleLayersVisibility(map1, ['pindoru-lake-fill', 'pindoru-lake-outline'])">
+                        <label class="form-check-label" for="pindoru-lake-toggle">Pindoru Chaat Lake</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="pindoru-rz-toggle" onclick="toggleLayersVisibility(map1, ['pindoru-rz-high', 'pindoru-rz-medium', 'pindoru-rz-low'])">
+                        <label class="form-check-label" for="pindoru-rz-toggle">Risk Zonation</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!--________________________________________________________ -->
+        <!--________________________Hiranchi________________________-->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="hiranchi-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#hiranchi-collapse" aria-expanded="true" aria-controls="hiranchi-collapse" 
+                onclick="accordionZoom(map1, 'hiranchi-line', 8, 36.20703091552801, 74.32939869041434)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Hinarchi</u></span>
+            </button>
+            </h2>
+            <div id="hiranchi-collapse" class="accordion-collapse collapse" aria-labelledby="hiranchi-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="hiranchi-glacier-toggle" data-popup="true" data-layer="hiranchi-glacier-layer" onclick="toggleLayersVisibility(map1, ['hiranchi-glacier-layer', 'hiranchi-glacier-line'])">
+                        <label class="form-check-label" for="hiranchi-glacier-toggle">Hinarchi Glacier</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="hiranchi-lake-toggle" data-popup="true" data-layer="hiranchi-lake-layer" onclick="toggleLayersVisibility(map1, ['hiranchi-lake-layer'])">
+                        <label class="form-check-label" for="hiranchi-lake-toggle">Hinarchi Lake</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="hiranchi-risk-toggle" data-popup="true" data-layer="hiranchi-risk-layer" onclick="toggleLayersVisibility(map1, ['hiranchi-risk-layer'])">
+                        <label class="form-check-label" for="hiranchi-risk-toggle">Risk Zonation</label>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+        <!--______________________________________________________ -->
+        <!-- ________________________Reshun_______________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="reshun-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#reshun-collapse" aria-expanded="true" aria-controls="reshun-collapse" onclick="accordionZoom(map1, 'reshun-line', 10, 36.079986225225596, 71.86063709100745)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Reshun</u></span>
+            </button>
+            </h2>
+            <div id="reshun-collapse" class="accordion-collapse collapse" aria-labelledby="reshun-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="chitral-river-toggle" data-popup="true" data-layer="chitral-river-layer" onclick="toggleLayersVisibility(map1, ['chitral-river-layer'])">
+                        <label class="form-check-label" for="chitral-river-toggle">Chitral River</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="reshun-faultline-toggle" data-popup="true" data-layer="reshun-faultline-layer" onclick="toggleLayersVisibility(map1, ['reshun-faultline-layer'])">
+                        <label class="form-check-label" for="reshun-faultline-toggle">Faultline</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="reshun-glacier-toggle" data-popup="true" data-layer="reshun-glacier-layer" onclick="toggleLayersVisibility(map1, ['reshun-glacier-layer', 'reshun-glacier-line'])">
+                        <label class="form-check-label" for="reshun-glacier-toggle">Reshun Glacier</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="reshun-nullah-toggle" data-popup="true" data-layer="reshun-nullah-layer" onclick="toggleLayersVisibility(map1, ['reshun-nullah-layer'])">
+                        <label class="form-check-label" for="reshun-nullah-toggle">Reshun Nullah</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="reshun-rz-toggle" data-popup="true" data-layer="reshun-rz-layer" onclick="toggleLayersVisibility(map1, ['reshun-risk-layer'])">
+                        <label class="form-check-label" for="reshun-rz-toggle">Risk Zonation</label>
+                    </div>
+
+                </div>
+            </div>
+            
+        </div>
+        <!--______________________________________________________ -->
+        <!-- ________________________Terset Hundur_______________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="terset-hundur-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#terset-hundur-collapse" aria-expanded="true" aria-controls="terset-hundur-collapse" onclick="setMapCenter(map1,73.703828554,36.035699054,12);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Terset Hundur</u></span>
+            </button>
+            </h2>
+            <div id="terset-hundur-collapse" class="accordion-collapse collapse" aria-labelledby="terset-hundur-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="terset-hundur-lake-toggle" data-popup="true" data-layer="terset-hundur-lake-layer" onclick="toggleLayersVisibility(map1, ['terset-hundur-lake-layer'])">
+                        <label class="form-check-label" for="terset-hundur-lake-toggle">Terset Hundur Lake</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="terset-hundur-river-toggle" data-popup="true" data-layer="terset-hundur-river-layer" onclick="toggleLayersVisibility(map1, ['terset-hundur-river-layer'])">
+                        <label class="form-check-label" for="terset-hundur-river-toggle">Terset Hundur River</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="terset-hundur-rz-toggle" data-popup="true" data-layer="terset-hundur-risk-high-layer" onclick="toggleLayersVisibility(map1, ['terset-hundur-risk-high-layer', 'terset-hundur-risk-medium-layer', 'terset-hundur-risk-low-layer'])">
+                        <label class="form-check-label" for="terset-hundur-rz-toggle">Risk Zonation</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ________________________Ishokoman__________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="ishokoman-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#ishokoman-collapse" aria-expanded="true" aria-controls="ishokoman-collapse" onclick="setMapCenter(map1,73.8379,36.5933,12);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Ishokoman</u></span>
+            </button>
+            </h2>
+            <div id="ishokoman-collapse" class="accordion-collapse collapse" aria-labelledby="ishokoman-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="ishokoman-rz-toggle" data-popup="true" data-layer="ishokoman-risk-high-layer" onclick="toggleLayersVisibility(map1, ['ishokoman-risk-high-layer', 'ishokoman-risk-medium-layer', 'ishokoman-risk-low-layer'])">
+                        <label class="form-check-label" for="ishokoman-rz-toggle">Risk Zonation</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ________________________Lusht______________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="lusht-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#lusht-collapse" aria-expanded="true" aria-controls="lusht-collapse" onclick="setMapCenter(map1,73.0039,36.7767,12);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Lusht</u></span>
+            </button>
+            </h2>
+            <div id="lusht-collapse" class="accordion-collapse collapse" aria-labelledby="lusht-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="lusht-rz-toggle" data-popup="true" data-layer="lusht-risk-high-layer" onclick="toggleLayersVisibility(map1, ['lusht-risk-high-layer', 'lusht-risk-medium-layer', 'lusht-risk-low-layer'])">
+                        <label class="form-check-label" for="lusht-rz-toggle">Risk Zonation</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ________________________Ulter______________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="ulter-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#ulter-collapse" aria-expanded="true" aria-controls="ulter-collapse" onclick="setMapCenter(map1,74.74202,36.33731,12);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Ulter</u></span>
+            </button>
+            </h2>
+            <div id="ulter-collapse" class="accordion-collapse collapse" aria-labelledby="ulter-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="ulter-rz-toggle" data-popup="true" data-layer="ulter-risk-high-layer" onchange="toggleUlterRiskZonation(this.checked)">
+                        <label class="form-check-label" for="ulter-rz-toggle">Risk Zonation</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ________________________Shisper_____________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="shisper-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#shisper-collapse" aria-expanded="true" aria-controls="shisper-collapse" onclick="setMapCenter(map1,74.6057,36.29265,12);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Shisper</u></span>
+            </button>
+            </h2>
+            <div id="shisper-collapse" class="accordion-collapse collapse" aria-labelledby="shisper-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="shisper-lake-toggle" data-popup="true" data-layer="shisper-lake-layer" onclick="toggleLayersVisibility(map1, ['shisper-lake-layer'])">
+                        <label class="form-check-label" for="shisper-lake-toggle">Shisper Lake</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="shisper-risk-high-toggle" data-popup="true" data-layer="shisper-risk-high-layer" onclick="toggleLayersVisibility(map1, ['shisper-risk-high-layer'])">
+                        <label class="form-check-label" for="shisper-risk-high-toggle">High Risk</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="shisper-risk-medium-toggle" data-popup="true" data-layer="shisper-risk-medium-layer" onclick="toggleLayersVisibility(map1, ['shisper-risk-medium-layer'])">
+                        <label class="form-check-label" for="shisper-risk-medium-toggle">Medium Risk</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="shisper-risk-low-toggle" data-popup="true" data-layer="shisper-risk-low-layer" onclick="toggleLayersVisibility(map1, ['shisper-risk-low-layer'])">
+                        <label class="form-check-label" for="shisper-risk-low-toggle">Low Risk</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!--______________________________________________________ -->
+        <!-- ________________________Brep_________________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="brep-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#brep-collapse" aria-expanded="true" aria-controls="brep-collapse" onclick="setMapCenter(map1,72.72565,36.48251,12);" >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Brep</u></span>
+            </button>
+            </h2>
+            <div id="brep-collapse" class="accordion-collapse collapse" aria-labelledby="brep-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="brep-rz-toggle" data-popup="true" data-layer="brep-zonation-layer" onclick="toggleLayersVisibility(map1, ['brep-zonation-layer'])">
+                        <label class="form-check-label" for="brep-rz-toggle">Risk Zonation</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!--______________________________________________________ -->
+        <!-- ________________________Thalu_________________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="thalu-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#thalu-collapse" aria-expanded="true" aria-controls="thalu-collapse" onclick="setMapCenter(map1,72.17453,35.76674,12);" >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Thalu 1&2</u></span>
+            </button>
+            </h2>
+            <div id="thalu-collapse" class="accordion-collapse collapse" aria-labelledby="thalu-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="thalu-rz-toggle" data-popup="true" data-layer="thalu-zonation-layer" onclick="toggleLayersVisibility(map1, ['thalu-zonation-layer'])">
+                        <label class="form-check-label" for="thalu-rz-toggle">Risk Zonation</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!--______________________________________________________ -->
+        <!-- ________________________Gulmit_________________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="gulmit-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#gulmit-collapse" aria-expanded="true" aria-controls="gulmit-collapse" onclick="accordionZoom(map1, 'gulmit-line-layer', 10, 36.309836704386754, 74.73883211874661)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Gulmit</u></span>
+            </button>
+            </h2>
+            <div id="gulmit-collapse" class="accordion-collapse collapse" aria-labelledby="gulmit-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="gulmit-buildings-toggle" data-popup="true" data-layer="gulmit-buildings-layer" onclick="toggleLayersVisibility(map1, ['gulmit-buildings-layer'])">
+                        <label class="form-check-label" for="gulmit-buildings-toggle">Buildings</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="gulmit-rivers-toggle" data-popup="true" data-layer="gulmit-Rivers-layer" onclick="toggleLayersVisibility(map1, ['gulmit-rivers-layer'])">
+                        <label class="form-check-label" for="gulmit-rivers-toggle">Rivers</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="gulmit-roads-toggle" data-popup="true" data-layer="gulmit-roads-layer" onclick="toggleLayersVisibility(map1, ['gulmit-roads-layer'])">
+                        <label class="form-check-label" for="gulmit-Roads-toggle">Roads</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="gulmit-schools-toggle" data-popup="true" data-layer="gulmit-schools-layer" onclick="toggleLayersVisibility(map1, ['gulmit-schools-layer'])">
+                        <label class="form-check-label" for="gulmit-schools-toggle">Schools</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="gulmit-rz-toggle" data-popup="true" data-layer="gulmit-zonation-layer" onclick="toggleLayersVisibility(map1, ['gulmit-zonation-layer'])">
+                        <label class="form-check-label" for="gulmit-rz-toggle">Risk Zonation</label>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+        <!--______________________________________________________ -->
+        <!-- ________________________Darkot_________________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="darkot-heading">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#darkot-collapse" aria-expanded="true" aria-controls="darkot-collapse" onclick="accordionZoom(map1, '', 9, 36.63656139828247, 73.42122173956244);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Darkot</u></span>
+            </button>
+            </h2>
+            <div id="darkot-collapse" class="accordion-collapse collapse" aria-labelledby="darkot-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="darkot-buildings-toggle" data-popup="true" data-layer="darkot-buildings-layer" onclick="toggleLayersVisibility(map1, ['darkot-buildings-layer'])">
+                        <label class="form-check-label" for="darkot-buildings-toggle">Buildings</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="darkot-glaciers-toggle" data-popup="true" data-layer="darkot-glacier-layer" onclick="toggleLayersVisibility(map1, ['darkot-glacier-layer'])">
+                        <label class="form-check-label" for="darkot-glaciers-toggle">Glaciers</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="darkot-rz-toggle" data-popup="true" data-layer="darkot-zonation-layer" onclick="toggleLayersVisibility(map1, ['darkot-zonation-layer'])">
+                        <label class="form-check-label" for="darkot-rz-toggle">Risk Zonation</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="darkot-river-toggle" data-popup="true" data-layer="darkot-rivers-layer" onclick="toggleLayersVisibility(map1, ['darkot-rivers-layer'])">
+                        <label class="form-check-label" for="darkot-river-toggle">River</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="darkot-schools-toggle" data-popup="true" data-layer="darkot-schools-layer" onclick="toggleLayersVisibility(map1, ['darkot-schools-layer'])">
+                        <label class="form-check-label" for="darkot-schools-toggle">Schools</label> 
+                    </div>
+
+                </div>
+            </div>
+        </div>                           
+        <!--________________________________________________________ -->
+        <!-- ________________________Chatiboi________________________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="chatiboi-heading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#chatiboi-collapse" aria-expanded="false" aria-controls="chatiboi-collapse" onclick="accordionZoom(map1, '', 11, 36.813, 73.290);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stack" viewBox="0 0 16 16">
+                    <path d="m14.12 10.163 1.715.858c.22.11.22.424 0 .534L8.267 15.34a.6.6 0 0 1-.534 0L.165 11.555a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0l5.317-2.66zM7.733.063a.6.6 0 0 1 .534 0l7.568 3.784a.3.3 0 0 1 0 .535L8.267 8.165a.6.6 0 0 1-.534 0L.165 4.382a.299.299 0 0 1 0-.535z" />
+                    <path d="m14.12 6.576 1.715.858c.22.11.22.424 0 .534l-7.568 3.784a.6.6 0 0 1-.534 0L.165 7.968a.299.299 0 0 1 0-.534l1.716-.858 5.317 2.659c.505.252 1.1.252 1.604 0z" />
+                </svg>
+                <span class="ms-2"><u>Chatiboi</u></span>
+                </button>
+            </h2>
+            <div id="chatiboi-collapse" class="accordion-collapse collapse" aria-labelledby="chatiboi-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="chatiboi-lake-toggle" onclick="toggleLayersVisibility(map1, ['chatiboi-lake-fill', 'chatiboi-lake-outline'])">
+                        <label class="form-check-label" for="chatiboi-lake-toggle">Chatiboi Lake</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="chatiboi-runoff-toggle" data-popup="true" data-layer="chatiboi-runoff-layer" onclick="toggleLayersVisibility(map1, ['chatiboi-runoff-layer'])">
+                        <label class="form-check-label" for="chatiboi-runoff-toggle">Chatiboi Run off</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="chatiboi-rz-toggle" data-popup="true" data-layer="chatiboi-risk-high-layer" onclick="toggleLayersVisibility(map1, ['chatiboi-risk-high-layer', 'chatiboi-risk-medium-layer', 'chatiboi-risk-low-layer'])">
+                        <label class="form-check-label" for="chatiboi-rz-toggle">Risk Zonation</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!--________________________________________________________ -->
+        <!-- ___________________Land Surface Temperature___________ -->
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="lst-heading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#lst-collapse" aria-expanded="false" aria-controls="lst-collapse">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-thermometer-half" viewBox="0 0 16 16">
+                    <path d="M9.5 12.5a1.5 1.5 0 1 1-2-1.415V6.5a.5.5 0 0 1 1 0v4.585a1.5 1.5 0 0 1 1 1.415"/>
+                    <path d="M5.5 2.5a2.5 2.5 0 0 1 5 0v7.55a3.5 3.5 0 1 1-5 0zm2.5-1.5a1.5 1.5 0 0 0-1.5 1.5v7.987l-.167.15a2.5 2.5 0 1 0 3.333 0L9.5 10.537V2.5A1.5 1.5 0 0 0 8 1"/>
+                </svg>
+                <span class="ms-2"><u>Land Surface Temp</u></span>
+                </button>
+            </h2>
+            <div id="lst-collapse" class="accordion-collapse collapse" aria-labelledby="lst-heading">
+                <div class="accordion-body">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="lst-layer-toggle" onclick="toggleLST(this.checked)">
+                        <label class="form-check-label" for="lst-layer-toggle">Show LST Layer</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!--________________________________________________________ -->
+        <!-- ___________________Sattelite Imagery___________________ -->
+        <div id="satellite-imagery-div">
+            <a id="satellite-imagery-link" href="https://ee-waqarsha1994.projects.earthengine.app/view/web-imagery-s2" target="_blank" rel="noopener noreferrer">Sattelite Imagery</a>
+        </div>
+        <!--________________________________________________________ -->
+        <!-- _______________________Play All________________________ -->
+        <div id="play-all-div">
+            <span id="tour-lake-label"></span>
+            <button id="play-all-btn" onclick="playAllTour()" title="Play All Lakes Tour">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+                </svg>
+            </button>
+        </div>
+        <!--________________________________________________________ -->
+        <!-- _______________________Layer Tour______________________ -->
+        <div id="layer-tour-div">
+            <div id="layer-tour-top">
+                <span id="layer-tour-heading">Layer Tour</span>
+                <button id="layer-tour-refresh-btn" type="button" onclick="refreshLayerTourOptions()" title="Refresh opened layers">
+                    <i class="fas fa-rotate"></i>
+                </button>
+            </div>
+            <select id="layer-tour-select" onchange="stopLayerTourIfRunning()">
+                <option value="">Select opened layer</option>
+            </select>
+            <div id="layer-tour-speed-wrap">
+                <label for="layer-tour-speed-slider">Speed</label>
+                <input
+                    id="layer-tour-speed-slider"
+                    type="range"
+                    min="1"
+                    max="5"
+                    value="3"
+                    step="1"
+                    oninput="updateLayerTourSpeed(this.value)"
+                >
+                <span id="layer-tour-speed-value">Normal</span>
+            </div>
+            <div id="layer-tour-actions">
+                <button id="layer-tour-btn" type="button" onclick="toggleLayerTour()">Start Tour</button>
+                <span id="layer-tour-status">Idle</span>
+            </div>
+        </div>
+        <!--________________________________________________________ -->
+        <!-- _____________________Alerts Archive____________________ -->
+        <div id="alerts-archive-div">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="alerts-archive-toggle" onchange="toggleAlertsArchive(this.checked)">
+                <label class="form-check-label" for="alerts-archive-toggle">Alerts Archive</label>
+            </div>
+        </div>
+        <!--________________________________________________________ -->
+        <!-- _______________________Basemaps________________________ -->
+         <div id="basemapbtn-div">
+            <span id="basemap-heading"><u>Basemaps</u></span>
+            <div class="basemapbtns">
+                <div class="basemapbtn-option">
+                    <img id="hybrid-bm" src="data/basemap-icons/hybrid.webp" alt="Hybrid" onclick="changeBasemap('hybrid')">
+                    <span>Hybrid</span>
+                </div>
+                <div class="basemapbtn-option">
+                    <img id="terrain-bm" src="data/basemap-icons/terrain.webp" alt="Terrain" onclick="changeBasemap('terrain')">
+                    <span>Terrain</span>
+                </div>
+                <div class="basemapbtn-option">
+                    <img id="light-bm" src="data/basemap-icons/osm.webp" alt="Light" onclick="changeBasemap('light')">
+                    <span>Light</span>
+                </div>
+                <div class="basemapbtn-option">
+                    <img id="dark-bm" src="data/basemap-icons/dark.webp" alt="Dark" onclick="changeBasemap('dark')">
+                    <span>Dark</span>
+                </div>
+            </div>
+         </div>
+    </div>
+
+
+    <!-- _______________________________________________________________________________________________________________________________________________________ -->
+    <script src="template/buttons.js"></script>
+    <script src="template/controls.js"></script>
+    <script src="template/map_init.js"></script>
+    <script src="data/geojsons/badswat/badswat_glaciers.js"></script>
+    <script src="data/geojsons/badswat/badswat_lake.js"></script>
+    <script src="data/geojsons/badswat/badswat_faultline.js"></script>
+    <script src="data/geojsons/badswat/ishkoman_river.js"></script>
+    <script src="data/geojsons/badswat/karambar_lake.js"></script>
+    <script src="data/geojsons/badswat/risk_zonation_badswat.js"></script>
+    <script src="data/geojsons/hinarchi/hinarchi_glacier.js"></script>
+    <script src="data/geojsons/hinarchi/hinarchi_lake.js"></script>
+    <script src="data/geojsons/hinarchi/hinarchi_zonation.js"></script>
+    <script src="data/geojsons/reshun/chitral_river.js"></script>
+    <script src="data/geojsons/reshun/faultline_reshun.js"></script>
+    <script src="data/geojsons/reshun/glacier_reshun.js"></script>
+    <script src="data/geojsons/reshun/nullah_reshun.js"></script>
+    <script src="data/geojsons/reshun/risk_zonation_reshun.js"></script>
+    <script src="data/geojsons/brep/brep_zonation.js"></script>
+    <script src="data/geojsons/darkot/darkotRz.js"></script>
+    <script src="data/geojsons/darkot/darkot_schools.js"></script>
+    <script src="data/geojsons/darkot/darkot_buildings.js"></script>
+    <script src="data/geojsons/darkot/darkot_river.js"></script>
+    <script src="data/geojsons/darkot/darkot_glaciers.js"></script>
+    <script src="data/geojsons/gulmit/gulmitBuildings.js"></script>
+    <script src="data/geojsons/gulmit/gulmitRivers.js"></script>
+    <script src="data/geojsons/gulmit/gulmitRoads.js"></script>
+    <script src="data/geojsons/gulmit/gulmitSchools.js"></script>
+    <script src="data/geojsons/gulmit/gulmitRz.js"></script>
+    <script src="data/geojsons/thalu/thaluRz.js"></script>
+    <script src="data/glof_sites.js"></script>
+    <script src="data/vulnerable_lakes.js"></script>
+    <script src="data/incident.js"></script>
+    <script src="template/map_layers.js"></script>
+    <script src="template/map_layer_legends.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+
+    <!-- ======================================================
+         Glacial Lake Area Chart Initialization
+    ======================================================= -->
+    <script>
+    // -------------------------------------------------------
+    // Data: district, lake name, area in m² (2020-2025)
+    // -------------------------------------------------------
+    const lakeAreaData = [
+        { district: 'GHIZER',      name: 'Darkut',         values: [202000, 215000, 222900, 219100, 221600, 221400], volume: [3553303,   3882361,   4086482,   3987912,   4052681,   4047488]   },
+        { district: 'UPPER DIR',   name: 'Thalo 1',        values: [233000, 273700, 259200, 227200, 137800, 263100], volume: [4351898,   5469701,   5062850,   4198877,   2064273,   5171362]   },
+        { district: 'CHITRAL',     name: 'Thalo 2',        values: [42700,  164400, 172100, 182800, 164600, 62200],  volume: [391057.8,  2652247,   2830363,   3083469,   2656830,   667138]    },
+        { district: 'CHITRAL',     name: 'Pindoru Chaat',  values: [219500, 238500, 250700, 274200, 293700, 301200], volume: [3998254,   4498491,   4828725,   5483895,   6045844,   6266245]   },
+        { district: 'CHITRAL',     name: 'Near Chatiboi',  values: [10500,  9500,   3900,   3500,   4300,   4200],   volume: [53348.49,  46280.8,   13072.09,  11210.11,  15016.15,  14522.7]   },
+        { district: 'CHITRAL',     name: 'Chatiboi',       values: [211900, 186800, 201600, 202900, 244000, 221000], volume: [3803114,   3179717,   3543316,   3575805,   4646510,   4037108]   },
+        { district: 'CHITRAL',     name: 'Lasht',          values: [27300,  17500,  40400,  52300,  74200,  77800],  volume: [207197.4,  110191.3,  361488.8,  521561.8,  857051.4,  916694]    },
+        { district: 'GHIZER',      name: 'Badswat',        values: [750600, 690700, 792500, 825000, 720900, 738800], volume: [22914664,  20362184,  24752114,  26205832,  21637938,  22404823]  },
+        { district: 'GHIZER',      name: 'Ishkoman',       values: [74400,  72700,  77300,  72300,  74800,  79900],  volume: [860333.6,  832553.6,  908339.5,  826056.4,  866909.2,  952028.1]  },
+        { district: 'HUNZA NAGAR', name: 'Ultar',          values: [12000,  11100,  11000,  9600,   8600,   71],     volume: [64486.78,  57728.73,  56991.61,  46974.1,   40181.04,  44.24052]  },
+        { district: 'CHITRAL',     name: 'Reshun',         values: [2900,   1400,   1900,   3000,   3700,   2700],   volume: [8582.988,  3051.653,  4708.293,  9006.282,  12130.53,  7754.787]  },
+        { district: 'CHITRAL',     name: 'Brep',           values: [24900,  19900,  16400,  17300,  23100,  25000],  volume: [181817.8,  132252.7,  100487.4,  108407.4,  163441.5,  182855.6]  }
+    ];
+
+    const chartYears = ['2020', '2021', '2022', '2023', '2024', '2025'];
+
+    // Palette for individual lakes
+    const lakeColors = [
+        '#60a5fa', '#34d399', '#f59e0b', '#f87171',
+        '#a78bfa', '#fb923c', '#38bdf8', '#4ade80',
+        '#e879f9', '#fbbf24', '#2dd4bf', '#f472b6', '#86efac'
+    ];
+
+    let lakeChart = null;
+
+    // Build Chart.js dataset array based on selected lake
+    const districtColors = { 'GHIZER': '#60a5fa', 'CHITRAL': '#34d399', 'UPPER DIR': '#f59e0b', 'HUNZA NAGAR': '#f87171' };
+
+    function buildLakeDatasets(lakeName) {
+        if (lakeName === 'ALL') {
+            // One line per individual lake — all 13
+            return lakeAreaData.map((lake, i) => {
+                const col = lakeColors[i % lakeColors.length];
+                return {
+                    label: lake.name,
+                    data: lake.values,
+                    borderColor: col,
+                    backgroundColor: col + '18',
+                    pointBackgroundColor: col,
+                    pointBorderColor: '#0d1b2a',
+                    pointBorderWidth: 1.5,
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    fill: false,
+                    tension: 0.38
+                };
+            });
+        } else if (lakeName.startsWith('DIST:')) {
+            // All lakes within a single district
+            const dist = lakeName.slice(5);
+            const distLakes = lakeAreaData.filter(l => l.district === dist);
+            return distLakes.map((lake, i) => {
+                const col = lakeColors[i % lakeColors.length];
+                return {
+                    label: lake.name,
+                    data: lake.values,
+                    borderColor: col,
+                    backgroundColor: col + '22',
+                    pointBackgroundColor: col,
+                    pointBorderColor: '#0d1b2a',
+                    pointBorderWidth: 1.5,
+                    borderWidth: 2.5,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    fill: false,
+                    tension: 0.38
+                };
+            });
+        } else {
+            // Single lake — highlighted area chart
+            const lake = lakeAreaData.find(l => l.name === lakeName);
+            if (!lake) return [];
+            const col = districtColors[lake.district] || '#60a5fa';
+            return [{
+                label: lake.name + ' (' + lake.district.charAt(0) + lake.district.slice(1).toLowerCase() + ')',
+                data: lake.values,
+                borderColor: col,
+                backgroundColor: col + '35',
+                pointBackgroundColor: col,
+                pointBorderColor: '#fff',
+                pointBorderWidth: 1.5,
+                borderWidth: 3,
+                pointRadius: 6,
+                pointHoverRadius: 9,
+                fill: true,
+                tension: 0.4
+            }];
+        }
+    }
+
+    function initLakeChart() {
+        const ctx = document.getElementById('lakeAreaChart');
+        if (!ctx) return;
+        lakeChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartYears,
+                datasets: buildLakeDatasets('ALL')
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 700, easing: 'easeInOutQuart' },
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'right',
+                        labels: {
+                            color: '#93c5fd',
+                            font: { size: 10, family: 'inherit' },
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            padding: 7,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#0d1b2a',
+                        borderColor: '#1d4ed8',
+                        borderWidth: 1,
+                        titleColor: '#93c5fd',
+                        titleFont: { size: 11, weight: '600' },
+                        bodyColor: '#e2e8f0',
+                        bodyFont: { size: 10 },
+                        padding: 8,
+                        callbacks: {
+                            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} m²`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid:   { color: 'rgba(255,255,255,0.07)', drawTicks: false },
+                        ticks:  { color: '#93c5fd', font: { size: 10 }, padding: 4 },
+                        border: { color: '#1d4ed8', width: 1 }
+                    },
+                    y: {
+                        grid:   { color: 'rgba(255,255,255,0.07)', drawTicks: false },
+                        ticks:  {
+                            color: '#93c5fd',
+                            font: { size: 9 },
+                            padding: 4,
+                            callback: v => {
+                                if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+                                if (v >= 1000)    return (v / 1000).toFixed(0) + 'k';
+                                return v;
+                            }
+                        },
+                        border: { color: '#1d4ed8', width: 1 }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateLakeChart() {
+        if (!lakeChart) return;
+        const lakeName = document.getElementById('lake-select').value;
+        lakeChart.data.datasets = buildLakeDatasets(lakeName);
+        lakeChart.update();
+    }
+
+    window.addEventListener('load', initLakeChart);
+
+    // -------------------------------------------------------
+    // Volume Chart (Chart 2) — district-wise stacked bar
+    // -------------------------------------------------------
+    const districtPalette = {
+        'GHIZER':      { base: '#60a5fa', bg: '#60a5fa55' },
+        'CHITRAL':     { base: '#34d399', bg: '#34d39955' },
+        'UPPER DIR':   { base: '#f59e0b', bg: '#f59e0b55' },
+        'HUNZA NAGAR': { base: '#f87171', bg: '#f8717155' }
+    };
+
+    // Per-lake bar colors for single-district view
+    const volLakeColors = [
+        '#60a5fa','#34d399','#f59e0b','#f87171',
+        '#a78bfa','#fb923c','#38bdf8','#4ade80',
+        '#e879f9','#fbbf24','#2dd4bf','#f472b6','#86efac'
+    ];
+
+    let volumeChart = null;
+
+    function fmtVol(v) {
+        if (v >= 1e6)  return (v / 1e6).toFixed(2)  + 'M';
+        if (v >= 1e3)  return (v / 1e3).toFixed(1)  + 'k';
+        return v.toFixed(0);
+    }
+
+    function buildVolumeDatasets(lakeName) {
+        if (lakeName === 'ALL') {
+            // One stacked dataset per district — summed volume
+            return Object.keys(districtPalette).map(d => {
+                const lakes = lakeAreaData.filter(l => l.district === d);
+                const sums  = chartYears.map((_, i) => lakes.reduce((acc, l) => acc + l.volume[i], 0));
+                return {
+                    label: d.charAt(0) + d.slice(1).toLowerCase(),
+                    data: sums,
+                    backgroundColor: districtPalette[d].bg,
+                    borderColor:     districtPalette[d].base,
+                    borderWidth: 1.5,
+                    borderRadius: 3,
+                    borderSkipped: false
+                };
+            });
+        } else if (lakeName.startsWith('DIST:')) {
+            // All individual lakes within a district — grouped bars
+            const dist = lakeName.slice(5);
+            const distLakes = lakeAreaData.filter(l => l.district === dist);
+            return distLakes.map((lake, i) => {
+                const col = volLakeColors[i % volLakeColors.length];
+                return {
+                    label: lake.name,
+                    data: lake.volume,
+                    backgroundColor: col + '55',
+                    borderColor:     col,
+                    borderWidth: 2,
+                    borderRadius: 4,
+                    borderSkipped: false
+                };
+            });
+        } else {
+            // Single lake — one bar series across years
+            const lake = lakeAreaData.find(l => l.name === lakeName);
+            if (!lake) return [];
+            const col = districtPalette[lake.district]?.base || '#60a5fa';
+            return [{
+                label: lake.name + ' (' + lake.district.charAt(0) + lake.district.slice(1).toLowerCase() + ')',
+                data: lake.volume,
+                backgroundColor: col + '55',
+                borderColor:     col,
+                borderWidth: 2,
+                borderRadius: 4,
+                borderSkipped: false
+            }];
+        }
+    }
+
+    function initVolumeChart() {
+        const ctx = document.getElementById('lakeVolumeChart');
+        if (!ctx) return;
+        volumeChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartYears,
+                datasets: buildVolumeDatasets('ALL')
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 700, easing: 'easeInOutQuart' },
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'right',
+                        labels: {
+                            color: '#93c5fd',
+                            font: { size: 10, family: 'inherit' },
+                            boxWidth: 10,
+                            boxHeight: 10,
+                            padding: 7,
+                            usePointStyle: true,
+                            pointStyle: 'rectRounded'
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#0d1b2a',
+                        borderColor: '#1d4ed8',
+                        borderWidth: 1,
+                        titleColor: '#93c5fd',
+                        titleFont: { size: 11, weight: '600' },
+                        bodyColor: '#e2e8f0',
+                        bodyFont: { size: 10 },
+                        padding: 8,
+                        callbacks: {
+                            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString(undefined, {maximumFractionDigits:1})} m³`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid:   { color: 'rgba(255,255,255,0.07)', drawTicks: false },
+                        ticks:  { color: '#93c5fd', font: { size: 10 }, padding: 4 },
+                        border: { color: '#1d4ed8', width: 1 }
+                    },
+                    y: {
+                        stacked: true,
+                        grid:   { color: 'rgba(255,255,255,0.07)', drawTicks: false },
+                        ticks:  {
+                            color: '#93c5fd',
+                            font: { size: 9 },
+                            padding: 4,
+                            callback: fmtVol
+                        },
+                        border: { color: '#1d4ed8', width: 1 }
+                    }
+                }
+            }
+        });
+    }
+
+    function updateVolumeChart() {
+        if (!volumeChart) return;
+        const lakeName = document.getElementById('vol-lake-select').value;
+        const isAll    = lakeName === 'ALL';
+        // Stack only for All Lakes view; district or single lake use grouped bars
+        volumeChart.options.scales.x.stacked = isAll;
+        volumeChart.options.scales.y.stacked = isAll;
+        volumeChart.data.datasets = buildVolumeDatasets(lakeName);
+        volumeChart.update();
+    }
+
+    window.addEventListener('load', initVolumeChart);
+
+    // ================================================================
+    // PLAY ALL LAKES TOUR
+    // ================================================================
+    const _lakeTour = [
+        { name: 'Badswat',      zoom: 10, lat: 36.2923, lng: 73.2770, chartVal: 'Badswat'       },
+        { name: 'Hinarchi',     zoom: 10, lat: 36.2070, lng: 74.3294, chartVal: 'ALL'           },
+        { name: 'Reshun',       zoom: 12, lat: 36.0800, lng: 71.8606, chartVal: 'Reshun'        },
+        { name: 'Shisper',      zoom: 12, lat: 36.29265, lng: 74.6057, chartVal: 'ALL'           },
+        { name: 'Brep',         zoom: 13, lat: 36.483,  lng: 72.730,  chartVal: 'Brep'          },
+        { name: 'Thalu 1&2',    zoom: 12, lat: 35.770,  lng: 72.163,  chartVal: 'Thalo 1'       },
+        { name: 'Gulmit',       zoom: 12, lat: 36.310,  lng: 74.739,  chartVal: 'ALL'           },
+        { name: 'Darkot',       zoom: 11, lat: 36.637,  lng: 73.421,  chartVal: 'Darkut'        },
+        { name: 'Chatiboi',     zoom: 13, lat: 36.813,  lng: 73.290,  chartVal: 'Chatiboi'      },
+    ];
+    let _tourIndex   = 0;
+    let _tourTimer   = null;
+    let _tourPlaying = false;
+
+    const PLAY_ICON  = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/></svg>`;
+    const PAUSE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5m5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5"/></svg>`;
+
+    function _tourGoTo(idx) {
+        const stop = _lakeTour[idx];
+        map1.flyTo({ center: [stop.lng, stop.lat], zoom: stop.zoom, speed: 2.5, curve: 1.2, essential: true });
+        const ls = document.getElementById('lake-select');
+        const vs = document.getElementById('vol-lake-select');
+        if (ls) { ls.value = stop.chartVal; updateLakeChart(); }
+        if (vs) { vs.value = stop.chartVal; updateVolumeChart(); }
+        const lbl = document.getElementById('tour-lake-label');
+        if (lbl) lbl.textContent = stop.name;
+    }
+
+    function playAllTour() {
+        const btn = document.getElementById('play-all-btn');
+        if (_tourPlaying) {
+            clearInterval(_tourTimer);
+            _tourTimer   = null;
+            _tourPlaying = false;
+            btn.innerHTML = PLAY_ICON;
+            const lbl = document.getElementById('tour-lake-label');
+            if (lbl) lbl.textContent = '';
+        } else {
+            _tourPlaying  = true;
+            btn.innerHTML = PAUSE_ICON;
+            _tourGoTo(_tourIndex);
+            _tourTimer = setInterval(() => {
+                _tourIndex = (_tourIndex + 1) % _lakeTour.length;
+                _tourGoTo(_tourIndex);
+            }, 4000);
+        }
+    }
+    </script>
+
+</body>
+
+</html>
+<!-- _______________________________________________________________________________________________________________________________________________________ -->
+<!-- _______________________________________________________________________________________________________________________________________________________ -->
+<!-- _______________________________________________________________________________________________________________________________________________________ -->

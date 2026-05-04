@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-day-bg text-day-text dark:bg-night-bg dark:text-night-text antialiased;
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+
+  *,
+  *::before,
+  *::after {
+    border-color: theme('colors.day.border');
+  }
+
+  .dark *,
+  .dark *::before,
+  .dark *::after {
+    border-color: theme('colors.night.border');
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.slate.300') transparent;
+  }
+
+  .dark * {
+    scrollbar-color: theme('colors.night.border') transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 dark:bg-night-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400 dark:bg-night-muted;
+  }
+
+  ::-webkit-scrollbar-corner {
+    @apply bg-transparent;
+  }
+}
+
+@layer components {
+  /* Buttons */
+  .btn-base       { @apply inline-flex items-center justify-center gap-2 font-medium rounded-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-sm         { @apply text-xs px-3 py-1.5; }
+  .btn-md         { @apply text-sm px-4 py-2; }
+  .btn-lg         { @apply text-base px-5 py-2.5; }
+  .btn-primary    { @apply btn-base bg-brand-700 text-white hover:bg-brand-800 active:bg-brand-900 shadow-sm; }
+  .btn-secondary  { @apply btn-base bg-brand-100 text-brand-800 hover:bg-brand-200 dark:bg-brand-800/30 dark:text-brand-100 dark:hover:bg-brand-800/50; }
+  .btn-light      { @apply btn-base bg-white text-day-text hover:bg-slate-50 border border-day-border dark:bg-night-surface dark:text-night-text dark:border-night-border dark:hover:bg-night-bg; }
+  .btn-dark       { @apply btn-base bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600; }
+  .btn-ghost      { @apply btn-base bg-transparent text-day-text hover:bg-slate-100 dark:text-night-text dark:hover:bg-night-surface; }
+  .btn-danger     { @apply btn-base bg-accent-danger text-white hover:opacity-90; }
+  .btn-icon       { @apply btn-base p-2 aspect-square; }
+
+  /* Inputs */
+  .input-base     { @apply w-full px-3 py-2 text-sm rounded-md bg-white border border-day-border text-day-text placeholder:text-day-muted focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-colors duration-150 dark:bg-night-surface dark:border-night-border dark:text-night-text dark:placeholder:text-night-muted; }
+
+  /* Selects */
+  .select-base    { @apply input-base appearance-none pr-9 cursor-pointer bg-no-repeat; }
+
+  /* Cards / Panels */
+  .card-base      { @apply rounded-lg bg-white shadow-card border border-day-border dark:bg-night-surface dark:border-night-border transition-colors duration-200; }
+  .panel-base     { @apply card-base p-4; }
+  .panel-header   { @apply flex items-center justify-between pb-3 mb-3 border-b border-day-border dark:border-night-border; }
+
+  /* Labels / chips */
+  .label-base     { @apply text-xs font-medium text-day-muted dark:text-night-muted uppercase tracking-wider; }
+  .chip           { @apply inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-brand-100 text-brand-800 dark:bg-brand-800/30 dark:text-brand-100; }
+
+  /* Title bar */
+  .titlebar       { @apply fixed top-0 left-0 right-0 z-50 h-16 bg-brand-900 text-white shadow-titlebar flex items-center px-4 sm:px-6; }
+  .titlebar-content-offset { @apply pt-16; }
+}
+
+/* ----------------------------------------------------------------------- */
+/* Mapbox control overrides — minimal, theme-aware, tighter than defaults. */
+/* These live outside @layer so they reliably override the imported        */
+/* mapbox-gl.css cascade.                                                  */
+/* ----------------------------------------------------------------------- */
+.mapboxgl-ctrl-group {
+  background-color: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid theme('colors.day.border');
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.dark .mapboxgl-ctrl-group {
+  background-color: rgba(42, 51, 58, 0.92);
+  border-color: theme('colors.night.border');
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.mapboxgl-ctrl-group button {
+  width: 28px;
+  height: 28px;
+  background-color: transparent;
+}
+
+.mapboxgl-ctrl-group button + button {
+  border-top: 1px solid theme('colors.day.border');
+}
+
+.dark .mapboxgl-ctrl-group button + button {
+  border-top-color: theme('colors.night.border');
+}
+
+.mapboxgl-ctrl-group button:not(:disabled):hover {
+  background-color: rgba(15, 23, 42, 0.05);
+}
+
+.dark .mapboxgl-ctrl-group button:not(:disabled):hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Mapbox ships icons as dark SVGs on transparent buttons; invert for night. */
+.dark .mapboxgl-ctrl-group .mapboxgl-ctrl-icon {
+  filter: invert(0.92) brightness(1.1);
+}
+
+/* Compass needle keeps its color so north stays readable */
+.dark .mapboxgl-ctrl-compass .mapboxgl-ctrl-icon {
+  filter: invert(0.92) brightness(1.1);
+}
+
+/* Scale control */
+.mapboxgl-ctrl-scale {
+  background-color: rgba(255, 255, 255, 0.85);
+  border-color: theme('colors.day.border');
+  color: theme('colors.day.text');
+  font-size: 10px;
+  padding: 1px 4px;
+}
+
+.dark .mapboxgl-ctrl-scale {
+  background-color: rgba(42, 51, 58, 0.85);
+  border-color: theme('colors.night.border');
+  color: theme('colors.night.text');
+}
