@@ -1,7 +1,14 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Listbox, Transition } from '@headlessui/react';
-import { Check, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Check,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import { useParameter } from '@/contexts/ParameterContext';
 import {
   colorForReading,
@@ -31,6 +38,16 @@ export default function StationsTable() {
     setSelectedStation,
   } = useParameter();
   const [open, setOpen] = useState(true);
+  // { column: 'station' | 'value' | 'updated', direction: 'asc' | 'desc' }
+  const [sort, setSort] = useState({ column: 'value', direction: 'asc' });
+
+  const toggleSort = (column) => {
+    setSort((prev) =>
+      prev.column === column
+        ? { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { column, direction: 'asc' },
+    );
+  };
 
   // Auto-scroll to a station that was just clicked on the map.
   useEffect(() => {
@@ -53,10 +70,27 @@ export default function StationsTable() {
     });
   };
 
-  // Sort by element value ascending; null/non-numeric readings sink to
-  // the bottom so the active stations rise to the top.
+  // Sort by the active column. Bad/missing values always sink so live
+  // stations stay near the top regardless of direction.
   const sortedStations = useMemo(() => {
-    return [...stations].sort((a, b) => {
+    const dir = sort.direction === 'asc' ? 1 : -1;
+    const cmp = (a, b) => {
+      if (sort.column === 'station') {
+        const an = (a.properties?.stationName ?? '').toString();
+        const bn = (b.properties?.stationName ?? '').toString();
+        return an.localeCompare(bn) * dir;
+      }
+      if (sort.column === 'updated') {
+        const at = parseTs(a.properties?.lastUpdate);
+        const bt = parseTs(b.properties?.lastUpdate);
+        const aBad = at == null;
+        const bBad = bt == null;
+        if (aBad && bBad) return 0;
+        if (aBad) return 1;
+        if (bBad) return -1;
+        return (at - bt) * dir;
+      }
+      // value (default)
       const av = Number(a.properties?.value);
       const bv = Number(b.properties?.value);
       const aBad = !Number.isFinite(av);
@@ -64,9 +98,10 @@ export default function StationsTable() {
       if (aBad && bBad) return 0;
       if (aBad) return 1;
       if (bBad) return -1;
-      return av - bv;
-    });
-  }, [stations]);
+      return (av - bv) * dir;
+    };
+    return [...stations].sort(cmp);
+  }, [stations, sort]);
 
   const unitForSelected = PARAMETER_LEGENDS[selected]?.unit ?? '';
   const selectedLabel =
@@ -208,11 +243,29 @@ export default function StationsTable() {
                 <table className="w-full text-[11px] table-fixed">
                   <thead className="sticky top-0 bg-day-bg/95 dark:bg-night-bg/95 backdrop-blur-sm border-b border-day-border dark:border-night-border">
                     <tr className="text-day-muted dark:text-night-muted">
-                      <th className="text-left font-medium px-2.5 py-1 w-[50%]">Station</th>
-                      <th className="text-left font-medium px-2.5 py-1">
+                      <SortableTh
+                        column="station"
+                        sort={sort}
+                        onToggle={toggleSort}
+                        className="w-[50%]"
+                      >
+                        Station
+                      </SortableTh>
+                      <SortableTh
+                        column="value"
+                        sort={sort}
+                        onToggle={toggleSort}
+                      >
                         Value{unitForSelected ? ` (${unitForSelected})` : ''}
-                      </th>
-                      <th className="text-left font-medium px-2.5 py-1 w-[88px]">Updated</th>
+                      </SortableTh>
+                      <SortableTh
+                        column="updated"
+                        sort={sort}
+                        onToggle={toggleSort}
+                        className="w-[88px]"
+                      >
+                        Updated
+                      </SortableTh>
                     </tr>
                   </thead>
                   <tbody>
@@ -263,4 +316,39 @@ export default function StationsTable() {
       </AnimatePresence>
     </motion.div>
   );
+}
+
+function SortableTh({ column, sort, onToggle, className, children }) {
+  const active = sort.column === column;
+  const Icon = !active ? ArrowUpDown : sort.direction === 'asc' ? ArrowUp : ArrowDown;
+  return (
+    <th
+      scope="col"
+      aria-sort={
+        active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'
+      }
+      className={cn('text-left font-medium px-2.5 py-1', className)}
+    >
+      <button
+        type="button"
+        onClick={() => onToggle(column)}
+        className={cn(
+          'inline-flex items-center gap-1 hover:text-day-text dark:hover:text-night-text transition-colors',
+          active && 'text-[#16a085]',
+        )}
+      >
+        <span className="truncate">{children}</span>
+        <Icon
+          className={cn('h-3 w-3 shrink-0', !active && 'opacity-50')}
+          strokeWidth={2}
+        />
+      </button>
+    </th>
+  );
+}
+
+function parseTs(iso) {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) ? t : null;
 }
