@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import Sidebar from '@/components/layout/Sidebar';
+import LeftSidebar from '@/components/layout/LeftSidebar';
 import RightSidebar from '@/components/layout/RightSidebar';
-import LayerMenu from './LayerMenu';
+import { GLACIER_LAYER_ID } from '@/config/glacierLayer';
 import MapPanel from './MapPanel';
 import ChartsRow from './ChartsRow';
 import QuickToggles from './QuickToggles';
@@ -9,7 +9,6 @@ import QuickToggles from './QuickToggles';
 const TERRAIN_SPEC = { source: 'mapbox-dem', exaggeration: 1.5 };
 
 export default function Dashboard() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [map, setMap] = useState(null);
   const [quickLayers, setQuickLayers] = useState(() => new Set(['terrain']));
 
@@ -39,14 +38,31 @@ export default function Dashboard() {
     };
   }, [map, quickLayers]);
 
+  // Real-time glacier / snow cover overlay (NASA GIBS NDSI, Pakistan-bounded).
+  // Driven by the "Glaciers" quick toggle.
+  useEffect(() => {
+    if (!map) return;
+    const visible = quickLayers.has('glaciers');
+
+    const apply = () => {
+      if (!map.getLayer(GLACIER_LAYER_ID)) return;
+      map.setLayoutProperty(
+        GLACIER_LAYER_ID,
+        'visibility',
+        visible ? 'visible' : 'none',
+      );
+    };
+
+    apply();
+    map.on('style.load', apply);
+    return () => {
+      map.off('style.load', apply);
+    };
+  }, [map, quickLayers]);
+
   return (
     <div className="flex flex-1 min-h-0 gap-3 p-3 lg:p-4 overflow-hidden">
-      <Sidebar
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed((c) => !c)}
-      >
-        <LayerMenu />
-      </Sidebar>
+      <LeftSidebar />
 
       <div className="flex flex-col flex-1 min-w-0 min-h-0 gap-3 overflow-hidden">
         <QuickToggles active={quickLayers} onToggle={toggleQuickLayer} />

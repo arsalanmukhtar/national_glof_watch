@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { mapboxgl, BASEMAPS, DEFAULT_MAP_VIEW } from '@/config/mapbox';
+import {
+  GLACIER_LAYER_ID,
+  GLACIER_SOURCE_ID,
+  glacierLayerSpec,
+  glacierSourceSpec,
+} from '@/config/glacierLayer';
 import BasemapSwitcher from './BasemapSwitcher';
 import { cn } from '@/utils/cn';
 
@@ -34,7 +40,8 @@ export default function MapPanel({ className, onMapReady }) {
     map.addControl(new mapboxgl.FullscreenControl(), 'top-right');
     map.addControl(new mapboxgl.ScaleControl({ unit: 'metric' }), 'bottom-right');
 
-    // Re-add the DEM source on every style swap; terrain on/off is owned by Dashboard.
+    // Re-register sources/layers on every style swap (Mapbox wipes them).
+    // Visibility (terrain on/off, glacier overlay on/off) is owned by Dashboard.
     map.on('style.load', () => {
       if (!map.getSource('mapbox-dem')) {
         map.addSource('mapbox-dem', {
@@ -43,6 +50,17 @@ export default function MapPanel({ className, onMapReady }) {
           tileSize: 512,
           maxzoom: 14,
         });
+      }
+
+      if (!map.getSource(GLACIER_SOURCE_ID)) {
+        map.addSource(GLACIER_SOURCE_ID, glacierSourceSpec);
+      }
+      if (!map.getLayer(GLACIER_LAYER_ID)) {
+        // Insert below the first symbol (label) layer so place names stay readable.
+        const firstSymbolId = map
+          .getStyle()
+          .layers.find((l) => l.type === 'symbol')?.id;
+        map.addLayer(glacierLayerSpec, firstSymbolId);
       }
     });
 
