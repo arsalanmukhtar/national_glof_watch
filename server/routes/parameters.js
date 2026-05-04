@@ -107,6 +107,56 @@ parametersRouter.get('/:element/geojson', async (req, res) => {
   }
 });
 
+// GET /api/parameters/:element/stations/:stationId/trend?bucket=hour|day
+// Returns aggregated time-series for one station + element. `hour` buckets
+// average over the last 24 hours (daily view); `day` buckets average over
+// the last 7 days (weekly view). Empty buckets are simply omitted.
+parametersRouter.get(
+  '/:element/stations/:stationId/trend',
+  async (req, res) => {
+    const element = decodeURIComponent(req.params.element);
+    if (!isValidElement(element)) {
+      return res.status(400).json({ error: `Unknown element: ${element}` });
+    }
+    const stationId = Number(req.params.stationId);
+    if (!Number.isFinite(stationId)) {
+      return res.status(400).json({ error: 'Invalid stationId' });
+    }
+    const bucket = req.query.bucket === 'day' ? 'day' : 'hour';
+    const interval = bucket === 'day' ? '7 days' : '24 hours';
+
+    try {
+      const { rows } = await pool.query(
+        `SELECT date_trunc($3, last_update) AS bucket,
+                AVG(value)                  AS value,
+                COUNT(*)                    AS samples
+           FROM station_readings
+          WHERE station_id = $1
+            AND element    = $2
+            AND last_update IS NOT NULL
+            AND last_update >= NOW() - $4::interval
+          GROUP BY bucket
+          ORDER BY bucket ASC`,
+        [stationId, element, bucket, interval],
+      );
+
+      res.json({
+        element,
+        stationId,
+        bucket,
+        points: rows.map((r) => ({
+          ts: r.bucket?.toISOString?.() ?? r.bucket,
+          value: r.value == null ? null : Number(r.value),
+          samples: Number(r.samples) || 0,
+        })),
+      });
+    } catch (err) {
+      console.error('[GET trend]', err);
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
+
 // POST /api/parameters/:element/store
 // Fetch live data from PMD and persist to the database.
 parametersRouter.post('/:element/store', async (req, res) => {

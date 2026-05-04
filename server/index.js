@@ -8,7 +8,11 @@ import { storeAllElements } from './lib/store.js';
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
 
-const STORE_INTERVAL_MIN = Number(process.env.STORE_INTERVAL_MIN ?? 30);
+// Cron cadence for the auto-fetch cycle. 10-minute default gives dense
+// enough samples for hourly/daily averages on the trend chart; the DB's
+// UNIQUE(station_id, element, last_update) constraint dedupes any repeats
+// when a sensor's lastUpdate hasn't advanced between fetches.
+const STORE_INTERVAL_MIN = Number(process.env.STORE_INTERVAL_MIN ?? 10);
 const STORE_INTERVAL_MS = Math.max(1, STORE_INTERVAL_MIN) * 60 * 1000;
 
 app.use(cors());
