@@ -215,13 +215,18 @@ function Tabs({ tab, onChange }) {
 
 function PmdTrendPanel({ theme }) {
   const { selected, selectedStation } = useParameter();
-  const [bucket, setBucket] = useState('hour'); // 'hour' (daily) | 'day' (weekly)
+  // 'daily' = hour bucket / last 24 h
+  // 'weekly' = day bucket / last 7 d
+  // 'custom' = day bucket / last `customDays` d
+  const [mode, setMode] = useState('daily');
+  const [customDays, setCustomDays] = useState(14);
   const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const stationId = selectedStation?.stationId;
   const stationName = selectedStation?.stationName;
+  const bucket = mode === 'daily' ? 'hour' : 'day';
 
   useEffect(() => {
     if (!selected || !stationId) {
@@ -231,9 +236,15 @@ function PmdTrendPanel({ theme }) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(
-      `/api/parameters/${encodeURIComponent(selected)}/stations/${stationId}/trend?bucket=${bucket}`,
-    )
+    const url = new URL(
+      `/api/parameters/${encodeURIComponent(selected)}/stations/${stationId}/trend`,
+      window.location.origin,
+    );
+    url.searchParams.set('bucket', bucket);
+    if (mode === 'custom') {
+      url.searchParams.set('days', String(Math.max(1, Math.min(365, customDays || 1))));
+    }
+    fetch(url.toString())
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((data) => {
         if (cancelled) return;
@@ -250,7 +261,7 @@ function PmdTrendPanel({ theme }) {
     return () => {
       cancelled = true;
     };
-  }, [selected, stationId, bucket]);
+  }, [selected, stationId, bucket, mode, customDays]);
 
   const unit = PARAMETER_LEGENDS[selected]?.unit ?? '';
   const fallbackLine = selected ? colorFor(selected) : '#16a085';
@@ -335,8 +346,15 @@ function PmdTrendPanel({ theme }) {
             ? 'PMD Parameter Trend'
             : `${stationName || `Station ${stationId}`}${selected ? ` · ${selected}` : ''}`}
         </h3>
-        <div className="ml-auto">
-          <BucketToggle value={bucket} onChange={setBucket} disabled={empty} />
+        <div className="ml-auto flex items-center gap-2">
+          <BucketToggle value={mode} onChange={setMode} disabled={empty} />
+          {mode === 'custom' && (
+            <CustomDaysInput
+              value={customDays}
+              onChange={setCustomDays}
+              disabled={empty}
+            />
+          )}
         </div>
       </div>
 
@@ -347,7 +365,13 @@ function PmdTrendPanel({ theme }) {
           </EmptyState>
         ) : noData ? (
           <EmptyState>
-            No readings recorded for the {bucket === 'hour' ? 'last 24 hours' : 'last 7 days'}.
+            No readings recorded for the{' '}
+            {mode === 'daily'
+              ? 'last 24 hours'
+              : mode === 'weekly'
+                ? 'last 7 days'
+                : `last ${customDays} day${customDays === 1 ? '' : 's'}`}
+            .
           </EmptyState>
         ) : (
           <Line data={data} options={options} />
@@ -364,8 +388,9 @@ function PmdTrendPanel({ theme }) {
 
 function BucketToggle({ value, onChange, disabled }) {
   const items = [
-    { id: 'hour', label: 'Daily' },
-    { id: 'day',  label: 'Weekly' },
+    { id: 'daily',  label: 'Daily' },
+    { id: 'weekly', label: 'Weekly' },
+    { id: 'custom', label: 'Custom' },
   ];
   return (
     <div
@@ -406,6 +431,65 @@ function BucketToggle({ value, onChange, disabled }) {
         );
       })}
     </div>
+  );
+}
+
+function CustomDaysInput({ value, onChange, disabled }) {
+  // Local string state lets the user clear the field while typing without
+  // immediately snapping back to a valid number; commit on blur / Enter.
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = () => {
+    const n = Math.floor(Number(draft));
+    if (Number.isFinite(n) && n >= 1 && n <= 365) {
+      onChange(n);
+    } else {
+      setDraft(String(value));
+    }
+  };
+
+  // Mirror BucketToggle's structure (outer p-0.5 + inner px-2.5 py-1) so
+  // the rendered heights line up to the pixel.
+  return (
+    <label
+      className={cn(
+        'inline-flex items-center p-0.5 rounded-md',
+        'bg-day-bg dark:bg-night-bg',
+        'border border-day-border dark:border-night-border',
+        disabled && 'opacity-50 pointer-events-none',
+      )}
+    >
+      <span
+        className={cn(
+          'inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium',
+          'text-day-muted dark:text-night-muted',
+        )}
+      >
+        <span>Past</span>
+        <input
+          type="number"
+          min={1}
+          max={365}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+          }}
+          aria-label="Past N days"
+          className={cn(
+            'w-9 bg-transparent outline-none text-center',
+            'text-day-text dark:text-night-text',
+            'focus:ring-1 focus:ring-[#16a085] rounded',
+            '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
+          )}
+        />
+        <span>days</span>
+      </span>
+    </label>
   );
 }
 

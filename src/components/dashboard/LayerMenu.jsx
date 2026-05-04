@@ -4,7 +4,7 @@ import Toggle from '@/components/ui/Toggle';
 import SearchBox from '@/components/ui/SearchBox';
 import Badge from '@/components/ui/Badge';
 import { cn } from '@/utils/cn';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 const REGIONS = [
   { id: 'badswat', label: 'Badswat', layers: ['Glacier', 'Lake', 'Risk Zonation', 'Fault Line'] },
@@ -65,31 +65,64 @@ function LayerToggle({ name }) {
 }
 
 export default function LayerMenu({ compact = false }) {
+  const [query, setQuery] = useState('');
+
+  // A region matches if its name contains the query, OR if any of its
+  // layers does. Region match keeps the full layer list visible; a layer-
+  // only match narrows the region down to just the matched layer(s).
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return REGIONS;
+    return REGIONS.flatMap((r) => {
+      const regionMatch = r.label.toLowerCase().includes(q);
+      const matchedLayers = r.layers.filter((l) =>
+        l.toLowerCase().includes(q),
+      );
+      if (regionMatch) return [r];
+      if (matchedLayers.length > 0) return [{ ...r, layers: matchedLayers }];
+      return [];
+    });
+  }, [query]);
+
   return (
     <div className={compact ? '' : 'p-1'}>
       <div className="mb-3 flex items-center gap-2">
         <Layers className="h-4 w-4 text-brand-700 dark:text-brand-200" />
         <span className="label-base">Regions</span>
-        <Badge tone="brand" className="ml-auto">{REGIONS.length}</Badge>
+        <Badge tone="brand" className="ml-auto">
+          {filtered.length}
+          {query && filtered.length !== REGIONS.length ? ` / ${REGIONS.length}` : ''}
+        </Badge>
       </div>
 
-      <SearchBox placeholder="Search regions or layers…" className="mb-3" />
+      <SearchBox
+        placeholder="Search regions or layers…"
+        className="mb-3"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
 
-      <Accordion>
-        {REGIONS.map((region) => (
-          <AccordionItem
-            key={region.id}
-            title={region.label}
-            icon={<MapPin className="h-4 w-4 text-brand-600 dark:text-brand-300" />}
-          >
-            <div className="space-y-1.5">
-              {region.layers.map((layer) => (
-                <LayerToggle key={`${region.id}-${layer}`} name={layer} />
-              ))}
-            </div>
-          </AccordionItem>
-        ))}
-      </Accordion>
+      {filtered.length === 0 ? (
+        <p className="px-2 py-4 text-xs text-center text-day-muted dark:text-night-muted">
+          No regions or layers match “{query}”.
+        </p>
+      ) : (
+        <Accordion>
+          {filtered.map((region) => (
+            <AccordionItem
+              key={region.id}
+              title={region.label}
+              icon={<MapPin className="h-4 w-4 text-brand-600 dark:text-brand-300" />}
+            >
+              <div className="space-y-1.5">
+                {region.layers.map((layer) => (
+                  <LayerToggle key={`${region.id}-${layer}`} name={layer} />
+                ))}
+              </div>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      )}
     </div>
   );
 }

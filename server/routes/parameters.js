@@ -123,7 +123,19 @@ parametersRouter.get(
       return res.status(400).json({ error: 'Invalid stationId' });
     }
     const bucket = req.query.bucket === 'day' ? 'day' : 'hour';
-    const interval = bucket === 'day' ? '7 days' : '24 hours';
+    let interval = bucket === 'day' ? '7 days' : '24 hours';
+
+    // Optional ?days=N override for the daily-bucket window. Caps at 365
+    // so a typo can't pull years of rows.
+    const customDays = Number(req.query.days);
+    if (
+      bucket === 'day' &&
+      Number.isFinite(customDays) &&
+      customDays > 0 &&
+      customDays <= 365
+    ) {
+      interval = `${Math.floor(customDays)} days`;
+    }
 
     try {
       const { rows } = await pool.query(

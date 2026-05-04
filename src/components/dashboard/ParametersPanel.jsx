@@ -113,7 +113,7 @@ export default function ParametersPanel() {
             {active && (
               <span
                 aria-hidden
-                className="ml-auto h-1.5 w-1.5 rounded-full bg-white/80"
+                className="ml-auto h-2.5 w-2.5 rounded-full bg-white shadow-sm ring-1 ring-white/40"
               />
             )}
           </motion.button>
