@@ -37,7 +37,7 @@ export default function BasemapSwitcher({ current, onChange }) {
             className={cn(
               'inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] font-medium transition-colors',
               on
-                ? 'bg-brand-700 text-white'
+                ? 'bg-brand-700 text-white dark:bg-[#16a085]'
                 : 'text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg',
             )}
           >
