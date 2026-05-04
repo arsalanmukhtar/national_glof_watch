@@ -11,6 +11,7 @@ import { colorForReading, STALE_COLOR } from '@/config/parameterLegends';
 import { useParameter } from '@/contexts/ParameterContext';
 import BasemapSwitcher from './BasemapSwitcher';
 import MapControls from './MapControls';
+import MapGeocoder from './MapGeocoder';
 import MapLegend from './MapLegend';
 import StationsTable from './StationsTable';
 import { cn } from '@/utils/cn';
@@ -19,6 +20,17 @@ const DEFAULT_BASEMAP = 'satellite';
 const STATIONS_SOURCE = 'parameter-stations';
 const STATIONS_LAYER = 'parameter-stations-circle';
 const STATIONS_HALO_LAYER = 'parameter-stations-halo';
+const STATIONS_RIPPLE_LAYERS = [
+  'parameter-stations-ripple-1',
+  'parameter-stations-ripple-2',
+];
+const NO_HIGHLIGHT_FILTER = ['==', ['get', 'stationId'], -1];
+
+// Ripple animation tuning. Two phase-shifted layers cycle radius outward
+// while fading opacity, producing a radar-pulse effect on the selected dot.
+const RIPPLE_PERIOD_MS = 1800;
+const RIPPLE_MIN_R = 6;
+const RIPPLE_MAX_R = 22;
 
 export default function MapPanel({ className, onMapReady }) {
   const containerRef = useRef(null);
@@ -132,11 +144,16 @@ export default function MapPanel({ className, onMapReady }) {
     const onStationClick = (e) => {
       const f = e.features?.[0];
       if (!f) return;
-      setSelectedStation({
-        ...f.properties,
-        lng: f.geometry.coordinates[0],
-        lat: f.geometry.coordinates[1],
-      });
+      // Toggle: clicking the same dot twice clears the selection.
+      setSelectedStation((prev) =>
+        prev?.stationId === f.properties.stationId
+          ? null
+          : {
+              ...f.properties,
+              lng: f.geometry.coordinates[0],
+              lat: f.geometry.coordinates[1],
+            },
+      );
     };
     const onEnter = () => {
       map.getCanvas().style.cursor = 'pointer';
@@ -158,7 +175,59 @@ export default function MapPanel({ className, onMapReady }) {
     };
   }, [setSelectedStation]);
 
-  // Fly to the highlighted station whenever one is picked from the table.
+  // Drive both the fly-to and the ripple layers' filter from the
+  // currently-selected station. Selecting null clears the highlight.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const apply = () => {
+      const filter =
+        selectedStation?.stationId != null
+          ? ['==', ['get', 'stationId'], Number(selectedStation.stationId)]
+          : NO_HIGHLIGHT_FILTER;
+      for (const id of STATIONS_RIPPLE_LAYERS) {
+        if (map.getLayer(id)) map.setFilter(id, filter);
+      }
+    };
+
+    apply();
+    map.on('style.load', apply);
+    return () => {
+      map.off('style.load', apply);
+    };
+  }, [selectedStation]);
+
+  // Animate the ripple layers via requestAnimationFrame while a station
+  // is selected. Two layers run 50% out of phase so a new wave starts as
+  // the previous one finishes fading — gives a continuous radar pulse.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedStation) return;
+
+    let raf = null;
+    const start = performance.now();
+
+    const tick = (now) => {
+      const elapsed = now - start;
+      STATIONS_RIPPLE_LAYERS.forEach((id, i) => {
+        if (!map.getLayer(id)) return;
+        const phase = ((elapsed + (i * RIPPLE_PERIOD_MS) / 2) % RIPPLE_PERIOD_MS) / RIPPLE_PERIOD_MS;
+        const radius = RIPPLE_MIN_R + (RIPPLE_MAX_R - RIPPLE_MIN_R) * phase;
+        const opacity = 0.9 * (1 - phase);
+        map.setPaintProperty(id, 'circle-radius', radius);
+        map.setPaintProperty(id, 'circle-stroke-opacity', opacity);
+      });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+    };
+  }, [selectedStation]);
+
+  // Fly to the highlighted station whenever one is picked.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedStation) return;
@@ -166,7 +235,7 @@ export default function MapPanel({ className, onMapReady }) {
     if (Number.isFinite(lng) && Number.isFinite(lat)) {
       map.flyTo({
         center: [lng, lat],
-        zoom: Math.max(map.getZoom(), 8),
+        zoom: Math.max(map.getZoom(), 10),
         essential: true,
       });
     }
@@ -189,6 +258,7 @@ export default function MapPanel({ className, onMapReady }) {
       <div className="relative flex-1 min-h-0 bg-slate-200 dark:bg-night-bg">
         <div ref={containerRef} className="absolute inset-0" />
         <BasemapSwitcher current={basemap} onChange={changeBasemap} />
+        <MapGeocoder map={mapInstance} />
         <MapControls map={mapInstance} fullscreenTarget={containerRef.current} />
         <MapLegend />
         <StationsTable />
@@ -204,14 +274,22 @@ function applyStationLayers(map, data) {
     map.getSource(STATIONS_SOURCE).setData(data);
   }
 
-  // Soft halo behind each circle, color-matched to the bin.
+  // Soft halo behind each circle, color-matched to the bin. Radius scales
+  // with zoom so the dots stay legible when zoomed out and don't bloat
+  // when zoomed in.
   if (!map.getLayer(STATIONS_HALO_LAYER)) {
     map.addLayer({
       id: STATIONS_HALO_LAYER,
       type: 'circle',
       source: STATIONS_SOURCE,
       paint: {
-        'circle-radius': 10,
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          4, 7,
+          7, 10,
+          12, 16,
+          16, 24,
+        ],
         'circle-color': ['coalesce', ['get', 'color'], STALE_COLOR],
         'circle-opacity': 0.18,
         'circle-stroke-width': 0,
@@ -220,23 +298,53 @@ function applyStationLayers(map, data) {
   }
 
   // Crisp filled circle on top with a dark hairline so even white "0 mm"
-  // reads against light basemaps.
+  // reads against light basemaps. Radius interpolated with zoom.
   if (!map.getLayer(STATIONS_LAYER)) {
     map.addLayer({
       id: STATIONS_LAYER,
       type: 'circle',
       source: STATIONS_SOURCE,
       paint: {
-        'circle-radius': 5,
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          4, 3.5,
+          7, 5,
+          12, 9,
+          16, 14,
+        ],
         'circle-color': ['coalesce', ['get', 'color'], STALE_COLOR],
         'circle-stroke-color': '#0f172a',
         'circle-stroke-width': 1,
       },
     });
   }
+
+  // Animated ripple rings for the selected station. Filter is set
+  // externally (see the selectedStation effect); the rAF loop drives
+  // the radius + opacity each frame.
+  for (const id of STATIONS_RIPPLE_LAYERS) {
+    if (!map.getLayer(id)) {
+      map.addLayer({
+        id,
+        type: 'circle',
+        source: STATIONS_SOURCE,
+        filter: NO_HIGHLIGHT_FILTER,
+        paint: {
+          'circle-radius': RIPPLE_MIN_R,
+          'circle-color': 'rgba(0,0,0,0)',
+          'circle-stroke-color': '#fbbf24',
+          'circle-stroke-width': 3,
+          'circle-stroke-opacity': 0,
+        },
+      });
+    }
+  }
 }
 
 function removeStationLayers(map) {
+  for (const id of STATIONS_RIPPLE_LAYERS) {
+    if (map.getLayer(id)) map.removeLayer(id);
+  }
   if (map.getLayer(STATIONS_LAYER)) map.removeLayer(STATIONS_LAYER);
   if (map.getLayer(STATIONS_HALO_LAYER)) map.removeLayer(STATIONS_HALO_LAYER);
   if (map.getSource(STATIONS_SOURCE)) map.removeSource(STATIONS_SOURCE);

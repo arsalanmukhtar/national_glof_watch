@@ -41,6 +41,11 @@ export default function StationsTable() {
 
   const handleRowClick = (feature) => {
     const props = feature.properties ?? {};
+    // Toggle: click the same row twice → clear the selection.
+    if (selectedStation?.stationId === props.stationId) {
+      setSelectedStation(null);
+      return;
+    }
     setSelectedStation({
       ...props,
       lng: feature.geometry?.coordinates?.[0],
@@ -203,11 +208,11 @@ export default function StationsTable() {
                 <table className="w-full text-[11px] table-fixed">
                   <thead className="sticky top-0 bg-day-bg/95 dark:bg-night-bg/95 backdrop-blur-sm border-b border-day-border dark:border-night-border">
                     <tr className="text-day-muted dark:text-night-muted">
-                      <th className="text-left font-medium px-2.5 py-1 w-[50%]">Station</th>
+                      <th className="text-left font-medium px-2.5 py-1 w-[42%]">Station</th>
                       <th className="text-left font-medium px-2.5 py-1">
                         Value{unitForSelected ? ` (${unitForSelected})` : ''}
                       </th>
-                      <th className="text-left font-medium px-2.5 py-1 w-[68px]">Updated</th>
+                      <th className="text-left font-medium px-2.5 py-1 w-[92px]">Updated</th>
                     </tr>
                   </thead>
                   <tbody>
