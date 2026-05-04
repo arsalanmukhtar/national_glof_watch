@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { mapboxgl, BASEMAPS, DEFAULT_MAP_VIEW } from '@/config/mapbox';
 import {
@@ -7,11 +7,12 @@ import {
   glacierLayerSpec,
   glacierSourceSpec,
 } from '@/config/glacierLayer';
-import { colorFor } from '@/config/parameterColors';
+import { colorForReading, STALE_COLOR } from '@/config/parameterLegends';
 import { useParameter } from '@/contexts/ParameterContext';
 import BasemapSwitcher from './BasemapSwitcher';
 import MapControls from './MapControls';
-import StationDetailPanel from './StationDetailPanel';
+import MapLegend from './MapLegend';
+import StationsTable from './StationsTable';
 import { cn } from '@/utils/cn';
 
 const DEFAULT_BASEMAP = 'satellite';
@@ -24,11 +25,30 @@ export default function MapPanel({ className, onMapReady }) {
   const mapRef = useRef(null);
   const [basemap, setBasemap] = useState(DEFAULT_BASEMAP);
   const [mapInstance, setMapInstance] = useState(null);
-  const { selected, setSelectedStation } = useParameter();
-  // Latest fetched FeatureCollection for the active parameter — kept in a ref
-  // so the style.load handler can re-add it after a basemap swap without
-  // triggering a re-fetch.
-  const stationsDataRef = useRef(null);
+  const { selected, stations, selectedStation, setSelectedStation } = useParameter();
+
+  // Build a colored FeatureCollection from the raw context features.
+  // Each feature gets a `color` property derived from its value/lastUpdate
+  // — Mapbox reads it via ['get', 'color'] in the circle paint spec.
+  const coloredCollection = useMemo(() => {
+    if (!selected || stations.length === 0) return null;
+    return {
+      type: 'FeatureCollection',
+      features: stations.map((f) => ({
+        ...f,
+        properties: {
+          ...f.properties,
+          color: colorForReading(
+            selected,
+            f.properties?.value,
+            f.properties?.lastUpdate,
+          ),
+        },
+      })),
+    };
+  }, [selected, stations]);
+  const collectionRef = useRef(coloredCollection);
+  collectionRef.current = coloredCollection;
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -41,8 +61,6 @@ export default function MapPanel({ className, onMapReady }) {
     });
     mapRef.current = map;
     setMapInstance(map);
-
-    map.addControl(new mapboxgl.ScaleControl({ unit: 'metric' }), 'bottom-right');
 
     // Re-register sources/layers on every style swap (Mapbox wipes them).
     // Visibility (terrain on/off, glacier overlay on/off) is owned by Dashboard.
@@ -60,7 +78,6 @@ export default function MapPanel({ className, onMapReady }) {
         map.addSource(GLACIER_SOURCE_ID, glacierSourceSpec);
       }
       if (!map.getLayer(GLACIER_LAYER_ID)) {
-        // Insert below the first symbol (label) layer so place names stay readable.
         const firstSymbolId = map
           .getStyle()
           .layers.find((l) => l.type === 'symbol')?.id;
@@ -68,8 +85,6 @@ export default function MapPanel({ className, onMapReady }) {
       }
     });
 
-    // Mapbox doesn't auto-resize. Coalesce ResizeObserver bursts into one
-    // map.resize() per animation frame so panel/sidebar transitions stay smooth.
     let resizeRaf = null;
     const resizeObserver = new ResizeObserver(() => {
       if (resizeRaf !== null) return;
@@ -91,46 +106,27 @@ export default function MapPanel({ className, onMapReady }) {
     };
   }, [onMapReady]);
 
-  // Fetch stations from the DB-backed endpoint whenever the active parameter
-  // changes; clear the layer when nothing is selected.
+  // Push the colored FeatureCollection to the map when it changes; clear
+  // the layer when no parameter is selected.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-
-    if (!selected) {
-      stationsDataRef.current = null;
+    if (!coloredCollection) {
       removeStationLayers(map);
       return;
     }
+    applyStationLayers(map, coloredCollection);
+  }, [coloredCollection]);
 
-    let cancelled = false;
-    const url = `/api/parameters/${encodeURIComponent(selected)}/latest`;
-
-    fetch(url)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((data) => {
-        if (cancelled) return;
-        stationsDataRef.current = data;
-        applyStationLayers(map, data, selected);
-      })
-      .catch((err) => {
-        if (!cancelled) console.error('[map] stations fetch failed:', err);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selected]);
-
-  // Re-apply the station layer after every style swap (Mapbox wipes layers
-  // on setStyle). Also wires the click handler on the circle layer.
+  // Re-apply on style swap (Mapbox wipes layers on setStyle), and wire the
+  // click + cursor handlers for the circle layer.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     const onStyleLoad = () => {
-      const data = stationsDataRef.current;
-      if (data && selected) applyStationLayers(map, data, selected);
+      const data = collectionRef.current;
+      if (data) applyStationLayers(map, data);
     };
 
     const onStationClick = (e) => {
@@ -142,7 +138,6 @@ export default function MapPanel({ className, onMapReady }) {
         lat: f.geometry.coordinates[1],
       });
     };
-
     const onEnter = () => {
       map.getCanvas().style.cursor = 'pointer';
     };
@@ -161,7 +156,21 @@ export default function MapPanel({ className, onMapReady }) {
       map.off('mouseenter', STATIONS_LAYER, onEnter);
       map.off('mouseleave', STATIONS_LAYER, onLeave);
     };
-  }, [selected, setSelectedStation]);
+  }, [setSelectedStation]);
+
+  // Fly to the highlighted station whenever one is picked from the table.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedStation) return;
+    const { lng, lat } = selectedStation;
+    if (Number.isFinite(lng) && Number.isFinite(lat)) {
+      map.flyTo({
+        center: [lng, lat],
+        zoom: Math.max(map.getZoom(), 8),
+        essential: true,
+      });
+    }
+  }, [selectedStation]);
 
   const changeBasemap = (key) => {
     const map = mapRef.current;
@@ -181,21 +190,21 @@ export default function MapPanel({ className, onMapReady }) {
         <div ref={containerRef} className="absolute inset-0" />
         <BasemapSwitcher current={basemap} onChange={changeBasemap} />
         <MapControls map={mapInstance} fullscreenTarget={containerRef.current} />
-        <StationDetailPanel />
+        <MapLegend />
+        <StationsTable />
       </div>
     </motion.div>
   );
 }
 
-function applyStationLayers(map, data, element) {
-  const color = colorFor(element);
-
+function applyStationLayers(map, data) {
   if (!map.getSource(STATIONS_SOURCE)) {
     map.addSource(STATIONS_SOURCE, { type: 'geojson', data });
   } else {
     map.getSource(STATIONS_SOURCE).setData(data);
   }
 
+  // Soft halo behind each circle, color-matched to the bin.
   if (!map.getLayer(STATIONS_HALO_LAYER)) {
     map.addLayer({
       id: STATIONS_HALO_LAYER,
@@ -203,15 +212,15 @@ function applyStationLayers(map, data, element) {
       source: STATIONS_SOURCE,
       paint: {
         'circle-radius': 10,
-        'circle-color': color,
+        'circle-color': ['coalesce', ['get', 'color'], STALE_COLOR],
         'circle-opacity': 0.18,
         'circle-stroke-width': 0,
       },
     });
-  } else {
-    map.setPaintProperty(STATIONS_HALO_LAYER, 'circle-color', color);
   }
 
+  // Crisp filled circle on top with a dark hairline so even white "0 mm"
+  // reads against light basemaps.
   if (!map.getLayer(STATIONS_LAYER)) {
     map.addLayer({
       id: STATIONS_LAYER,
@@ -219,13 +228,11 @@ function applyStationLayers(map, data, element) {
       source: STATIONS_SOURCE,
       paint: {
         'circle-radius': 5,
-        'circle-color': color,
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': 1.5,
+        'circle-color': ['coalesce', ['get', 'color'], STALE_COLOR],
+        'circle-stroke-color': '#0f172a',
+        'circle-stroke-width': 1,
       },
     });
-  } else {
-    map.setPaintProperty(STATIONS_LAYER, 'circle-color', color);
   }
 }
 

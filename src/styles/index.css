@@ -90,27 +90,14 @@
 }
 
 /* ----------------------------------------------------------------------- */
-/* Mapbox scale control — only native control we keep; rest replaced by    */
-/* MapControls.jsx. Lives outside @layer to override mapbox-gl.css.        */
+/* Mapbox bottom-corner controls — fully replaced by MapLegend.jsx +       */
+/* StationsTable.jsx. Hide the wordmark and the attribution chrome so the  */
+/* corners stay clean.                                                     */
+/* Note: Mapbox ToS may require visible attribution in production —        */
+/* confirm before shipping to NDMA stakeholders.                           */
 /* ----------------------------------------------------------------------- */
-.mapboxgl-ctrl-scale {
-  background-color: rgba(255, 255, 255, 0.85);
-  border-color: theme('colors.day.border');
-  color: theme('colors.day.text');
-  font-size: 10px;
-  padding: 1px 4px;
-}
-
-.dark .mapboxgl-ctrl-scale {
-  background-color: rgba(42, 51, 58, 0.85);
-  border-color: theme('colors.night.border');
-  color: theme('colors.night.text');
-}
-
-/* Hide the Mapbox wordmark + bottom-left attribution per project request.   */
-/* Mapbox ToS may require attribution to be visible in production — confirm */
-/* before shipping to NDMA stakeholders.                                    */
 .mapboxgl-ctrl-logo,
-.mapboxgl-ctrl-bottom-left {
+.mapboxgl-ctrl-bottom-left,
+.mapboxgl-ctrl-bottom-right {
   display: none !important;
 }
