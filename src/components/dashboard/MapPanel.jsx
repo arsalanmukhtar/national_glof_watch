@@ -291,10 +291,10 @@ function applyStationLayers(map, data) {
       paint: {
         'circle-radius': [
           'interpolate', ['linear'], ['zoom'],
-          4, 7,
-          7, 10,
-          12, 16,
-          16, 24,
+          4, 8.75,
+          7, 12.5,
+          12, 20,
+          16, 30,
         ],
         'circle-color': ['coalesce', ['get', 'color'], STALE_COLOR],
         'circle-opacity': 0.18,
@@ -313,10 +313,10 @@ function applyStationLayers(map, data) {
       paint: {
         'circle-radius': [
           'interpolate', ['linear'], ['zoom'],
-          4, 3.5,
-          7, 5,
-          12, 9,
-          16, 14,
+          4, 4.375,
+          7, 6.25,
+          12, 11.25,
+          16, 17.5,
         ],
         'circle-color': ['coalesce', ['get', 'color'], STALE_COLOR],
         'circle-stroke-color': '#0f172a',

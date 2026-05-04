@@ -55,7 +55,7 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
                   transition={{ duration: 0.2 }}
                   className="inline-flex"
                 >
-                  <Sun className="h-5 w-5" />
+                  <Sun className="h-5 w-5 text-yellow-300" fill="currentColor" />
                 </motion.span>
               ) : (
                 <motion.span
@@ -66,7 +66,7 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
                   transition={{ duration: 0.2 }}
                   className="inline-flex"
                 >
-                  <Moon className="h-5 w-5" />
+                  <Moon className="h-5 w-5 text-white" fill="currentColor" />
                 </motion.span>
               )}
             </AnimatePresence>
