@@ -46,16 +46,22 @@ export default function MapPanel({ className, onMapReady }) {
       }
     });
 
-    // Mapbox doesn't auto-resize; observe the container so panel toggles,
-    // sidebar collapses, and window resizes all trigger a redraw.
+    // Mapbox doesn't auto-resize. Coalesce ResizeObserver bursts into one
+    // map.resize() per animation frame so panel/sidebar transitions stay smooth.
+    let resizeRaf = null;
     const resizeObserver = new ResizeObserver(() => {
-      map.resize();
+      if (resizeRaf !== null) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = null;
+        if (mapRef.current) mapRef.current.resize();
+      });
     });
     resizeObserver.observe(containerRef.current);
 
     if (onMapReady) onMapReady(map);
 
     return () => {
+      if (resizeRaf !== null) cancelAnimationFrame(resizeRaf);
       resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
@@ -76,7 +82,7 @@ export default function MapPanel({ className, onMapReady }) {
       transition={{ duration: 0.4 }}
       className={cn('card-base overflow-hidden flex flex-col min-h-0', className)}
     >
-      <div className="relative flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0 bg-slate-200 dark:bg-night-bg">
         <div ref={containerRef} className="absolute inset-0" />
         <BasemapSwitcher current={basemap} onChange={changeBasemap} />
       </div>

@@ -49,7 +49,7 @@ export default function RightSidebar({ className }) {
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 360, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 220, damping: 28 }}
+            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden mr-2 min-h-0"
           >
             <div className="card-base flex flex-col h-full w-[360px] min-h-0">
