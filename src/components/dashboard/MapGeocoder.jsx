@@ -108,7 +108,7 @@ export default function MapGeocoder({ map }) {
           'flex items-center gap-2 px-2.5 py-1.5 rounded-md shadow-sm',
           'bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm',
           'border border-day-border dark:border-night-border',
-          'focus-within:ring-1 focus-within:ring-brand-700 dark:focus-within:ring-[#16a085]',
+          'focus-within:ring-1 focus-within:ring-[#16a085]',
         )}
       >
         <Search
@@ -173,7 +173,7 @@ export default function MapGeocoder({ map }) {
                 )}
               >
                 <MapPin
-                  className="h-3.5 w-3.5 mt-0.5 shrink-0 text-brand-700 dark:text-[#16a085]"
+                  className="h-3.5 w-3.5 mt-0.5 shrink-0 text-[#16a085]"
                   strokeWidth={1.75}
                 />
                 <div className="min-w-0 flex-1">

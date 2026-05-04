@@ -18,7 +18,10 @@ import Select from '@/components/ui/Select';
 import { useTheme } from '@/hooks/useTheme';
 import { useParameter } from '@/contexts/ParameterContext';
 import { colorFor } from '@/config/parameterColors';
-import { PARAMETER_LEGENDS } from '@/config/parameterLegends';
+import {
+  PARAMETER_LEGENDS,
+  buildLegendGradient,
+} from '@/config/parameterLegends';
 import { cn } from '@/utils/cn';
 
 ChartJS.register(
@@ -159,7 +162,12 @@ export default function ChartsRow() {
       className="card-base flex flex-col shrink-0"
     >
       <Tabs tab={tab} onChange={setTab} />
-      {tab === 'pmd' ? <PmdTrendPanel theme={theme} /> : <LakesPanel theme={theme} />}
+      {/* Reserve a consistent body height so the card doesn't reflow on
+          tab swap. Tracks the larger of the two natural heights (Lakes,
+          which has wrapped Panels). */}
+      <div className="min-h-[220px] sm:min-h-[236px] lg:min-h-[252px] flex flex-col">
+        {tab === 'pmd' ? <PmdTrendPanel theme={theme} /> : <LakesPanel theme={theme} />}
+      </div>
     </motion.div>
   );
 }
@@ -186,7 +194,7 @@ function Tabs({ tab, onChange }) {
             className={cn(
               'relative px-3 py-1.5 text-[12px] font-medium transition-colors',
               active
-                ? 'text-brand-700 dark:text-[#16a085]'
+                ? 'text-[#16a085]'
                 : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
             )}
           >
@@ -194,7 +202,7 @@ function Tabs({ tab, onChange }) {
             {active && (
               <motion.span
                 layoutId="charts-tab-underline"
-                className="absolute left-2 right-2 -bottom-px h-[2px] rounded-full bg-brand-700 dark:bg-[#16a085]"
+                className="absolute left-2 right-2 -bottom-px h-[2px] rounded-full bg-[#16a085]"
                 transition={{ duration: 0.2 }}
               />
             )}
@@ -245,11 +253,29 @@ function PmdTrendPanel({ theme }) {
   }, [selected, stationId, bucket]);
 
   const unit = PARAMETER_LEGENDS[selected]?.unit ?? '';
-  const lineColor = selected ? colorFor(selected) : '#16a085';
-  const fill =
+  const fallbackLine = selected ? colorFor(selected) : '#16a085';
+  const fillAlpha = theme === 'night' ? 0.22 : 0.14;
+  const fallbackFill =
     theme === 'night'
-      ? hexToRgba(lineColor, 0.22)
-      : hexToRgba(lineColor, 0.14);
+      ? hexToRgba(fallbackLine, 0.22)
+      : hexToRgba(fallbackLine, 0.14);
+
+  // Scriptable color: returns a vertical CanvasGradient mapped onto the
+  // legend bins for this parameter, so the line + fill literally show
+  // the color of each value range. Falls back to the solid parameter
+  // color before the chart has measured its area.
+  const lineGradient = (context) => {
+    const { chart } = context;
+    const { ctx, chartArea, scales } = chart;
+    const g = buildLegendGradient(ctx, chartArea, scales?.y, selected, 1);
+    return g ?? fallbackLine;
+  };
+  const fillGradient = (context) => {
+    const { chart } = context;
+    const { ctx, chartArea, scales } = chart;
+    const g = buildLegendGradient(ctx, chartArea, scales?.y, selected, fillAlpha);
+    return g ?? fallbackFill;
+  };
 
   const xLabelFormatter = (iso) => {
     if (!iso) return '';
@@ -272,10 +298,10 @@ function PmdTrendPanel({ theme }) {
           data: points.map((p) =>
             p.value == null ? null : Number(p.value.toFixed(3)),
           ),
-          borderColor: lineColor,
-          backgroundColor: fill,
-          pointBackgroundColor: lineColor,
-          pointBorderColor: lineColor,
+          borderColor: lineGradient,
+          backgroundColor: fillGradient,
+          pointBackgroundColor: lineGradient,
+          pointBorderColor: lineGradient,
           pointRadius: 3,
           pointHoverRadius: 5,
           borderWidth: 2,
@@ -285,7 +311,10 @@ function PmdTrendPanel({ theme }) {
         },
       ],
     }),
-    [points, selected, unit, lineColor, fill],
+    // Scriptable colors close over `selected` + `theme` via the helpers
+    // above, so depending on `points` and `selected` is sufficient.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [points, selected, unit, theme],
   );
 
   const options = useMemo(
@@ -368,7 +397,7 @@ function BucketToggle({ value, onChange, disabled }) {
             {active && (
               <motion.span
                 layoutId="bucket-toggle-pill"
-                className="absolute inset-0 rounded bg-brand-700 dark:bg-[#16a085]"
+                className="absolute inset-0 rounded bg-[#16a085]"
                 transition={{ duration: 0.18 }}
               />
             )}

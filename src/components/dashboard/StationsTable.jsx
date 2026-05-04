@@ -95,7 +95,7 @@ export default function StationsTable() {
                 'bg-day-bg dark:bg-night-bg text-day-text dark:text-night-text',
                 'border border-day-border dark:border-night-border',
                 'hover:bg-white dark:hover:bg-night-surface transition-colors',
-                'focus:outline-none focus:ring-1 focus:ring-brand-700 dark:focus:ring-[#16a085]',
+                'focus:outline-none focus:ring-1 focus:ring-[#16a085]',
               )}
               aria-label="Select parameter"
             >
@@ -148,7 +148,7 @@ export default function StationsTable() {
                           className={cn(
                             'h-3 w-3 inline-flex items-center justify-center shrink-0',
                             isSelected
-                              ? 'text-brand-700 dark:text-[#16a085]'
+                              ? 'text-[#16a085]'
                               : 'opacity-0',
                           )}
                           aria-hidden

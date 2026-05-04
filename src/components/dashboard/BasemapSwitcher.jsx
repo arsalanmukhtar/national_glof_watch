@@ -37,7 +37,7 @@ export default function BasemapSwitcher({ current, onChange }) {
         className={cn(
           'inline-flex items-center justify-center h-6 w-6 rounded transition-colors shrink-0',
           expanded
-            ? 'bg-brand-700 text-white dark:bg-[#16a085]'
+            ? 'bg-[#16a085] text-white'
             : 'text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg',
         )}
       >
@@ -69,7 +69,7 @@ export default function BasemapSwitcher({ current, onChange }) {
                   className={cn(
                     'inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] font-medium transition-colors whitespace-nowrap',
                     on
-                      ? 'bg-brand-700 text-white dark:bg-[#16a085]'
+                      ? 'bg-[#16a085] text-white'
                       : 'text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg',
                   )}
                 >

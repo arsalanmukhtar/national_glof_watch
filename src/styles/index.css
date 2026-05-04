@@ -61,7 +61,7 @@
   .btn-sm         { @apply text-xs px-3 py-1.5; }
   .btn-md         { @apply text-sm px-4 py-2; }
   .btn-lg         { @apply text-base px-5 py-2.5; }
-  .btn-primary    { @apply btn-base bg-brand-700 text-white hover:bg-brand-800 active:bg-brand-900 shadow-sm; }
+  .btn-primary    { @apply btn-base bg-[#16a085] text-white hover:bg-[#138b72] active:bg-[#0f7560] shadow-sm; }
   .btn-secondary  { @apply btn-base bg-brand-100 text-brand-800 hover:bg-brand-200 dark:bg-brand-800/30 dark:text-brand-100 dark:hover:bg-brand-800/50; }
   .btn-light      { @apply btn-base bg-white text-day-text hover:bg-slate-50 border border-day-border dark:bg-night-surface dark:text-night-text dark:border-night-border dark:hover:bg-night-bg; }
   .btn-dark       { @apply btn-base bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600; }
