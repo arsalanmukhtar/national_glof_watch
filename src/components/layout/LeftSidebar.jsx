@@ -7,15 +7,16 @@ import ParametersPanel from '@/components/dashboard/ParametersPanel';
 import SecondaryPanel from '@/components/dashboard/SecondaryPanel';
 import { cn } from '@/utils/cn';
 
-// `secondary` is "modal": activating it hides the others, and activating
-// any other deactivates secondary. The first two stack as before.
+// `secondary` is "modal": activating it hides primary, and activating
+// primary deactivates secondary. Primary is a single icon-strip button
+// that fans out to both PMD parameters and Layers panels.
 const SECONDARY_ID = 'secondary';
+const PRIMARY_IDS = ['parameters', 'layers'];
 
 const SECTIONS = [
   {
     id: 'parameters',
     label: 'PMD Parameters',
-    icon: SlidersHorizontal,
     headerIcon: SlidersHorizontal,
     title: 'PMD Parameters',
     grow: false,
@@ -24,7 +25,6 @@ const SECTIONS = [
   {
     id: 'layers',
     label: 'Layers',
-    icon: Layers,
     headerIcon: Layers,
     title: 'Layers',
     grow: true,
@@ -33,12 +33,17 @@ const SECTIONS = [
   {
     id: SECONDARY_ID,
     label: 'Secondary Layers',
-    icon: Shapes,
     headerIcon: null, // toggle-strip icon already conveys this; avoid duplication
     title: 'Secondary Layers',
     grow: true,
     render: () => <SecondaryPanel />,
   },
+];
+
+// One icon-strip button per group. Primary covers both parameters + layers.
+const ICON_BUTTONS = [
+  { id: 'primary', label: 'Primary Layers', icon: Layers },
+  { id: SECONDARY_ID, label: 'Secondary Layers', icon: Shapes },
 ];
 
 export default function LeftSidebar({ className }) {
@@ -47,7 +52,7 @@ export default function LeftSidebar({ className }) {
     () => new Set(['parameters', 'layers']),
   );
 
-  const toggle = (id) => {
+  const toggleIconButton = (id) => {
     setActiveIds((prev) => {
       const next = new Set(prev);
       if (id === SECONDARY_ID) {
@@ -60,12 +65,24 @@ export default function LeftSidebar({ className }) {
         }
         return next;
       }
-      // Toggling parameters/layers exits secondary mode automatically.
-      next.delete(SECONDARY_ID);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (id === 'primary') {
+        // Primary fans out to both parameters + layers and exits secondary.
+        const anyOn = PRIMARY_IDS.some((pid) => next.has(pid));
+        if (anyOn) {
+          PRIMARY_IDS.forEach((pid) => next.delete(pid));
+        } else {
+          next.delete(SECONDARY_ID);
+          PRIMARY_IDS.forEach((pid) => next.add(pid));
+        }
+        return next;
+      }
       return next;
     });
+  };
+
+  const isIconOn = (id) => {
+    if (id === 'primary') return PRIMARY_IDS.some((pid) => activeIds.has(pid));
+    return activeIds.has(id);
   };
 
   const close = (id) => {
@@ -88,15 +105,15 @@ export default function LeftSidebar({ className }) {
     >
       {/* Icon strip — always visible on lg+ */}
       <div className="card-base flex flex-col items-center gap-1 p-2 w-14 shrink-0">
-        {SECTIONS.map(({ id, label, icon: Icon }) => {
-          const on = activeIds.has(id);
+        {ICON_BUTTONS.map(({ id, label, icon: Icon }) => {
+          const on = isIconOn(id);
           return (
             <Tooltip key={id} label={label} side="right">
               <motion.button
                 type="button"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => toggle(id)}
+                onClick={() => toggleIconButton(id)}
                 aria-pressed={on}
                 aria-label={label}
                 className={cn(

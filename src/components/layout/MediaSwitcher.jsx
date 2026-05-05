@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Film, Sheet } from 'lucide-react';
+import { AlertTriangle, Film, Sheet } from 'lucide-react';
 import { motion } from 'framer-motion';
 import VideosPanel from '@/components/dashboard/VideoPanels';
 import AlertsPanel from '@/components/dashboard/AlertsPanel';
 import AttributeTablePanel from '@/components/dashboard/AttributeTablePanel';
-import AnimatedAlertTriangle from '@/components/ui/AnimatedAlertTriangle';
 import { useSecondary } from '@/contexts/SecondaryContext';
 import { cn } from '@/utils/cn';
 
@@ -15,7 +14,7 @@ export const MEDIA_SECTIONS = [
   {
     id: 'alerts',
     label: 'Alerts',
-    icon: AnimatedAlertTriangle,
+    icon: AlertTriangle,
     render: () => <AlertsPanel compact />,
   },
   {
