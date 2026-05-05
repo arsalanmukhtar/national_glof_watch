@@ -1,13 +1,32 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FileBarChart, X } from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
+import { useSecondary } from '@/contexts/SecondaryContext';
 import { MEDIA_SECTIONS } from './MediaSwitcher';
 import { cn } from '@/utils/cn';
 
 export default function RightSidebar({ className }) {
-  const [activeId, setActiveId] = useState(MEDIA_SECTIONS[0]?.id ?? null);
-  const active = MEDIA_SECTIONS.find((s) => s.id === activeId);
+  const { uploads } = useSecondary();
+  // Sections flagged `requiresUploads` only appear after the user has
+  // uploaded a secondary file. Filter at render so the icon strip stays
+  // in sync as files are added/removed.
+  const sections = useMemo(
+    () => MEDIA_SECTIONS.filter((s) => !s.requiresUploads || uploads.length > 0),
+    [uploads.length],
+  );
+
+  const [activeId, setActiveId] = useState(sections[0]?.id ?? null);
+  const active = sections.find((s) => s.id === activeId);
+
+  // If the open section gets filtered out (last upload removed while the
+  // Attributes panel was visible), close the panel rather than leaving a
+  // dangling activeId pointing at nothing.
+  useEffect(() => {
+    if (activeId && !sections.some((s) => s.id === activeId)) {
+      setActiveId(null);
+    }
+  }, [sections, activeId]);
 
   return (
     <aside
@@ -17,7 +36,7 @@ export default function RightSidebar({ className }) {
       )}
     >
       <div className="card-base flex flex-col items-center gap-1 p-2 w-14 shrink-0">
-        {MEDIA_SECTIONS.map(({ id, label, icon: Icon }) => {
+        {sections.map(({ id, label, icon: Icon }) => {
           const on = activeId === id;
           return (
             <Tooltip key={id} label={label} side="left">

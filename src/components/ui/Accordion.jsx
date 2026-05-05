@@ -9,17 +9,17 @@ export function AccordionItem({ title, defaultOpen = false, children, icon, clas
         <>
           <Disclosure.Button
             className={cn(
-              'flex w-full items-center justify-between gap-3 py-2.5 px-2 text-sm font-medium text-day-text dark:text-night-text hover:text-brand-700 dark:hover:text-brand-200 transition-colors',
+              'flex w-full items-center justify-between gap-2 py-1.5 px-1.5 text-[13px] font-medium text-day-text dark:text-night-text hover:text-brand-700 dark:hover:text-brand-200 transition-colors',
               open && 'bg-brand-50 dark:bg-night-border',
             )}
           >
-            <span className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5">
               {icon}
               <span>{title}</span>
             </span>
             <ChevronDown
               className={cn(
-                'h-4 w-4 text-day-muted dark:text-night-muted transition-transform duration-200',
+                'h-3.5 w-3.5 text-day-muted dark:text-night-muted transition-transform duration-200',
                 open && 'rotate-180',
               )}
               aria-hidden
@@ -33,7 +33,7 @@ export function AccordionItem({ title, defaultOpen = false, children, icon, clas
             leaveFrom="transform translate-y-0 opacity-100"
             leaveTo="transform -translate-y-1 opacity-0"
           >
-            <Disclosure.Panel className="pb-3 pt-1 px-1 text-sm text-day-muted dark:text-night-muted">
+            <Disclosure.Panel className="pb-2 pt-0.5 px-1 text-[13px] text-day-muted dark:text-night-muted">
               {children}
             </Disclosure.Panel>
           </Transition>

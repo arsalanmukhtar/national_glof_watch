@@ -1,11 +1,15 @@
 import { useState } from 'react';
-import { Film } from 'lucide-react';
+import { Film, Sheet } from 'lucide-react';
 import { motion } from 'framer-motion';
 import VideosPanel from '@/components/dashboard/VideoPanels';
 import AlertsPanel from '@/components/dashboard/AlertsPanel';
+import AttributeTablePanel from '@/components/dashboard/AttributeTablePanel';
 import AnimatedAlertTriangle from '@/components/ui/AnimatedAlertTriangle';
+import { useSecondary } from '@/contexts/SecondaryContext';
 import { cn } from '@/utils/cn';
 
+// `requiresUploads: true` hides the section in containers (RightSidebar /
+// MediaSwitcher) until the user has uploaded at least one secondary file.
 export const MEDIA_SECTIONS = [
   { id: 'videos', label: 'Videos', icon: Film, render: () => <VideosPanel compact /> },
   {
@@ -14,16 +18,29 @@ export const MEDIA_SECTIONS = [
     icon: AnimatedAlertTriangle,
     render: () => <AlertsPanel compact />,
   },
+  {
+    id: 'attributes',
+    label: 'Attributes',
+    icon: Sheet,
+    requiresUploads: true,
+    render: () => <AttributeTablePanel />,
+  },
 ];
 
 export default function MediaSwitcher({ initial = 'videos', className }) {
   const [activeId, setActiveId] = useState(initial);
-  const active = MEDIA_SECTIONS.find((s) => s.id === activeId) ?? MEDIA_SECTIONS[0];
+  const { uploads } = useSecondary();
+  // Sections marked requiresUploads only surface once the user has actually
+  // uploaded a file in the Secondary panel.
+  const sections = MEDIA_SECTIONS.filter(
+    (s) => !s.requiresUploads || uploads.length > 0,
+  );
+  const active = sections.find((s) => s.id === activeId) ?? sections[0];
 
   return (
     <div className={cn('flex flex-col h-full min-h-0', className)}>
       <div role="tablist" className="flex items-center gap-1 p-1 bg-day-bg dark:bg-night-bg rounded-md mb-3 shrink-0">
-        {MEDIA_SECTIONS.map(({ id, label, icon: Icon }) => {
+        {sections.map(({ id, label, icon: Icon }) => {
           const on = activeId === id;
           return (
             <motion.button

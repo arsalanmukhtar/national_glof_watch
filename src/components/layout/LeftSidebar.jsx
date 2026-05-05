@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Layers, SlidersHorizontal, X } from 'lucide-react';
+import { Layers, Shapes, SlidersHorizontal, X } from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
 import LayerMenu from '@/components/dashboard/LayerMenu';
 import ParametersPanel from '@/components/dashboard/ParametersPanel';
+import SecondaryPanel from '@/components/dashboard/SecondaryPanel';
 import { cn } from '@/utils/cn';
+
+// `secondary` is "modal": activating it hides the others, and activating
+// any other deactivates secondary. The first two stack as before.
+const SECONDARY_ID = 'secondary';
 
 const SECTIONS = [
   {
@@ -25,18 +30,38 @@ const SECTIONS = [
     grow: true,
     render: () => <LayerMenu />,
   },
+  {
+    id: SECONDARY_ID,
+    label: 'Secondary',
+    icon: Shapes,
+    headerIcon: null, // toggle-strip icon already conveys this; avoid duplication
+    title: 'Secondary',
+    grow: true,
+    render: () => <SecondaryPanel />,
+  },
 ];
 
 export default function LeftSidebar({ className }) {
-  // Default: both panels open. Clicking an icon toggles its panel
-  // independently — multiple panels can stack at the same time.
+  // Default: parameters + layers open. Secondary off until invoked.
   const [activeIds, setActiveIds] = useState(
-    () => new Set(SECTIONS.map((s) => s.id)),
+    () => new Set(['parameters', 'layers']),
   );
 
   const toggle = (id) => {
     setActiveIds((prev) => {
       const next = new Set(prev);
+      if (id === SECONDARY_ID) {
+        // Activating secondary takes over; deactivating it leaves the bar empty.
+        if (next.has(SECONDARY_ID)) {
+          next.delete(SECONDARY_ID);
+        } else {
+          next.clear();
+          next.add(SECONDARY_ID);
+        }
+        return next;
+      }
+      // Toggling parameters/layers exits secondary mode automatically.
+      next.delete(SECONDARY_ID);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
@@ -109,23 +134,25 @@ export default function LeftSidebar({ className }) {
                       grow ? 'flex-1' : 'shrink-0',
                     )}
                   >
-                    <div className="panel-header px-3 mb-0 pb-2 pt-3 shrink-0">
-                      <h2 className="text-sm font-semibold flex items-center gap-2">
-                        <HeaderIcon className="h-4 w-4 text-brand-700 dark:text-brand-200" />
+                    <div className="panel-header px-2.5 mb-0 pb-1.5 pt-2 shrink-0">
+                      <h2 className="text-[13px] font-semibold flex items-center gap-1.5">
+                        {HeaderIcon ? (
+                          <HeaderIcon className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200" />
+                        ) : null}
                         {title}
                       </h2>
                       <button
                         type="button"
                         onClick={() => close(id)}
-                        className="btn-icon btn-ghost ml-auto"
+                        className="btn-icon btn-ghost ml-auto h-7 w-7"
                         aria-label={`Close ${title}`}
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                     <div
                       className={cn(
-                        'px-3 pt-3 pb-3',
+                        'px-2.5 pt-2 pb-2',
                         grow ? 'flex-1 min-h-0 overflow-y-auto' : '',
                       )}
                     >

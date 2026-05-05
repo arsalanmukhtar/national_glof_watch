@@ -93,7 +93,7 @@ export default function ParametersPanel() {
     (targetElement && busy === targetElement) || (!targetElement && busy === 'ALL');
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1">
       {PARAMETERS.map(({ id, label, icon: Icon, on, off }) => {
         const active = selected === id;
         return (
@@ -104,36 +104,36 @@ export default function ParametersPanel() {
             onClick={() => select(id)}
             aria-pressed={active}
             className={cn(
-              'group flex items-center gap-3 px-3 py-2.5 rounded-md border text-left text-sm font-medium transition-colors',
+              'group flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-left text-[13px] font-medium transition-colors',
               active ? on : off,
             )}
           >
-            <Icon className="h-4 w-4 shrink-0" />
+            <Icon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{label}</span>
             {active && (
               <span
                 aria-hidden
-                className="ml-auto h-2.5 w-2.5 rounded-full bg-white shadow-sm ring-1 ring-white/40"
+                className="ml-auto h-2 w-2 rounded-full bg-white shadow-sm ring-1 ring-white/40"
               />
             )}
           </motion.button>
         );
       })}
 
-      <div className="mt-2 pt-3 border-t border-day-border dark:border-night-border flex flex-col gap-1.5">
+      <div className="mt-1.5 pt-2 border-t border-day-border dark:border-night-border flex flex-col gap-1">
         <motion.button
           type="button"
           whileTap={{ scale: 0.98 }}
           onClick={handleRefresh}
           disabled={isBusy}
           className={cn(
-            'btn-base btn-md w-full',
+            'btn-base btn-sm w-full',
             'bg-[#16a085] text-white hover:bg-[#138b72]',
             'disabled:cursor-wait',
           )}
         >
           <RefreshCw
-            className={cn('h-4 w-4', isBusy && 'animate-spin')}
+            className={cn('h-3.5 w-3.5', isBusy && 'animate-spin')}
             aria-hidden
           />
           <span>
@@ -144,7 +144,7 @@ export default function ParametersPanel() {
                 : 'Refresh all'}
           </span>
         </motion.button>
-        <span className="text-[11px] text-day-muted dark:text-night-muted text-center">
+        <span className="text-[10px] text-day-muted dark:text-night-muted text-center">
           Last updated {timeAgo(displayLastFetched)}
           {targetElement && targetStatus?.stationCount
             ? ` · ${targetStatus.stationCount} stations`
