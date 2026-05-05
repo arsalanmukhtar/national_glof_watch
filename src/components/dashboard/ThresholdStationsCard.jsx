@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, ArrowRight, Clock, Droplets, Thermometer, Waves } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowRight,
+  Clock,
+  Droplets,
+  Gauge,
+  Thermometer,
+  Waves,
+} from 'lucide-react';
 import { cn } from '@/utils/cn';
 
 // Tabs displayed at the top of the card. Order matches PMD priority.
@@ -38,6 +46,17 @@ const TABS = [
     threshold: 2,        // dummy: high-water alert per parameterLegends.js
     thresholdLabel: '≥ 2 m',
   },
+  {
+    id: 'Instantaneous Flow',
+    label: 'Instantaneous Flow',
+    short: 'Inst. Flow',
+    icon: Gauge,
+    accent: '#8b5cf6',   // violet-500 — distinct from the temperature/water reds
+    unit: 'm³/s',
+    operator: '>',
+    threshold: 40,       // dummy: matches the high-flow bin in parameterLegends.js
+    thresholdLabel: '> 40 m³/s',
+  },
 ];
 
 // Dummy breaching stations per parameter — every entry is *intentionally*
@@ -62,6 +81,12 @@ const DUMMY_BREACHES = {
     { name: 'Indus @ Bunji',   value: 2.4,  ago: '30m ago' },
     { name: 'Hunza @ Khairabad', value: 2.8, ago: '10m ago' },
     { name: 'Gilgit @ Alam Br',  value: 2.1, ago: '45m ago' },
+  ],
+  'Instantaneous Flow': [
+    { name: 'Indus @ Bunji',     value: 52, ago: '12m ago' },
+    { name: 'Hunza @ Khairabad', value: 68, ago: '8m ago'  },
+    { name: 'Gilgit @ Alam Br',  value: 45, ago: '40m ago' },
+    { name: 'Shyok @ Yugo',      value: 73, ago: '20m ago' },
   ],
 };
 
