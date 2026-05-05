@@ -140,7 +140,7 @@ function EmptyState() {
 
 export default function AttributeTablePanel() {
   const { uploads } = useSecondary();
-  const { zoomToGeoJson } = useMapView();
+  const { zoomToGeoJson, setFocusedFeature } = useMapView();
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState({ key: null, dir: null }); // dir: 'asc' | 'desc' | null
@@ -164,11 +164,14 @@ export default function AttributeTablePanel() {
 
   // Reset filter + sort when the selected file changes — column set and
   // value space differ between files, so prior state is meaningless.
+  // Also clear the map highlight; whatever was highlighted belonged to
+  // the previous file.
   useEffect(() => {
     setQuery('');
     setSort({ key: null, dir: null });
     setFocusedRow(null);
-  }, [selectedId]);
+    setFocusedFeature(null);
+  }, [selectedId, setFocusedFeature]);
 
   // Drop the row highlight when the rendered ordering changes (sort
   // toggle, search filter) — the index no longer points at the same
@@ -344,10 +347,15 @@ export default function AttributeTablePanel() {
                     key={i}
                     onClick={() => {
                       setFocusedRow(i);
-                      // No-op for features without geometry — zoomToGeoJson
-                      // bails on a null bbox anyway, but skipping the call
-                      // saves an unnecessary trackPromise loader flash.
-                      if (feat?.geometry) zoomToGeoJson(feat);
+                      // Highlight + zoom in lock-step. Extra padding
+                      // (120 px vs the default 60) gives a single
+                      // small feature room to breathe and keeps it out
+                      // from under the map overlays — legend, table,
+                      // controls — that crowd the corners.
+                      if (feat?.geometry) {
+                        setFocusedFeature(feat);
+                        zoomToGeoJson(feat, { padding: 120 });
+                      }
                     }}
                     className={cn(
                       'transition-colors cursor-pointer',

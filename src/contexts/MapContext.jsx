@@ -42,6 +42,10 @@ export function MapProvider({ children }) {
     return promise;
   }, []);
 
+  // Single GeoJSON feature whose geometry should be visually highlighted
+  // on top of the regular overlay rendering. Cleared by passing null.
+  const [focusedFeature, setFocusedFeature] = useState(null);
+
   const zoomToBbox = useCallback((bbox, opts) => {
     const m = mapRef.current;
     if (!m || !bbox) return;
@@ -171,6 +175,8 @@ export function MapProvider({ children }) {
       resetView,
       isLoading: pending > 0,
       trackPromise,
+      focusedFeature,
+      setFocusedFeature,
     }),
     [
       map,
@@ -182,6 +188,7 @@ export function MapProvider({ children }) {
       resetView,
       pending,
       trackPromise,
+      focusedFeature,
     ],
   );
 

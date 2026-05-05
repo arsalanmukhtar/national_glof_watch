@@ -82,7 +82,7 @@ export default function MapPanel({ className, onMapReady }) {
     styles: secondaryStyles,
     uploads,
   } = useSecondary();
-  const { setMap, trackPromise, isLoading } = useMapView();
+  const { setMap, trackPromise, isLoading, focusedFeature } = useMapView();
   // Ref mirror so style.load handlers + applyStationLayers can read the
   // current disabled set without re-creating callbacks on every change.
   const disabledBinColorsRef = useRef(disabledBinColors);
@@ -391,6 +391,7 @@ export default function MapPanel({ className, onMapReady }) {
         // share the basemap stack but should stay full-opacity regardless
         // of the slider, just like the parameter station dots.
         if (layer.id.startsWith(OVERLAY_PREFIX)) continue;
+        if (layer.id.startsWith(FOCUS_PREFIX)) continue;
         applyLayerOpacity(map, layer, basemapOpacity);
       }
     };
@@ -503,6 +504,30 @@ export default function MapPanel({ className, onMapReady }) {
       map.off('style.load', onStyleLoad);
     };
   }, [trackPromise]);
+
+  // Render the focused feature as an extra layer on top of the regular
+  // overlays. Source updates with the feature's geometry; layers are
+  // (re-)created on every style.load so a basemap swap doesn't drop
+  // the highlight. Cleared by passing `null` to setFocusedFeature.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const apply = () => {
+      if (!map.isStyleLoaded()) return;
+      if (focusedFeature?.geometry) {
+        applyFocusOverlay(map, focusedFeature);
+      } else {
+        removeFocusOverlay(map);
+      }
+    };
+
+    apply();
+    map.on('style.load', apply);
+    return () => {
+      map.off('style.load', apply);
+    };
+  }, [focusedFeature]);
 
   // Fly to the highlighted station whenever one is picked.
   useEffect(() => {
@@ -828,4 +853,81 @@ function removeOverlay(map, key) {
     if (map.getLayer(layerId)) map.removeLayer(layerId);
   }
   if (map.getSource(ids.source)) map.removeSource(ids.source);
+}
+
+// ---------------------------------------------------------------------------
+// Focused-feature highlight — a separate source/layer triple that draws
+// just the actively-selected feature in a bright accent color, above
+// every other overlay so it stays visible regardless of basemap.
+// ---------------------------------------------------------------------------
+
+const FOCUS_PREFIX = 'focus:';
+const FOCUS_SOURCE = `${FOCUS_PREFIX}source`;
+const FOCUS_FILL_LAYER = `${FOCUS_PREFIX}fill`;
+const FOCUS_LINE_LAYER = `${FOCUS_PREFIX}line`;
+const FOCUS_CIRCLE_LAYER = `${FOCUS_PREFIX}circle`;
+const FOCUS_COLOR = '#fbbf24'; // amber-400 — same accent the station ripple uses
+
+function applyFocusOverlay(map, feature) {
+  const data = {
+    type: 'FeatureCollection',
+    features: [{ type: 'Feature', geometry: feature.geometry, properties: {} }],
+  };
+
+  const src = map.getSource(FOCUS_SOURCE);
+  if (src) {
+    src.setData(data);
+  } else {
+    map.addSource(FOCUS_SOURCE, { type: 'geojson', data });
+  }
+
+  // Insert above everything else — the highlight is the user's
+  // current attention so it shouldn't be hidden by other overlays.
+  if (!map.getLayer(FOCUS_FILL_LAYER)) {
+    map.addLayer({
+      id: FOCUS_FILL_LAYER,
+      type: 'fill',
+      source: FOCUS_SOURCE,
+      filter: ['==', '$type', 'Polygon'],
+      paint: {
+        'fill-color': FOCUS_COLOR,
+        'fill-opacity': 0.25,
+      },
+    });
+  }
+  if (!map.getLayer(FOCUS_LINE_LAYER)) {
+    map.addLayer({
+      id: FOCUS_LINE_LAYER,
+      type: 'line',
+      source: FOCUS_SOURCE,
+      filter: ['!=', '$type', 'Point'],
+      paint: {
+        'line-color': FOCUS_COLOR,
+        'line-width': 3,
+        'line-opacity': 1,
+      },
+    });
+  }
+  if (!map.getLayer(FOCUS_CIRCLE_LAYER)) {
+    map.addLayer({
+      id: FOCUS_CIRCLE_LAYER,
+      type: 'circle',
+      source: FOCUS_SOURCE,
+      filter: ['==', '$type', 'Point'],
+      paint: {
+        'circle-radius': 9,
+        'circle-color': FOCUS_COLOR,
+        'circle-opacity': 0.9,
+        'circle-stroke-color': '#0f172a',
+        'circle-stroke-width': 2,
+      },
+    });
+  }
+}
+
+function removeFocusOverlay(map) {
+  for (const id of [FOCUS_FILL_LAYER, FOCUS_LINE_LAYER, FOCUS_CIRCLE_LAYER]) {
+    if (map.getLayer(id)) map.removeLayer(id);
+  }
+  if (map.getSource(FOCUS_SOURCE)) map.removeSource(FOCUS_SOURCE);
 }
