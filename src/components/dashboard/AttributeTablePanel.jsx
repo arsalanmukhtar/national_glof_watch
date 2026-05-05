@@ -14,6 +14,7 @@ import SearchBox from '@/components/ui/SearchBox';
 import ImportToDatabaseModal from '@/components/dashboard/ImportToDatabaseModal';
 import { cn } from '@/utils/cn';
 import { useSecondary } from '@/contexts/SecondaryContext';
+import { useMapView } from '@/contexts/MapContext';
 
 // Cap rendered rows so a 100k-feature upload doesn't lock the panel.
 // "Showing N of M" copy below the table makes the truncation explicit.
@@ -139,10 +140,14 @@ function EmptyState() {
 
 export default function AttributeTablePanel() {
   const { uploads } = useSecondary();
+  const { zoomToGeoJson } = useMapView();
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState({ key: null, dir: null }); // dir: 'asc' | 'desc' | null
   const [importOpen, setImportOpen] = useState(false);
+  // Index of the currently-focused row (within `visibleRows`). Lets the
+  // panel highlight the row whose feature the map was just flown to.
+  const [focusedRow, setFocusedRow] = useState(null);
 
   // Auto-select the latest upload, and follow new arrivals; fall back if
   // the selected file is removed while open.
@@ -162,7 +167,15 @@ export default function AttributeTablePanel() {
   useEffect(() => {
     setQuery('');
     setSort({ key: null, dir: null });
+    setFocusedRow(null);
   }, [selectedId]);
+
+  // Drop the row highlight when the rendered ordering changes (sort
+  // toggle, search filter) — the index no longer points at the same
+  // feature so leaving the highlight in place would be misleading.
+  useEffect(() => {
+    setFocusedRow(null);
+  }, [sort, query]);
 
   const selected = uploads.find((u) => u.id === selectedId) ?? null;
   const features = useMemo(() => extractFeatures(selected), [selected]);
@@ -325,17 +338,28 @@ export default function AttributeTablePanel() {
             <tbody>
               {visibleRows.map((feat, i) => {
                 const props = feat?.properties ?? {};
+                const isFocused = focusedRow === i;
                 return (
                   <tr
                     key={i}
+                    onClick={() => {
+                      setFocusedRow(i);
+                      // No-op for features without geometry — zoomToGeoJson
+                      // bails on a null bbox anyway, but skipping the call
+                      // saves an unnecessary trackPromise loader flash.
+                      if (feat?.geometry) zoomToGeoJson(feat);
+                    }}
                     className={cn(
-                      'transition-colors',
-                      // Distinct zebra: solid slate-100 in day mode, slate-800
-                      // at 60% in night. Hover override (#16a085/15) wins.
-                      i % 2 === 1
-                        ? 'bg-slate-100 dark:bg-slate-800/60'
-                        : 'bg-transparent',
-                      'hover:bg-[#16a085]/15 dark:hover:bg-[#16a085]/20',
+                      'transition-colors cursor-pointer',
+                      // Focused row wins over zebra + hover so a
+                      // just-clicked row stays visibly anchored after
+                      // the cursor moves on.
+                      isFocused
+                        ? 'bg-[#16a085]/25 dark:bg-[#16a085]/30'
+                        : i % 2 === 1
+                          ? 'bg-slate-100 dark:bg-slate-800/60'
+                          : 'bg-transparent',
+                      !isFocused && 'hover:bg-[#16a085]/15 dark:hover:bg-[#16a085]/20',
                     )}
                   >
                     {columns.map(({ key, numeric }) => {
