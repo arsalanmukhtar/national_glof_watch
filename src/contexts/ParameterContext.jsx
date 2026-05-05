@@ -18,11 +18,29 @@ export function ParameterProvider({ children }) {
   const [selectedStation, setSelectedStation] = useState(null);
   // GeoJSON features for the active parameter — shared by MapPanel + StationsTable
   const [stations, setStations] = useState([]);
+  // Set of bin colors the user has hidden via the legend; map circles +
+  // attribute-table rows both filter against it.
+  const [disabledBinColors, setDisabledBinColors] = useState(() => new Set());
 
   const select = useCallback((id) => {
     setSelected((prev) => (prev === id ? null : id));
-    setSelectedStation(null);
   }, []);
+
+  const toggleBin = useCallback((color) => {
+    setDisabledBinColors((prev) => {
+      const next = new Set(prev);
+      if (next.has(color)) next.delete(color);
+      else next.add(color);
+      return next;
+    });
+  }, []);
+
+  // Whenever the active parameter changes, clear the highlighted station
+  // and reset the legend's disabled bins (each parameter has its own legend).
+  useEffect(() => {
+    setSelectedStation(null);
+    setDisabledBinColors(new Set());
+  }, [selected]);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -111,6 +129,8 @@ export function ParameterProvider({ children }) {
         selectedStation,
         setSelectedStation,
         stations,
+        disabledBinColors,
+        toggleBin,
       }}
     >
       {children}

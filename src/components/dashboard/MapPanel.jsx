@@ -50,28 +50,18 @@ export default function MapPanel({ className, onMapReady }) {
   const [basemap, setBasemap] = useState(DEFAULT_BASEMAP);
   const [basemapOpacity, setBasemapOpacity] = useState(1);
   const [mapInstance, setMapInstance] = useState(null);
-  // Hex colors of legend bins the user has toggled off — those stations
-  // are filtered out of the dot + halo layers. Resets when the active
-  // parameter changes (each parameter has its own legend).
-  const [disabledBinColors, setDisabledBinColors] = useState(() => new Set());
+  const {
+    selected,
+    stations,
+    selectedStation,
+    setSelectedStation,
+    disabledBinColors,
+    toggleBin,
+  } = useParameter();
   // Ref mirror so style.load handlers + applyStationLayers can read the
   // current disabled set without re-creating callbacks on every change.
   const disabledBinColorsRef = useRef(disabledBinColors);
   disabledBinColorsRef.current = disabledBinColors;
-  const { selected, stations, selectedStation, setSelectedStation } = useParameter();
-
-  const toggleBin = (color) => {
-    setDisabledBinColors((prev) => {
-      const next = new Set(prev);
-      if (next.has(color)) next.delete(color);
-      else next.add(color);
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    setDisabledBinColors(new Set());
-  }, [selected]);
 
   // Build a colored FeatureCollection from the raw context features.
   // Each feature gets a `color` property derived from its value/lastUpdate
@@ -103,6 +93,10 @@ export default function MapPanel({ className, onMapReady }) {
       container: containerRef.current,
       style: BASEMAPS[DEFAULT_BASEMAP],
       attributionControl: false,
+      // Start flat — Mapbox 3.x defaults to globe, but the rest of the
+      // dashboard (regional layers, legend overlays) reads better on
+      // Mercator. The user can flip to globe via the projection toggle.
+      projection: 'mercator',
       ...DEFAULT_MAP_VIEW,
     });
     mapRef.current = map;

@@ -36,6 +36,7 @@ export default function StationsTable() {
     stations,
     selectedStation,
     setSelectedStation,
+    disabledBinColors,
   } = useParameter();
   const [open, setOpen] = useState(true);
   // { column: 'station' | 'value' | 'updated', direction: 'asc' | 'desc' }
@@ -70,8 +71,10 @@ export default function StationsTable() {
     });
   };
 
-  // Sort by the active column. Bad/missing values always sink so live
-  // stations stay near the top regardless of direction.
+  // Sort by the active column, then drop any stations whose bin color is
+  // currently toggled off in the legend (so the table mirrors what's
+  // visible on the map). Bad/missing values always sink so live stations
+  // stay near the top regardless of direction.
   const sortedStations = useMemo(() => {
     const dir = sort.direction === 'asc' ? 1 : -1;
     const cmp = (a, b) => {
@@ -100,8 +103,17 @@ export default function StationsTable() {
       if (bBad) return -1;
       return (av - bv) * dir;
     };
-    return [...stations].sort(cmp);
-  }, [stations, sort]);
+    const sorted = [...stations].sort(cmp);
+    if (!disabledBinColors || disabledBinColors.size === 0) return sorted;
+    return sorted.filter((f) => {
+      const c = colorForReading(
+        selected,
+        f.properties?.value,
+        f.properties?.lastUpdate,
+      );
+      return !disabledBinColors.has(c);
+    });
+  }, [stations, sort, disabledBinColors, selected]);
 
   const unitForSelected = PARAMETER_LEGENDS[selected]?.unit ?? '';
   const selectedLabel =
