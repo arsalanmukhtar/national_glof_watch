@@ -8,7 +8,23 @@ import {
   glacierSourceSpec,
 } from '@/config/glacierLayer';
 import { colorForReading, STALE_COLOR } from '@/config/parameterLegends';
+import {
+  detectGeometry,
+  fetchGeoJson,
+  regionLayerColor,
+  regionLayerGeometry,
+  regionLayerUrl,
+  secondaryLayerUrl,
+} from '@/config/layerSources';
 import { useParameter } from '@/contexts/ParameterContext';
+import {
+  parseRegionLayerId,
+  useRegionLayers,
+} from '@/contexts/RegionLayersContext';
+import {
+  DEFAULT_STYLES as SECONDARY_DEFAULT_STYLES,
+  useSecondary,
+} from '@/contexts/SecondaryContext';
 import BasemapSwitcher from './BasemapSwitcher';
 import MapControls from './MapControls';
 import MapGeocoder from './MapGeocoder';
@@ -58,6 +74,13 @@ export default function MapPanel({ className, onMapReady }) {
     disabledBinColors,
     toggleBin,
   } = useParameter();
+  const { visibleLayers: regionVisible } = useRegionLayers();
+  const {
+    layers: secondaryLayers,
+    visibleLayers: secondaryVisible,
+    styles: secondaryStyles,
+    uploads,
+  } = useSecondary();
   // Ref mirror so style.load handlers + applyStationLayers can read the
   // current disabled set without re-creating callbacks on every change.
   const disabledBinColorsRef = useRef(disabledBinColors);
@@ -85,6 +108,77 @@ export default function MapPanel({ className, onMapReady }) {
   }, [selected, stations]);
   const collectionRef = useRef(coloredCollection);
   collectionRef.current = coloredCollection;
+
+  // Desired overlay layers — flat list combining region accordion picks,
+  // secondary panel toggles, and uploaded files. MapPanel reconciles this
+  // against the live Mapbox layers in a useEffect below; the per-overlay
+  // shape is normalized so a single render path can handle all three
+  // sources (`paint` carries whatever the geometry-specific layer needs).
+  const desiredOverlays = useMemo(() => {
+    const list = [];
+
+    for (const id of regionVisible) {
+      const { regionId, layerKey } = parseRegionLayerId(id);
+      const url = regionLayerUrl(regionId, layerKey);
+      if (!url) continue;
+      const color = regionLayerColor(layerKey);
+      list.push({
+        key: `region:${id}`,
+        url,
+        data: null,
+        geometry: regionLayerGeometry(layerKey),
+        paint: {
+          color,
+          width: 2,
+          opacity: 1,
+          dashed: layerKey === 'faultline',
+          fillColor: color,
+          fillOpacity: 0.3,
+          strokeColor: color,
+          strokeWidth: 1.5,
+          strokeOpacity: 1,
+          radius: 5,
+        },
+      });
+    }
+
+    for (const id of secondaryVisible) {
+      const layer = secondaryLayers.find((l) => l.id === id);
+      if (!layer) continue; // uploads handled separately below
+      const url = secondaryLayerUrl(id);
+      if (!url) continue;
+      const style =
+        secondaryStyles[id] ?? SECONDARY_DEFAULT_STYLES[layer.geometry];
+      list.push({
+        key: `secondary:${id}`,
+        url,
+        data: null,
+        geometry: layer.geometry,
+        paint: style,
+      });
+    }
+
+    for (const upload of uploads) {
+      if (!secondaryVisible.has(upload.id)) continue;
+      const geometry = upload.geometry || 'polygon';
+      const style =
+        secondaryStyles[upload.id] ?? SECONDARY_DEFAULT_STYLES[geometry];
+      list.push({
+        key: `upload:${upload.id}`,
+        url: null,
+        data: upload.data,
+        geometry,
+        paint: style,
+      });
+    }
+
+    return list;
+  }, [regionVisible, secondaryLayers, secondaryVisible, secondaryStyles, uploads]);
+
+  // Mirror so the style.load handler can re-apply overlays on basemap swap
+  // without re-creating the listener on every visibility change.
+  const desiredOverlaysRef = useRef(desiredOverlays);
+  desiredOverlaysRef.current = desiredOverlays;
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -289,6 +383,10 @@ export default function MapPanel({ className, onMapReady }) {
       if (!style?.layers) return;
       for (const layer of style.layers) {
         if (CUSTOM_LAYER_IDS.has(layer.id)) continue;
+        // Skip user-overlay layers (region, secondary, uploads) — they
+        // share the basemap stack but should stay full-opacity regardless
+        // of the slider, just like the parameter station dots.
+        if (layer.id.startsWith(OVERLAY_PREFIX)) continue;
         applyLayerOpacity(map, layer, basemapOpacity);
       }
     };
@@ -305,6 +403,84 @@ export default function MapPanel({ className, onMapReady }) {
       map.off('style.load', onStyleLoad);
     };
   }, [basemapOpacity]);
+
+  // Reconcile overlays whenever the desired list changes. Async because
+  // region + secondary layers fetch their GeoJSON on demand (cached after
+  // first hit). Layers that go away are torn down imperatively; new ones
+  // are added via ensureOverlay.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    let cancelled = false;
+
+    const apply = async () => {
+      if (!map.isStyleLoaded()) {
+        // Skip — the style.load handler below will catch us up.
+        return;
+      }
+      const desired = desiredOverlaysRef.current;
+      const desiredKeys = new Set(desired.map((o) => o.key));
+      const tracked = (map._renderedOverlays ||= new Set());
+
+      for (const key of [...tracked]) {
+        if (!desiredKeys.has(key)) {
+          removeOverlay(map, key);
+          tracked.delete(key);
+        }
+      }
+
+      for (const o of desired) {
+        try {
+          const data = o.data ?? (await fetchGeoJson(o.url));
+          if (cancelled || !data || !mapRef.current) return;
+          // Re-detect geometry from the actual file when the per-key hint
+          // disagrees with the data — handles e.g. risk zones loaded from
+          // line-string sources rather than polygons.
+          const geometry = detectGeometry(data) || o.geometry;
+          ensureOverlay(map, o.key, geometry, data, o.paint);
+          tracked.add(o.key);
+        } catch (err) {
+          // Don't block the rest of the batch on a single 404 / parse fail.
+          console.warn(`Overlay ${o.key} failed to load:`, err);
+        }
+      }
+    };
+
+    apply();
+    return () => {
+      cancelled = true;
+    };
+  }, [desiredOverlays]);
+
+  // Re-apply every overlay after a basemap swap (Mapbox wipes user layers
+  // on setStyle). The cached fetches make this near-instant.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const onStyleLoad = async () => {
+      // Style was just replaced — Mapbox dropped our sources/layers, so
+      // forget what we tracked. We'll re-add from scratch.
+      map._renderedOverlays = new Set();
+      const desired = desiredOverlaysRef.current;
+      for (const o of desired) {
+        try {
+          const data = o.data ?? (await fetchGeoJson(o.url));
+          if (!data || !mapRef.current) return;
+          const geometry = detectGeometry(data) || o.geometry;
+          ensureOverlay(map, o.key, geometry, data, o.paint);
+          map._renderedOverlays.add(o.key);
+        } catch (err) {
+          console.warn(`Overlay ${o.key} re-apply failed:`, err);
+        }
+      }
+    };
+
+    map.on('style.load', onStyleLoad);
+    return () => {
+      map.off('style.load', onStyleLoad);
+    };
+  }, []);
 
   // Fly to the highlighted station whenever one is picked.
   useEffect(() => {
@@ -475,4 +651,143 @@ function removeStationLayers(map) {
   if (map.getLayer(STATIONS_LAYER)) map.removeLayer(STATIONS_LAYER);
   if (map.getLayer(STATIONS_HALO_LAYER)) map.removeLayer(STATIONS_HALO_LAYER);
   if (map.getSource(STATIONS_SOURCE)) map.removeSource(STATIONS_SOURCE);
+}
+
+// ---------------------------------------------------------------------------
+// Overlay layer helpers — used for region accordion picks, secondary panel
+// toggles, and uploaded GeoJSON/shp files. Each overlay owns one source
+// and 1-2 layers depending on geometry. Layer ids are namespaced so the
+// reconciler can find and remove them by key without scanning the style.
+// ---------------------------------------------------------------------------
+
+const OVERLAY_PREFIX = 'overlay:';
+
+function overlayIds(key) {
+  return {
+    source: `${OVERLAY_PREFIX}${key}`,
+    fill:   `${OVERLAY_PREFIX}${key}:fill`,
+    line:   `${OVERLAY_PREFIX}${key}:line`,
+    circle: `${OVERLAY_PREFIX}${key}:circle`,
+  };
+}
+
+// Where to insert overlay layers — below the station halo so dots stay
+// visually on top. Falls back to undefined (top of stack) if stations
+// aren't on the map yet.
+function overlayBeforeId(map) {
+  return map.getLayer(STATIONS_HALO_LAYER) ? STATIONS_HALO_LAYER : undefined;
+}
+
+function ensureOverlay(map, key, geometry, data, paint) {
+  const ids = overlayIds(key);
+
+  // Source: create or update with new data.
+  const source = map.getSource(ids.source);
+  if (source) {
+    source.setData(data);
+  } else {
+    map.addSource(ids.source, { type: 'geojson', data });
+  }
+
+  const beforeId = overlayBeforeId(map);
+
+  if (geometry === 'polygon') {
+    if (!map.getLayer(ids.fill)) {
+      map.addLayer(
+        {
+          id: ids.fill,
+          type: 'fill',
+          source: ids.source,
+          paint: {
+            'fill-color': paint.fillColor ?? '#16a085',
+            'fill-opacity': paint.fillOpacity ?? 0.3,
+          },
+        },
+        beforeId,
+      );
+    } else {
+      map.setPaintProperty(ids.fill, 'fill-color', paint.fillColor ?? '#16a085');
+      map.setPaintProperty(ids.fill, 'fill-opacity', paint.fillOpacity ?? 0.3);
+    }
+    if (!map.getLayer(ids.line)) {
+      map.addLayer(
+        {
+          id: ids.line,
+          type: 'line',
+          source: ids.source,
+          paint: {
+            'line-color': paint.strokeColor ?? '#0f7560',
+            'line-width': paint.strokeWidth ?? 1.5,
+            'line-opacity': paint.strokeOpacity ?? 1,
+          },
+        },
+        beforeId,
+      );
+    } else {
+      map.setPaintProperty(ids.line, 'line-color', paint.strokeColor ?? '#0f7560');
+      map.setPaintProperty(ids.line, 'line-width', paint.strokeWidth ?? 1.5);
+      map.setPaintProperty(ids.line, 'line-opacity', paint.strokeOpacity ?? 1);
+    }
+  } else if (geometry === 'line') {
+    const dasharray = paint.dashed ? [2, 2] : null;
+    if (!map.getLayer(ids.line)) {
+      map.addLayer(
+        {
+          id: ids.line,
+          type: 'line',
+          source: ids.source,
+          paint: {
+            'line-color': paint.color ?? '#16a085',
+            'line-width': paint.width ?? 2,
+            'line-opacity': paint.opacity ?? 1,
+            ...(dasharray ? { 'line-dasharray': dasharray } : {}),
+          },
+        },
+        beforeId,
+      );
+    } else {
+      map.setPaintProperty(ids.line, 'line-color', paint.color ?? '#16a085');
+      map.setPaintProperty(ids.line, 'line-width', paint.width ?? 2);
+      map.setPaintProperty(ids.line, 'line-opacity', paint.opacity ?? 1);
+      try {
+        map.setPaintProperty(ids.line, 'line-dasharray', dasharray ?? null);
+      } catch {
+        /* some Mapbox versions reject null — ignore */
+      }
+    }
+  } else if (geometry === 'point') {
+    if (!map.getLayer(ids.circle)) {
+      map.addLayer(
+        {
+          id: ids.circle,
+          type: 'circle',
+          source: ids.source,
+          paint: {
+            'circle-radius': paint.radius ?? 6,
+            'circle-color': paint.fillColor ?? '#16a085',
+            'circle-opacity': paint.fillOpacity ?? 0.85,
+            'circle-stroke-color': paint.strokeColor ?? '#0f7560',
+            'circle-stroke-width': paint.strokeWidth ?? 1.5,
+            'circle-stroke-opacity': paint.strokeOpacity ?? 1,
+          },
+        },
+        beforeId,
+      );
+    } else {
+      map.setPaintProperty(ids.circle, 'circle-radius', paint.radius ?? 6);
+      map.setPaintProperty(ids.circle, 'circle-color', paint.fillColor ?? '#16a085');
+      map.setPaintProperty(ids.circle, 'circle-opacity', paint.fillOpacity ?? 0.85);
+      map.setPaintProperty(ids.circle, 'circle-stroke-color', paint.strokeColor ?? '#0f7560');
+      map.setPaintProperty(ids.circle, 'circle-stroke-width', paint.strokeWidth ?? 1.5);
+      map.setPaintProperty(ids.circle, 'circle-stroke-opacity', paint.strokeOpacity ?? 1);
+    }
+  }
+}
+
+function removeOverlay(map, key) {
+  const ids = overlayIds(key);
+  for (const layerId of [ids.fill, ids.line, ids.circle]) {
+    if (map.getLayer(layerId)) map.removeLayer(layerId);
+  }
+  if (map.getSource(ids.source)) map.removeSource(ids.source);
 }

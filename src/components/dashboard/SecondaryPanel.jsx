@@ -20,7 +20,7 @@ import {
   Trash2,
   Waves,
 } from 'lucide-react';
-import Toggle from '@/components/ui/Toggle';
+import EyeToggle from '@/components/ui/EyeToggle';
 import Badge from '@/components/ui/Badge';
 import { cn } from '@/utils/cn';
 import { DEFAULT_STYLES, useSecondary } from '@/contexts/SecondaryContext';
@@ -400,11 +400,10 @@ function LayerRow({ id, label, geometry, icon: Icon, isUpload, onRemove }) {
             <Trash2 className="h-3 w-3" />
           </button>
         )}
-        <Toggle
+        <EyeToggle
           checked={on}
           onChange={() => toggleLayer(id)}
           label={`Toggle ${label}`}
-          activeClass="bg-[#16a085]"
         />
       </div>
       <AnimatePresence initial={false}>

@@ -1,11 +1,12 @@
 import { ChevronDown, Layers, MapPin } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Accordion, { AccordionItem } from '@/components/ui/Accordion';
-import Toggle from '@/components/ui/Toggle';
+import EyeToggle from '@/components/ui/EyeToggle';
 import SearchBox from '@/components/ui/SearchBox';
 import Badge from '@/components/ui/Badge';
 import { cn } from '@/utils/cn';
 import { useMemo, useState } from 'react';
+import { useRegionLayers } from '@/contexts/RegionLayersContext';
 
 // Mirrors the per-region tables loaded into PostGIS via
 // scripts/shell/geojson2postgis.sh — each layer string maps to one or
@@ -56,24 +57,32 @@ function layerStyle(name) {
   return LAYER_STYLES[key] ?? FALLBACK_STYLE;
 }
 
-function LayerToggle({ name }) {
-  const [on, setOn] = useState(false);
-  const { outline, toggle } = layerStyle(name);
+// Map a UI label ("Lake", "Buildings", "Risk Zones") to the layerKey used
+// by layerSources / RegionLayersContext ("lake", "building"). Risk zones
+// are rendered through RiskZonesRow so they don't pass through here.
+function labelToLayerKey(label) {
+  return label.toLowerCase().replace(/s$/, '');
+}
+
+function LayerToggle({ regionId, name }) {
+  const { isLayerVisible, toggleLayer } = useRegionLayers();
+  const layerKey = labelToLayerKey(name);
+  const on = isLayerVisible(regionId, layerKey);
+  const { outline } = layerStyle(name);
   return (
-    <label
+    <div
       className={cn(
-        'flex items-center justify-between gap-2 px-2.5 py-1 rounded-md border cursor-pointer text-day-text dark:text-night-text transition-colors',
+        'flex items-center justify-between gap-2 pl-2.5 pr-1 py-0.5 rounded-md border text-day-text dark:text-night-text transition-colors',
         outline,
       )}
     >
       <span className="text-[13px]">{name}</span>
-      <Toggle
+      <EyeToggle
         checked={on}
-        onChange={setOn}
+        onChange={() => toggleLayer(regionId, layerKey)}
         label={`Toggle ${name}`}
-        activeClass={toggle}
       />
-    </label>
+    </div>
   );
 }
 
@@ -102,20 +111,16 @@ const RISK_LEVELS = [
   },
 ];
 
-function RiskZonesRow() {
+function RiskZonesRow({ regionId }) {
+  const { isLayerVisible, toggleLayer } = useRegionLayers();
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(() => new Set());
 
-  const toggleLevel = (id) => {
-    setActive((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const anyOn = active.size > 0;
+  const isOn = (level) => isLayerVisible(regionId, `risk:${level}`);
+  const activeCount = RISK_LEVELS.reduce(
+    (acc, { id }) => acc + (isOn(id) ? 1 : 0),
+    0,
+  );
+  const anyOn = activeCount > 0;
 
   return (
     <div
@@ -136,7 +141,7 @@ function RiskZonesRow() {
         <span className="flex items-center gap-1.5">
           {anyOn ? (
             <span className="text-[10px] font-semibold tabular-nums text-rose-600 dark:text-rose-400">
-              {active.size}/3
+              {activeCount}/3
             </span>
           ) : null}
           <ChevronDown
@@ -160,18 +165,18 @@ function RiskZonesRow() {
           >
             <div className="flex items-center gap-1 px-2 pb-1.5">
               {RISK_LEVELS.map(({ id, label, on, off }) => {
-                const isOn = active.has(id);
+                const active = isOn(id);
                 return (
                   <motion.button
                     key={id}
                     type="button"
                     whileTap={{ scale: 0.96 }}
-                    onClick={() => toggleLevel(id)}
-                    aria-pressed={isOn}
+                    onClick={() => toggleLayer(regionId, `risk:${id}`)}
+                    aria-pressed={active}
                     aria-label={`${label} risk`}
                     className={cn(
                       'flex-1 inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide border transition-colors',
-                      isOn ? on : off,
+                      active ? on : off,
                     )}
                   >
                     {label}
@@ -245,9 +250,13 @@ export default function LayerMenu({ compact = false }) {
               <div className="space-y-1">
                 {region.layers.map((layer) =>
                   layer === 'Risk Zones' ? (
-                    <RiskZonesRow key={`${region.id}-risk`} />
+                    <RiskZonesRow key={`${region.id}-risk`} regionId={region.id} />
                   ) : (
-                    <LayerToggle key={`${region.id}-${layer}`} name={layer} />
+                    <LayerToggle
+                      key={`${region.id}-${layer}`}
+                      regionId={region.id}
+                      name={layer}
+                    />
                   ),
                 )}
               </div>
