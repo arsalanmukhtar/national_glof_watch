@@ -1,4 +1,4 @@
-import { ChevronDown, Layers, MapPin } from 'lucide-react';
+import { ChevronDown, Layers, MapPin, Shrink } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Accordion, { AccordionItem } from '@/components/ui/Accordion';
 import EyeToggle from '@/components/ui/EyeToggle';
@@ -7,6 +7,7 @@ import Badge from '@/components/ui/Badge';
 import { cn } from '@/utils/cn';
 import { useMemo, useState } from 'react';
 import { useRegionLayers } from '@/contexts/RegionLayersContext';
+import { useMapView } from '@/contexts/MapContext';
 
 // Mirrors the per-region tables loaded into PostGIS via
 // scripts/shell/geojson2postgis.sh — each layer string maps to one or
@@ -64,22 +65,55 @@ function labelToLayerKey(label) {
   return label.toLowerCase().replace(/s$/, '');
 }
 
+// Small icon button that flies the map to a layer's extent. Lives next to
+// the eye toggle in every row so users can preview a layer's footprint
+// without first turning it on.
+function ShrinkButton({ onClick, label }) {
+  return (
+    <motion.button
+      type="button"
+      whileTap={{ scale: 0.92 }}
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10 transition-colors"
+    >
+      <Shrink className="h-3.5 w-3.5" aria-hidden />
+    </motion.button>
+  );
+}
+
 function LayerToggle({ regionId, name }) {
   const { isLayerVisible, toggleLayer } = useRegionLayers();
+  const { zoomToRegionLayer } = useMapView();
   const layerKey = labelToLayerKey(name);
   const on = isLayerVisible(regionId, layerKey);
   const { outline } = layerStyle(name);
+
+  // Toggle + fly: every visibility change also frames the layer so the
+  // user immediately sees where the affected geometry lives. Works in
+  // both directions — flying after toggle-off briefly shows the location
+  // before the layer fades, which doubles as a "where was that?" cue.
+  const handleToggle = () => {
+    toggleLayer(regionId, layerKey);
+    zoomToRegionLayer(regionId, layerKey);
+  };
+
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-2 pl-2.5 pr-1 py-0.5 rounded-md border text-day-text dark:text-night-text transition-colors',
+        'flex items-center justify-between gap-1 pl-2.5 pr-1 py-0.5 rounded-md border text-day-text dark:text-night-text transition-colors',
         outline,
       )}
     >
-      <span className="text-[13px]">{name}</span>
+      <span className="text-[13px] flex-1 truncate">{name}</span>
+      <ShrinkButton
+        onClick={() => zoomToRegionLayer(regionId, layerKey)}
+        label={`Zoom to ${name}`}
+      />
       <EyeToggle
         checked={on}
-        onChange={() => toggleLayer(regionId, layerKey)}
+        onChange={handleToggle}
         label={`Toggle ${name}`}
       />
     </div>
@@ -113,6 +147,7 @@ const RISK_LEVELS = [
 
 function RiskZonesRow({ regionId }) {
   const { isLayerVisible, toggleLayer } = useRegionLayers();
+  const { zoomToRegionLayer, zoomToRegionRiskZones } = useMapView();
   const [open, setOpen] = useState(false);
 
   const isOn = (level) => isLayerVisible(regionId, `risk:${level}`);
@@ -121,6 +156,13 @@ function RiskZonesRow({ regionId }) {
     0,
   );
   const anyOn = activeCount > 0;
+
+  // Each level pill toggles + zooms to its own file, mirroring the
+  // LayerToggle behavior so risk pills feel consistent with regular layers.
+  const handlePill = (level) => {
+    toggleLayer(regionId, `risk:${level}`);
+    zoomToRegionLayer(regionId, `risk:${level}`);
+  };
 
   return (
     <div
@@ -131,28 +173,34 @@ function RiskZonesRow({ regionId }) {
           : 'border-rose-500/40 dark:border-rose-400/40',
       )}
     >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 px-2.5 py-1 text-day-text dark:text-night-text"
-      >
-        <span className="text-[13px]">Risk Zones</span>
-        <span className="flex items-center gap-1.5">
-          {anyOn ? (
-            <span className="text-[10px] font-semibold tabular-nums text-rose-600 dark:text-rose-400">
-              {activeCount}/3
-            </span>
-          ) : null}
-          <ChevronDown
-            className={cn(
-              'h-3.5 w-3.5 text-day-muted dark:text-night-muted transition-transform duration-200',
-              open && 'rotate-180',
-            )}
-            aria-hidden
-          />
-        </span>
-      </button>
+      <div className="flex items-center gap-1 pl-2.5 pr-1 py-0.5 text-day-text dark:text-night-text">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex flex-1 items-center justify-between gap-2"
+        >
+          <span className="text-[13px]">Risk Zones</span>
+          <span className="flex items-center gap-1.5">
+            {anyOn ? (
+              <span className="text-[10px] font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+                {activeCount}/3
+              </span>
+            ) : null}
+            <ChevronDown
+              className={cn(
+                'h-3.5 w-3.5 text-day-muted dark:text-night-muted transition-transform duration-200',
+                open && 'rotate-180',
+              )}
+              aria-hidden
+            />
+          </span>
+        </button>
+        <ShrinkButton
+          onClick={() => zoomToRegionRiskZones(regionId)}
+          label="Zoom to risk zones"
+        />
+      </div>
       <AnimatePresence initial={false}>
         {open ? (
           <motion.div
@@ -171,7 +219,7 @@ function RiskZonesRow({ regionId }) {
                     key={id}
                     type="button"
                     whileTap={{ scale: 0.96 }}
-                    onClick={() => toggleLayer(regionId, `risk:${id}`)}
+                    onClick={() => handlePill(id)}
                     aria-pressed={active}
                     aria-label={`${label} risk`}
                     className={cn(

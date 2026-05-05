@@ -2,6 +2,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ParameterProvider } from '@/contexts/ParameterContext';
 import { SecondaryProvider } from '@/contexts/SecondaryContext';
 import { RegionLayersProvider } from '@/contexts/RegionLayersContext';
+import { MapProvider } from '@/contexts/MapContext';
 import AppShell from '@/components/layout/AppShell';
 import Dashboard from '@/components/dashboard/Dashboard';
 
@@ -11,9 +12,11 @@ export default function App() {
       <ParameterProvider>
         <SecondaryProvider>
           <RegionLayersProvider>
-            <AppShell>
-              <Dashboard />
-            </AppShell>
+            <MapProvider>
+              <AppShell>
+                <Dashboard />
+              </AppShell>
+            </MapProvider>
           </RegionLayersProvider>
         </SecondaryProvider>
       </ParameterProvider>

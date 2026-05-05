@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
+  Expand,
   Globe2,
   LocateFixed,
   Maximize2,
@@ -11,6 +12,7 @@ import {
   Square,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { useMapView } from '@/contexts/MapContext';
 
 // Custom vertical control stack — replaces the default Mapbox
 // NavigationControl / GeolocateControl / FullscreenControl trio with
@@ -19,6 +21,7 @@ export default function MapControls({ map, fullscreenTarget }) {
   const [bearing, setBearing] = useState(0);
   const [projection, setProjection] = useState('mercator');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const { resetView } = useMapView();
 
   useEffect(() => {
     if (!map) return;
@@ -83,6 +86,9 @@ export default function MapControls({ map, fullscreenTarget }) {
       </CtrlButton>
       <CtrlButton onClick={zoomOut} label="Zoom out">
         <Minus className="h-3.5 w-3.5" strokeWidth={2} />
+      </CtrlButton>
+      <CtrlButton onClick={resetView} label="Zoom to full extent">
+        <Expand className="h-3.5 w-3.5" strokeWidth={1.75} />
       </CtrlButton>
       <CtrlButton onClick={resetBearing} label="Reset bearing">
         <Navigation2

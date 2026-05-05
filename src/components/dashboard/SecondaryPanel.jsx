@@ -14,6 +14,7 @@ import {
   Mountain,
   Radio,
   RotateCcw,
+  Shrink,
   Slash,
   Square,
   Triangle,
@@ -24,6 +25,7 @@ import EyeToggle from '@/components/ui/EyeToggle';
 import Badge from '@/components/ui/Badge';
 import { cn } from '@/utils/cn';
 import { DEFAULT_STYLES, useSecondary } from '@/contexts/SecondaryContext';
+import { useMapView } from '@/contexts/MapContext';
 
 const MAX_UPLOADS = 5;
 
@@ -354,7 +356,7 @@ function StyleEditor({ geometry, style, onChange, onReset }) {
 // Layer row — toggle + expandable style controls
 // ---------------------------------------------------------------------------
 
-function LayerRow({ id, label, geometry, icon: Icon, isUpload, onRemove }) {
+function LayerRow({ id, label, geometry, icon: Icon, isUpload, uploadData, onRemove }) {
   const {
     visibleLayers,
     toggleLayer,
@@ -364,14 +366,27 @@ function LayerRow({ id, label, geometry, icon: Icon, isUpload, onRemove }) {
     expandedLayer,
     setExpandedLayer,
   } = useSecondary();
+  const { zoomToSecondaryLayer, zoomToGeoJson } = useMapView();
 
   const on = visibleLayers.has(id);
   const expanded = expandedLayer === id;
   const style = styles[id] ?? { ...DEFAULT_STYLES[geometry] };
 
+  const handleZoom = () => {
+    if (isUpload) zoomToGeoJson(uploadData);
+    else zoomToSecondaryLayer(id);
+  };
+
+  // Toggling visibility also frames the layer — same UX as the region
+  // accordion so users always end up looking at what they just changed.
+  const handleToggle = () => {
+    toggleLayer(id);
+    handleZoom();
+  };
+
   return (
     <div className="rounded-md border border-day-border dark:border-night-border">
-      <div className="flex items-center gap-1.5 px-2 py-1.5">
+      <div className="flex items-center gap-1 px-2 py-1.5">
         <button
           type="button"
           onClick={() => setExpandedLayer(expanded ? null : id)}
@@ -400,9 +415,18 @@ function LayerRow({ id, label, geometry, icon: Icon, isUpload, onRemove }) {
             <Trash2 className="h-3 w-3" />
           </button>
         )}
+        <button
+          type="button"
+          onClick={handleZoom}
+          title={`Zoom to ${label}`}
+          aria-label={`Zoom to ${label}`}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10 transition-colors"
+        >
+          <Shrink className="h-3.5 w-3.5" aria-hidden />
+        </button>
         <EyeToggle
           checked={on}
-          onChange={() => toggleLayer(id)}
+          onChange={handleToggle}
           label={`Toggle ${label}`}
         />
       </div>
@@ -667,6 +691,7 @@ function UploadZone() {
                 geometry={u.geometry || 'polygon'}
                 icon={u.kind === 'shapefile' ? FileArchive : FileJson}
                 isUpload
+                uploadData={u.data}
                 onRemove={() => removeUpload(u.id)}
               />
             ))}

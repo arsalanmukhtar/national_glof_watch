@@ -25,6 +25,7 @@ import {
   DEFAULT_STYLES as SECONDARY_DEFAULT_STYLES,
   useSecondary,
 } from '@/contexts/SecondaryContext';
+import { useMapView } from '@/contexts/MapContext';
 import BasemapSwitcher from './BasemapSwitcher';
 import MapControls from './MapControls';
 import MapGeocoder from './MapGeocoder';
@@ -81,6 +82,7 @@ export default function MapPanel({ className, onMapReady }) {
     styles: secondaryStyles,
     uploads,
   } = useSecondary();
+  const { setMap } = useMapView();
   // Ref mirror so style.load handlers + applyStationLayers can read the
   // current disabled set without re-creating callbacks on every change.
   const disabledBinColorsRef = useRef(disabledBinColors);
@@ -195,6 +197,7 @@ export default function MapPanel({ className, onMapReady }) {
     });
     mapRef.current = map;
     setMapInstance(map);
+    setMap(map);
 
     // Re-register sources/layers on every style swap (Mapbox wipes them).
     // Visibility (terrain on/off, glacier overlay on/off) is owned by Dashboard.
@@ -237,8 +240,9 @@ export default function MapPanel({ className, onMapReady }) {
       map.remove();
       mapRef.current = null;
       setMapInstance(null);
+      setMap(null);
     };
-  }, [onMapReady]);
+  }, [onMapReady, setMap]);
 
   // Push the colored FeatureCollection to the map when it changes; clear
   // the layer when no parameter is selected.
