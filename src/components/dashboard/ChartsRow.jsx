@@ -339,8 +339,8 @@ function PmdTrendPanel({ theme }) {
   const noData = !empty && points.length === 0 && !loading;
 
   return (
-    <div className="p-3 flex flex-col gap-2">
-      <div className="flex items-center gap-2 flex-wrap">
+    <div className="p-3 flex flex-col gap-2 h-full min-h-0">
+      <div className="flex items-center gap-2 flex-wrap shrink-0">
         <h3 className="text-sm font-semibold text-day-text dark:text-night-text">
           {empty
             ? 'PMD Parameter Trend'
@@ -358,7 +358,7 @@ function PmdTrendPanel({ theme }) {
         </div>
       </div>
 
-      <div className="h-28 sm:h-32 lg:h-36">
+      <div className="flex-1 min-h-0">
         {empty ? (
           <EmptyState>
             Select a parameter and click a station to view its trend.
