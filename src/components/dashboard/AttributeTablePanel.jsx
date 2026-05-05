@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Database, FileJson, Inbox } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Database,
+  FileArchive,
+  FileJson,
+  Inbox,
+} from 'lucide-react';
 import Badge from '@/components/ui/Badge';
+import SearchBox from '@/components/ui/SearchBox';
 import { cn } from '@/utils/cn';
 import { useSecondary } from '@/contexts/SecondaryContext';
 
@@ -66,31 +75,47 @@ function buildColumns(features) {
   });
 }
 
+// Horizontal slider used to switch which uploaded file's attributes are
+// shown. Each pill snaps to the left edge; the selected pill takes the
+// accent color. Only renders when there's more than one upload to choose
+// between (no need to slide a single file).
 function FilePicker({ uploads, selectedId, onSelect }) {
   if (uploads.length <= 1) return null;
   return (
     <div className="shrink-0 mb-2">
-      <div className="text-[10px] uppercase tracking-wide text-day-muted dark:text-night-muted mb-1 px-0.5">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1 px-0.5">
         File
       </div>
-      <div className="flex flex-wrap gap-1">
-        {uploads.map((u) => (
-          <button
-            key={u.id}
-            type="button"
-            onClick={() => onSelect(u.id)}
-            className={cn(
-              'inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors',
-              selectedId === u.id
-                ? 'bg-[#16a085] text-white'
-                : 'bg-day-bg dark:bg-night-bg text-day-text dark:text-night-text hover:bg-day-surface dark:hover:bg-night-surface',
-            )}
-            title={u.label}
-          >
-            <FileJson className="h-3 w-3 shrink-0" />
-            <span className="truncate max-w-[140px]">{u.label}</span>
-          </button>
-        ))}
+      <div className="-mx-3 px-3 overflow-x-auto pb-1 snap-x snap-mandatory">
+        <div className="flex gap-1.5 w-max">
+          {uploads.map((u) => {
+            const isSelected = selectedId === u.id;
+            const Icon = u.kind === 'shapefile' ? FileArchive : FileJson;
+            return (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => onSelect(u.id)}
+                aria-pressed={isSelected}
+                title={u.label}
+                className={cn(
+                  'shrink-0 w-[180px] snap-start inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium border transition-colors',
+                  isSelected
+                    ? 'bg-[#16a085] text-white border-[#16a085] shadow-sm'
+                    : 'bg-slate-100 dark:bg-night-bg text-day-text dark:text-night-text border-day-border dark:border-night-border hover:border-[#16a085]/60',
+                )}
+              >
+                <Icon
+                  className={cn(
+                    'h-3.5 w-3.5 shrink-0',
+                    isSelected ? 'text-white' : 'text-brand-700 dark:text-brand-200',
+                  )}
+                />
+                <span className="flex-1 truncate text-left">{u.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -114,6 +139,8 @@ function EmptyState() {
 export default function AttributeTablePanel() {
   const { uploads } = useSecondary();
   const [selectedId, setSelectedId] = useState(null);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState({ key: null, dir: null }); // dir: 'asc' | 'desc' | null
 
   // Auto-select the latest upload, and follow new arrivals; fall back if
   // the selected file is removed while open.
@@ -128,10 +155,64 @@ export default function AttributeTablePanel() {
     }
   }, [uploads, selectedId]);
 
+  // Reset filter + sort when the selected file changes — column set and
+  // value space differ between files, so prior state is meaningless.
+  useEffect(() => {
+    setQuery('');
+    setSort({ key: null, dir: null });
+  }, [selectedId]);
+
   const selected = uploads.find((u) => u.id === selectedId) ?? null;
   const features = useMemo(() => extractFeatures(selected), [selected]);
   const columns = useMemo(() => buildColumns(features), [features]);
-  const visibleRows = features.slice(0, MAX_ROWS);
+
+  // Filter: case-insensitive substring match against any column value.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return features;
+    return features.filter((feat) => {
+      const props = feat?.properties ?? {};
+      for (const { key } of columns) {
+        const v = props[key];
+        if (v == null) continue;
+        if (String(v).toLowerCase().includes(q)) return true;
+      }
+      return false;
+    });
+  }, [features, columns, query]);
+
+  // Sort: number columns numerically, others lexicographically; nulls last.
+  const sorted = useMemo(() => {
+    if (!sort.key || !sort.dir) return filtered;
+    const col = columns.find((c) => c.key === sort.key);
+    if (!col) return filtered;
+    const dirMul = sort.dir === 'asc' ? 1 : -1;
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      const av = a?.properties?.[sort.key];
+      const bv = b?.properties?.[sort.key];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (col.numeric) {
+        const an = Number(av);
+        const bn = Number(bv);
+        if (!Number.isNaN(an) && !Number.isNaN(bn)) return (an - bn) * dirMul;
+      }
+      return String(av).localeCompare(String(bv), undefined, { numeric: true }) * dirMul;
+    });
+    return arr;
+  }, [filtered, sort, columns]);
+
+  const visibleRows = sorted.slice(0, MAX_ROWS);
+
+  const cycleSort = (key) => {
+    setSort((cur) => {
+      if (cur.key !== key) return { key, dir: 'asc' };
+      if (cur.dir === 'asc') return { key, dir: 'desc' };
+      return { key: null, dir: null };
+    });
+  };
 
   if (uploads.length === 0) {
     return <EmptyState />;
@@ -151,16 +232,33 @@ export default function AttributeTablePanel() {
           {selected?.label ?? '—'}
         </span>
         <Badge tone="brand" className="ml-auto whitespace-nowrap">
-          {features.length} {features.length === 1 ? 'feature' : 'features'}
+          {query
+            ? `${sorted.length} / ${features.length}`
+            : `${features.length} ${features.length === 1 ? 'feature' : 'features'}`}
         </Badge>
       </div>
 
-      {/* Table — borderless, zebra-striped */}
+      {/* Search filter */}
+      {features.length > 0 && (
+        <div className="shrink-0 mb-2">
+          <SearchBox
+            placeholder="Filter attributes…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* Table — borderless, zebra-striped, sortable headers */}
       {features.length === 0 || columns.length === 0 ? (
         <div className="flex-1 min-h-0 flex items-center justify-center text-[12px] text-day-muted dark:text-night-muted px-6 text-center">
           {features.length === 0
             ? 'This file has no features.'
             : 'No attribute properties on these features.'}
+        </div>
+      ) : sorted.length === 0 ? (
+        <div className="flex-1 min-h-0 flex items-center justify-center text-[12px] text-day-muted dark:text-night-muted px-6 text-center">
+          No rows match “{query}”.
         </div>
       ) : (
         <motion.div
@@ -173,18 +271,53 @@ export default function AttributeTablePanel() {
           <table className="w-full text-[12px] tabular-nums">
             <thead className="sticky top-0 z-10 bg-day-surface/95 dark:bg-night-surface/95 backdrop-blur supports-[backdrop-filter]:bg-day-surface/80 dark:supports-[backdrop-filter]:bg-night-surface/80">
               <tr>
-                {columns.map(({ key, numeric }) => (
-                  <th
-                    key={key}
-                    scope="col"
-                    className={cn(
-                      'px-2.5 py-2 font-semibold uppercase tracking-wide text-[10px] whitespace-nowrap text-day-muted dark:text-night-muted',
-                      numeric ? 'text-right' : 'text-left',
-                    )}
-                  >
-                    {key}
-                  </th>
-                ))}
+                {columns.map(({ key, numeric }) => {
+                  const isSorted = sort.key === key;
+                  const SortIcon =
+                    isSorted && sort.dir === 'asc'  ? ArrowUp
+                    : isSorted && sort.dir === 'desc' ? ArrowDown
+                    : ArrowUpDown;
+                  return (
+                    <th
+                      key={key}
+                      scope="col"
+                      aria-sort={
+                        isSorted
+                          ? sort.dir === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      }
+                      className={cn(
+                        'group p-0 font-semibold uppercase tracking-wide text-[10px] whitespace-nowrap',
+                        numeric ? 'text-right' : 'text-left',
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => cycleSort(key)}
+                        className={cn(
+                          'inline-flex items-center gap-1 px-2.5 py-2 w-full transition-colors',
+                          numeric ? 'justify-end flex-row-reverse' : 'justify-start',
+                          isSorted
+                            ? 'text-[#16a085]'
+                            : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
+                        )}
+                      >
+                        <SortIcon
+                          className={cn(
+                            'h-3 w-3 shrink-0 transition-opacity',
+                            isSorted
+                              ? 'opacity-100'
+                              : 'opacity-40 group-hover:opacity-70',
+                          )}
+                          aria-hidden
+                        />
+                        <span className="truncate">{key}</span>
+                      </button>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -195,9 +328,12 @@ export default function AttributeTablePanel() {
                     key={i}
                     className={cn(
                       'transition-colors',
-                      // Zebra striping via background only — no borders.
-                      i % 2 === 1 && 'bg-day-surface/40 dark:bg-night-surface/30',
-                      'hover:bg-[#16a085]/10 dark:hover:bg-[#16a085]/15',
+                      // Distinct zebra: solid slate-100 in day mode, slate-800
+                      // at 60% in night. Hover override (#16a085/15) wins.
+                      i % 2 === 1
+                        ? 'bg-slate-100 dark:bg-slate-800/60'
+                        : 'bg-transparent',
+                      'hover:bg-[#16a085]/15 dark:hover:bg-[#16a085]/20',
                     )}
                   >
                     {columns.map(({ key, numeric }) => {
@@ -225,9 +361,9 @@ export default function AttributeTablePanel() {
         </motion.div>
       )}
 
-      {features.length > MAX_ROWS && (
+      {sorted.length > MAX_ROWS && (
         <div className="shrink-0 mt-1 px-0.5 text-[10px] text-day-muted dark:text-night-muted text-right">
-          Showing {MAX_ROWS.toLocaleString()} of {features.length.toLocaleString()} rows
+          Showing {MAX_ROWS.toLocaleString()} of {sorted.length.toLocaleString()} rows
         </div>
       )}
 

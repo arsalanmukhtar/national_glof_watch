@@ -32,10 +32,10 @@ const SECTIONS = [
   },
   {
     id: SECONDARY_ID,
-    label: 'Secondary',
+    label: 'Secondary Layers',
     icon: Shapes,
     headerIcon: null, // toggle-strip icon already conveys this; avoid duplication
-    title: 'Secondary',
+    title: 'Secondary Layers',
     grow: true,
     render: () => <SecondaryPanel />,
   },
@@ -126,7 +126,12 @@ export default function LeftSidebar({ className }) {
           >
             <div className="flex flex-col gap-2 w-[320px] h-full min-h-0">
               {visibleSections.map(
-                ({ id, headerIcon: HeaderIcon, title, grow, render }) => (
+                ({ id, headerIcon: HeaderIcon, title, grow, render }) => {
+                  // Panels with a sticky sub-header (Layers) own the visual
+                  // divider themselves; suppress the panel-header's bottom
+                  // border + padding so they sit flush.
+                  const flush = id === 'layers';
+                  return (
                   <div
                     key={id}
                     className={cn(
@@ -134,7 +139,14 @@ export default function LeftSidebar({ className }) {
                       grow ? 'flex-1' : 'shrink-0',
                     )}
                   >
-                    <div className="panel-header px-2.5 mb-0 pb-1.5 pt-2 shrink-0">
+                    <div
+                      className={cn(
+                        'flex items-center justify-between px-2.5 pt-2 mb-0 shrink-0',
+                        flush
+                          ? 'pb-2 border-b-0'
+                          : 'pb-1.5 border-b border-day-border dark:border-night-border',
+                      )}
+                    >
                       <h2 className="text-[13px] font-semibold flex items-center gap-1.5">
                         {HeaderIcon ? (
                           <HeaderIcon className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200" />
@@ -152,14 +164,16 @@ export default function LeftSidebar({ className }) {
                     </div>
                     <div
                       className={cn(
-                        'px-2.5 pt-2 pb-2',
+                        'px-2.5 pb-2',
+                        flush ? 'pt-0' : 'pt-2',
                         grow ? 'flex-1 min-h-0 overflow-y-auto' : '',
                       )}
                     >
                       {render()}
                     </div>
                   </div>
-                ),
+                  );
+                },
               )}
             </div>
           </motion.div>

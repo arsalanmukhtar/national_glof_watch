@@ -106,7 +106,7 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
         grid: { display: false },
         ticks: {
           color: t.text,
-          font: { size: 10 },
+          font: { size: 11, weight: '600' },
           callback: xLabelFormatter
             ? function (value, index) {
                 const lbl = this.getLabelForValue(value);
@@ -122,7 +122,7 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
       y: {
         beginAtZero: false,
         grid: { color: t.grid },
-        ticks: { color: t.text, font: { size: 10 } },
+        ticks: { color: t.text, font: { size: 11, weight: '600' } },
         border: { color: t.axis },
       },
     },
@@ -293,7 +293,13 @@ function PmdTrendPanel({ theme }) {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
     if (bucket === 'hour') {
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      // 12-hour clock with AM/PM, locale-independent so labels stay
+      // consistent across browsers and parameters.
+      return d.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
     }
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };

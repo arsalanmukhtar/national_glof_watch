@@ -1,4 +1,5 @@
-import { Layers, MapPin } from 'lucide-react';
+import { ChevronDown, Layers, MapPin } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import Accordion, { AccordionItem } from '@/components/ui/Accordion';
 import Toggle from '@/components/ui/Toggle';
 import SearchBox from '@/components/ui/SearchBox';
@@ -76,6 +77,115 @@ function LayerToggle({ name }) {
   );
 }
 
+// Risk-level pill specs — three independently-toggleable buttons that sit
+// inline inside an expandable "Risk Zones" row. Colors are chosen for clear
+// contrast in both day & night modes; yellow uses dark text since white-on-
+// yellow fails WCAG AA.
+const RISK_LEVELS = [
+  {
+    id: 'low',
+    label: 'Low',
+    on:  'bg-yellow-400 text-yellow-950 border-yellow-400 shadow-sm',
+    off: 'border-yellow-500/60 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-400/10',
+  },
+  {
+    id: 'medium',
+    label: 'Medium',
+    on:  'bg-orange-500 text-white border-orange-500 shadow-sm',
+    off: 'border-orange-500/60 text-orange-700 dark:text-orange-300 hover:bg-orange-500/10',
+  },
+  {
+    id: 'high',
+    label: 'High',
+    on:  'bg-red-500 text-white border-red-500 shadow-sm',
+    off: 'border-red-500/60 text-red-700 dark:text-red-300 hover:bg-red-500/10',
+  },
+];
+
+function RiskZonesRow() {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(() => new Set());
+
+  const toggleLevel = (id) => {
+    setActive((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const anyOn = active.size > 0;
+
+  return (
+    <div
+      className={cn(
+        'rounded-md border transition-colors',
+        anyOn
+          ? 'border-rose-500/70 dark:border-rose-400/70'
+          : 'border-rose-500/40 dark:border-rose-400/40',
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 px-2.5 py-1 text-day-text dark:text-night-text"
+      >
+        <span className="text-[13px]">Risk Zones</span>
+        <span className="flex items-center gap-1.5">
+          {anyOn ? (
+            <span className="text-[10px] font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+              {active.size}/3
+            </span>
+          ) : null}
+          <ChevronDown
+            className={cn(
+              'h-3.5 w-3.5 text-day-muted dark:text-night-muted transition-transform duration-200',
+              open && 'rotate-180',
+            )}
+            aria-hidden
+          />
+        </span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open ? (
+          <motion.div
+            key="levels"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="flex items-center gap-1 px-2 pb-1.5">
+              {RISK_LEVELS.map(({ id, label, on, off }) => {
+                const isOn = active.has(id);
+                return (
+                  <motion.button
+                    key={id}
+                    type="button"
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => toggleLevel(id)}
+                    aria-pressed={isOn}
+                    aria-label={`${label} risk`}
+                    className={cn(
+                      'flex-1 inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide border transition-colors',
+                      isOn ? on : off,
+                    )}
+                  >
+                    {label}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function LayerMenu({ compact = false }) {
   const [query, setQuery] = useState('');
 
@@ -99,10 +209,11 @@ export default function LayerMenu({ compact = false }) {
   return (
     <div className={compact ? '' : ''}>
       {/* Pinned header: "Regions" label + search stay visible while the
-          accordion list scrolls underneath. Negative margins counter the
-          parent (LeftSidebar) wrapper's px-2.5 / pt-2 so the sticky bar
-          spans edge-to-edge of the panel card. */}
-      <div className="sticky top-0 z-10 -mx-2.5 -mt-2 px-2.5 pt-2 pb-2 bg-white dark:bg-night-surface">
+          accordion list scrolls underneath. Negative horizontal margin
+          counters the parent's px-2.5 so the sticky bar spans edge-to-edge
+          of the panel card and sits flush against the title (the LeftSidebar
+          drops its top padding for this section so no -mt is needed). */}
+      <div className="sticky top-0 z-10 -mx-2.5 px-2.5 pt-2 pb-2 bg-white dark:bg-night-surface border-b border-day-border dark:border-night-border">
         <div className="mb-2 flex items-center gap-1.5">
           <Layers className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200" />
           <span className="label-base">Regions</span>
@@ -132,9 +243,13 @@ export default function LayerMenu({ compact = false }) {
               icon={<MapPin className="h-3.5 w-3.5 text-brand-600 dark:text-brand-300" />}
             >
               <div className="space-y-1">
-                {region.layers.map((layer) => (
-                  <LayerToggle key={`${region.id}-${layer}`} name={layer} />
-                ))}
+                {region.layers.map((layer) =>
+                  layer === 'Risk Zones' ? (
+                    <RiskZonesRow key={`${region.id}-risk`} />
+                  ) : (
+                    <LayerToggle key={`${region.id}-${layer}`} name={layer} />
+                  ),
+                )}
               </div>
             </AccordionItem>
           ))}
