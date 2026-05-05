@@ -410,9 +410,9 @@ function LayerRow({ id, label, geometry, icon: Icon, isUpload, uploadData, onRem
             type="button"
             onClick={onRemove}
             aria-label={`Remove ${label}`}
-            className="btn-icon btn-ghost h-6 w-6 text-day-muted dark:text-night-muted hover:text-red-600 dark:hover:text-red-300"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-red-500 dark:text-red-400 hover:bg-red-500/15 transition-colors"
           >
-            <Trash2 className="h-3 w-3" />
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         )}
         <button
@@ -706,25 +706,37 @@ function UploadZone() {
 // Main panel
 // ---------------------------------------------------------------------------
 
-export default function SecondaryPanel() {
+export default function SecondaryPanel({ compact = false }) {
   const { layers, visibleLayers } = useSecondary();
   const visibleCount = useMemo(
     () => layers.reduce((acc, l) => acc + (visibleLayers.has(l.id) ? 1 : 0), 0),
     [layers, visibleLayers],
   );
 
+  // In compact (mobile drawer) mode the panel sits inside an outer
+  // overflow-y-auto, so the inner scroll + h-full constraints are
+  // dropped — everything stacks at natural height and the drawer
+  // scrolls as one. Inner section title is also dropped because the
+  // mobile section header above already labels it.
   return (
-    <div className="flex flex-col h-full min-h-0 -mx-1">
+    <div className={cn('flex flex-col -mx-1', !compact && 'h-full min-h-0')}>
       {/* Upper half — secondary layers */}
-      <div className="flex flex-col flex-1 min-h-0">
-        <div className="flex items-center gap-1.5 px-1 mb-1.5">
-          <span className="label-base">Secondary Layers</span>
-          <Badge tone="brand" className="ml-auto">
-            {visibleCount > 0 ? `${visibleCount} / ${layers.length}` : layers.length}
-          </Badge>
-        </div>
+      <div className={cn('flex flex-col', !compact && 'flex-1 min-h-0')}>
+        {!compact && (
+          <div className="flex items-center gap-1.5 px-1 mb-1.5">
+            <span className="label-base">Secondary Layers</span>
+            <Badge tone="brand" className="ml-auto">
+              {visibleCount > 0 ? `${visibleCount} / ${layers.length}` : layers.length}
+            </Badge>
+          </div>
+        )}
 
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1 flex flex-col gap-1">
+        <div
+          className={cn(
+            'pr-1 flex flex-col gap-1',
+            !compact && 'flex-1 min-h-0 overflow-y-auto',
+          )}
+        >
           {layers.map((l) => (
             <LayerRow
               key={l.id}

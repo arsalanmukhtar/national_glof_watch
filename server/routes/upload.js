@@ -63,6 +63,37 @@ function coerce(v, type) {
 // enough that progress updates feel live.
 const BATCH = 200;
 
+// Validate the request body without side effects so input errors can
+// return a clean JSON 400 BEFORE we switch into stream-mode. Once the
+// stream-mode response headers are flushed we lose the ability to send
+// a normal error status, so this guard pays off in clearer client UX.
+function validatePayload(body) {
+  if (!body || typeof body !== 'object') {
+    throw new Error('Empty request body — JSON parser may have rejected the payload');
+  }
+  const { schema, table, crs, columns, geojson } = body;
+  ensureIdent(schema, 'schema');
+  ensureIdent(table, 'table');
+  const srid = Number(crs);
+  if (!Number.isInteger(srid) || srid <= 0) {
+    throw new Error(`Invalid CRS: ${JSON.stringify(crs)}`);
+  }
+  if (!Array.isArray(columns) || columns.length === 0) {
+    throw new Error('No columns selected');
+  }
+  for (const c of columns) {
+    ensureIdent(c.target, 'column target');
+    if (!ALLOWED_TYPES.has(c.type)) {
+      throw new Error(`Disallowed column type: ${c.type}`);
+    }
+  }
+  const features = Array.isArray(geojson?.features) ? geojson.features : null;
+  if (!features || features.length === 0) {
+    throw new Error('Empty or invalid GeoJSON payload');
+  }
+  return { schema, table, srid, columns, features };
+}
+
 // POST /api/upload/import
 //
 // Streams a sequence of newline-delimited `data: {...}` events while
@@ -71,8 +102,20 @@ const BATCH = 200;
 // updates. Wraps the work in a transaction so a failure mid-import
 // leaves no partial table behind.
 uploadRouter.post('/import', async (req, res) => {
-  // Stream from the start — the client uses fetch().body.getReader()
-  // and parses the same `data: ...\n\n` framing as SSE.
+  // 1. Validate input first — fail with a normal JSON 400 so the
+  //    client's `!res.ok` branch reads a meaningful body. Anything that
+  //    survives validation moves to streaming mode below.
+  let parsed;
+  try {
+    parsed = validatePayload(req.body);
+  } catch (err) {
+    console.error('[upload/import] validation failed:', err.message);
+    return res.status(400).json({ error: err.message });
+  }
+  const { schema, table, srid, columns, features } = parsed;
+
+  // 2. Switch to streaming response. Anything below this line that
+  //    throws gets streamed back to the client as `data: {error: ...}`.
   res.set({
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
@@ -83,38 +126,42 @@ uploadRouter.post('/import', async (req, res) => {
   });
   res.flushHeaders?.();
 
+  // Guarded write — once the client (or proxy) closes the connection,
+  // res.write throws ERR_STREAM_DESTROYED. Swallow it: there's no point
+  // bubbling it back into our catch when the consumer is already gone.
+  // The import itself runs to completion regardless of whether the
+  // client is still listening — the DB transaction is the source of
+  // truth, and the user's intent was "import this file." If their tab
+  // closed mid-progress, the rows still land and a future browse of
+  // the table will reflect them.
   const send = (data) => {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    if (res.writableEnded || res.destroyed) return;
+    try {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    } catch (err) {
+      console.warn('[upload/import] write after close:', err.code ?? err.message);
+    }
   };
 
   let client;
   try {
-    const { schema, table, crs, columns, geojson } = req.body ?? {};
-
-    ensureIdent(schema, 'schema');
-    ensureIdent(table, 'table');
-    const srid = Number(crs);
-    if (!Number.isInteger(srid) || srid <= 0) {
-      throw new Error(`Invalid CRS: ${crs}`);
-    }
-    if (!Array.isArray(columns) || columns.length === 0) {
-      throw new Error('No columns selected');
-    }
-    for (const c of columns) {
-      ensureIdent(c.target, 'column target');
-      if (!ALLOWED_TYPES.has(c.type)) {
-        throw new Error(`Disallowed column type: ${c.type}`);
-      }
-    }
-    const features = Array.isArray(geojson?.features) ? geojson.features : null;
-    if (!features || features.length === 0) {
-      throw new Error('Empty or invalid GeoJSON payload');
-    }
-
     const total = features.length;
     send({ progress: 0, inserted: 0, total });
 
     client = await pool.connect();
+
+    // Hard-fail early with a clear message if PostGIS isn't available
+    // — without it ST_GeomFromGeoJSON throws an opaque "function does
+    // not exist" partway through, after the table is already created.
+    const ext = await client.query(
+      "SELECT extname FROM pg_extension WHERE extname = 'postgis'",
+    );
+    if (ext.rowCount === 0) {
+      throw new Error(
+        'PostGIS is not installed in this database. Run `CREATE EXTENSION postgis;` as a superuser, then retry.',
+      );
+    }
+
     await client.query('BEGIN');
     await client.query(`CREATE SCHEMA IF NOT EXISTS ${quoteIdent(schema)}`);
     await client.query(
@@ -135,14 +182,25 @@ uploadRouter.post('/import', async (req, res) => {
 
     const targetCols = columns.map((c) => quoteIdent(c.target)).join(', ');
     let inserted = 0;
+    let skipped = 0;
+
     for (let i = 0; i < total; i += BATCH) {
       const batch = features.slice(i, i + BATCH);
       const valuesClauses = [];
       const params = [];
       for (const f of batch) {
         const props = f?.properties ?? {};
+        const geom = f?.geometry;
+        // Skip features with no geometry rather than blowing up the
+        // whole transaction. Postgres `geometry` columns accept NULL,
+        // but the upstream shapefile shouldn't be carrying nulls — log
+        // them and move on so a single bad row doesn't kill 5800.
+        if (!geom) {
+          skipped += 1;
+          continue;
+        }
         const colValues = columns.map((c) => coerce(props[c.source], c.type));
-        const geomJson = f?.geometry ? JSON.stringify(f.geometry) : null;
+        const geomJson = JSON.stringify(geom);
 
         const start = params.length + 1;
         const colPlaceholders = colValues
@@ -155,17 +213,30 @@ uploadRouter.post('/import', async (req, res) => {
         );
         params.push(...colValues, geomJson);
       }
-      const insertSql =
-        `INSERT INTO ${quoteIdent(schema)}.${quoteIdent(table)} ` +
-        `(${targetCols}, geom) VALUES ${valuesClauses.join(', ')}`;
-      await client.query(insertSql, params);
-      inserted += batch.length;
-      send({ progress: inserted / total, inserted, total });
+
+      // Whole batch was nulls? Skip the empty INSERT.
+      if (valuesClauses.length > 0) {
+        const insertSql =
+          `INSERT INTO ${quoteIdent(schema)}.${quoteIdent(table)} ` +
+          `(${targetCols}, geom) VALUES ${valuesClauses.join(', ')}`;
+        await client.query(insertSql, params);
+        inserted += valuesClauses.length;
+      }
+      send({
+        progress: (i + batch.length) / total,
+        inserted,
+        skipped,
+        total,
+      });
     }
 
     await client.query('COMMIT');
-    send({ done: true, inserted, total, schema, table });
+    send({ done: true, inserted, skipped, total, schema, table });
   } catch (err) {
+    // Stack traces are gold for diagnosing pg/postgis failures — log
+    // the full thing on the server, but only ship the human-readable
+    // message + Postgres error code (if any) to the client.
+    console.error('[upload/import] failed:', err.stack ?? err);
     if (client) {
       try {
         await client.query('ROLLBACK');
@@ -173,10 +244,10 @@ uploadRouter.post('/import', async (req, res) => {
         /* ignore — already failed */
       }
     }
-    console.error('[upload/import] failed:', err);
-    send({ error: err.message ?? String(err) });
+    const detail = err.code ? `${err.message} (pg ${err.code})` : err.message;
+    send({ error: detail ?? String(err) });
   } finally {
     if (client) client.release();
-    res.end();
+    if (!res.writableEnded) res.end();
   }
 });

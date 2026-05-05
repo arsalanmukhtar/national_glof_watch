@@ -349,10 +349,10 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
       {/* Progress / status */}
       {phase !== 'idle' ? (
         <div className="mb-4">
-          <div className="flex items-center justify-between text-[11px] mb-1">
-            <span
+          <div className="flex items-start justify-between gap-3 text-[11px] mb-1">
+            <div
               className={cn(
-                'inline-flex items-center gap-1.5 font-medium',
+                'flex items-start gap-1.5 font-medium min-w-0 flex-1',
                 phase === 'error'
                   ? 'text-red-600 dark:text-red-400'
                   : phase === 'done'
@@ -360,14 +360,16 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
                     : 'text-day-text dark:text-night-text',
               )}
             >
-              {phase === 'running' && <Loader2 className="h-3 w-3 animate-spin" />}
-              {phase === 'done' && <CheckCircle2 className="h-3 w-3" />}
-              {phase === 'error' && <AlertCircle className="h-3 w-3" />}
-              {phase === 'running' && `Inserting features… ${insertedCount.toLocaleString()} / ${features.length.toLocaleString()}`}
-              {phase === 'done' && `Imported ${insertedCount.toLocaleString()} features into ${schema}.${table}`}
-              {phase === 'error' && `Import failed: ${error}`}
-            </span>
-            <span className="tabular-nums text-day-muted dark:text-night-muted">
+              {phase === 'running' && <Loader2 className="h-3 w-3 mt-0.5 shrink-0 animate-spin" />}
+              {phase === 'done' && <CheckCircle2 className="h-3 w-3 mt-0.5 shrink-0" />}
+              {phase === 'error' && <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />}
+              <span className="break-words leading-snug">
+                {phase === 'running' && `Inserting features… ${insertedCount.toLocaleString()} / ${features.length.toLocaleString()}`}
+                {phase === 'done' && `Imported ${insertedCount.toLocaleString()} features into ${schema}.${table}`}
+                {phase === 'error' && `Import failed: ${error}`}
+              </span>
+            </div>
+            <span className="tabular-nums text-day-muted dark:text-night-muted shrink-0">
               {Math.round(progress * 100)}%
             </span>
           </div>

@@ -173,33 +173,44 @@ function RiskZonesRow({ regionId }) {
           : 'border-rose-500/40 dark:border-rose-400/40',
       )}
     >
+      {/* Mirrors LayerToggle's geometry exactly so vertical columns line
+          up across rows: label · Shrink · trailing-action. The chevron
+          replaces the EyeToggle in the third slot, sized identically
+          (h-7 w-7 button, h-4 w-4 glyph) so the row has true symmetry. */}
       <div className="flex items-center gap-1 pl-2.5 pr-1 py-0.5 text-day-text dark:text-night-text">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          className="flex flex-1 items-center justify-between gap-2"
+          className="flex-1 inline-flex items-center min-w-0 gap-1.5 text-left"
         >
-          <span className="text-[13px]">Risk Zones</span>
-          <span className="flex items-center gap-1.5">
-            {anyOn ? (
-              <span className="text-[10px] font-semibold tabular-nums text-rose-600 dark:text-rose-400">
-                {activeCount}/3
-              </span>
-            ) : null}
-            <ChevronDown
-              className={cn(
-                'h-3.5 w-3.5 text-day-muted dark:text-night-muted transition-transform duration-200',
-                open && 'rotate-180',
-              )}
-              aria-hidden
-            />
-          </span>
+          <span className="text-[13px] flex-1 truncate">Risk Zones</span>
+          {anyOn ? (
+            <span className="text-[10px] font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+              {activeCount}/3
+            </span>
+          ) : null}
         </button>
         <ShrinkButton
           onClick={() => zoomToRegionRiskZones(regionId)}
           label="Zoom to risk zones"
         />
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.92 }}
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={open ? 'Collapse risk levels' : 'Expand risk levels'}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10 transition-colors"
+        >
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 transition-transform duration-200',
+              open && 'rotate-180',
+            )}
+            aria-hidden
+          />
+        </motion.button>
       </div>
       <AnimatePresence initial={false}>
         {open ? (
