@@ -114,11 +114,50 @@ export function MapProvider({ children }) {
     [zoomToGeoJson, trackPromise],
   );
 
-  const resetView = useCallback(() => {
+  // The "extent" control flies the map to the Northern Districts footprint
+  // straight from above (pitch + bearing pinned to 0). Falls back to the
+  // dashboard's default Pakistan view if the districts layer isn't
+  // reachable (e.g. backend down) so the button never feels broken.
+  const resetView = useCallback(async () => {
     const m = mapRef.current;
     if (!m) return;
-    m.flyTo({ ...DEFAULT_MAP_VIEW, duration: 700, essential: true });
-  }, []);
+    const url = secondaryLayerUrl('district_boundary');
+    if (url) {
+      try {
+        const data = await trackPromise(fetchGeoJson(url));
+        const bbox = bboxOfGeoJson(data);
+        if (bbox) {
+          m.fitBounds(
+            [
+              [bbox[0], bbox[1]],
+              [bbox[2], bbox[3]],
+            ],
+            {
+              padding: 60,
+              duration: 800,
+              maxZoom: 16,
+              pitch: 0,
+              bearing: 0,
+              essential: true,
+            },
+          );
+          return;
+        }
+      } catch (err) {
+        console.warn(
+          'resetView: districts extent fetch failed, falling back to default view',
+          err,
+        );
+      }
+    }
+    m.flyTo({
+      ...DEFAULT_MAP_VIEW,
+      pitch: 0,
+      bearing: 0,
+      duration: 700,
+      essential: true,
+    });
+  }, [trackPromise]);
 
   const value = useMemo(
     () => ({

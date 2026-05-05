@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { parametersRouter } from './routes/parameters.js';
 import { secondaryRouter } from './routes/secondary.js';
+import { uploadRouter } from './routes/upload.js';
 import { ensureSchema, pool } from './lib/db.js';
 import { storeAllElements } from './lib/store.js';
 
@@ -17,6 +18,11 @@ const STORE_INTERVAL_MIN = Number(process.env.STORE_INTERVAL_MIN ?? 10);
 const STORE_INTERVAL_MS = Math.max(1, STORE_INTERVAL_MIN) * 60 * 1000;
 
 app.use(cors());
+// Default 1mb is fine for the parameter API. The /api/upload/import
+// endpoint accepts user-uploaded GeoJSON FeatureCollections — those can
+// run into the tens of MB for a county-scale shapefile, so the body
+// parser needs more headroom for that route specifically.
+app.use('/api/upload', express.json({ limit: '100mb' }));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', async (_req, res) => {
@@ -30,6 +36,7 @@ app.get('/health', async (_req, res) => {
 
 app.use('/api/parameters', parametersRouter);
 app.use('/api/secondary', secondaryRouter);
+app.use('/api/upload', uploadRouter);
 
 async function runStoreCycle(reason = 'scheduled') {
   const at = new Date().toISOString();

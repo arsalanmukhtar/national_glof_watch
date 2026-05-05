@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import SearchBox from '@/components/ui/SearchBox';
+import ImportToDatabaseModal from '@/components/dashboard/ImportToDatabaseModal';
 import { cn } from '@/utils/cn';
 import { useSecondary } from '@/contexts/SecondaryContext';
 
@@ -141,6 +142,7 @@ export default function AttributeTablePanel() {
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState({ key: null, dir: null }); // dir: 'asc' | 'desc' | null
+  const [importOpen, setImportOpen] = useState(false);
 
   // Auto-select the latest upload, and follow new arrivals; fall back if
   // the selected file is removed while open.
@@ -367,17 +369,12 @@ export default function AttributeTablePanel() {
         </div>
       )}
 
-      {/* Import button — logic to be wired up later */}
+      {/* Import button — opens the configure-and-push modal */}
       <div className="shrink-0 mt-3 pt-2 border-t border-day-border dark:border-night-border">
         <button
           type="button"
           disabled={!selected || features.length === 0}
-          onClick={() => {
-            // TODO: wire the upload through to the backend ingest endpoint.
-            // Logic deferred per spec.
-            // eslint-disable-next-line no-console
-            console.log('[attributes] Import to Database clicked', selected?.label);
-          }}
+          onClick={() => setImportOpen(true)}
           className={cn(
             'btn-base btn-md w-full',
             'bg-[#16a085] text-white hover:bg-[#138b72]',
@@ -388,6 +385,12 @@ export default function AttributeTablePanel() {
           <span>Import to Database</span>
         </button>
       </div>
+
+      <ImportToDatabaseModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        upload={selected}
+      />
     </div>
   );
 }
