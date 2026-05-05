@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { parametersRouter } from './routes/parameters.js';
+import { secondaryRouter } from './routes/secondary.js';
 import { ensureSchema, pool } from './lib/db.js';
 import { storeAllElements } from './lib/store.js';
 
@@ -28,6 +29,7 @@ app.get('/health', async (_req, res) => {
 });
 
 app.use('/api/parameters', parametersRouter);
+app.use('/api/secondary', secondaryRouter);
 
 async function runStoreCycle(reason = 'scheduled') {
   const at = new Date().toISOString();

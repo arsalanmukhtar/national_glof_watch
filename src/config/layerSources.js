@@ -2,10 +2,23 @@
 // fetch happens lazily when a layer is toggled on (see MapPanel), so the
 // initial bundle stays small. `import.meta.glob('?url', eager: true)`
 // gives us URL strings at build time without inlining the JSON contents.
+//
+// The district-boundary file is excluded from this glob: at 642 MB it
+// blows past Vite's dev-server streaming limits, and the client now
+// loads that layer from `/api/secondary/district_boundary` (PostGIS-
+// backed) — see SECONDARY_API_LAYERS below.
 const GEOJSON_URLS = import.meta.glob(
-  '../../data/geojsons/**/*.geojson',
+  [
+    '../../data/geojsons/**/*.geojson',
+    '!../../data/geojsons/administrative_boundaries/pak_boundaries_district_boundary_updated.geojson',
+  ],
   { query: '?url', import: 'default', eager: true },
 );
+
+// Layer ids that are served by the Express backend instead of being
+// bundled as static assets. Keep this set tight — files we can ship as
+// static assets remain faster (no DB hop, browser-cacheable, hashed).
+const SECONDARY_API_LAYERS = new Set(['district_boundary']);
 
 // Resolve a relative path (e.g. "badswat/badswat_lake.geojson") to the
 // Vite-hashed URL emitted into the build output. Returns null when the
@@ -147,6 +160,9 @@ export function regionLayerUrl(regionId, layerKey) {
 }
 
 export function secondaryLayerUrl(layerId) {
+  if (SECONDARY_API_LAYERS.has(layerId)) {
+    return `/api/secondary/${layerId}`;
+  }
   const file = SECONDARY_FILES[layerId];
   return file ? urlFor(file) : null;
 }
@@ -217,17 +233,52 @@ const fetchCache = new Map();
 export async function fetchGeoJson(url) {
   if (!url) return null;
   if (fetchCache.has(url)) return fetchCache.get(url);
-  const promise = fetch(url)
-    .then((r) => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    })
-    .catch((err) => {
-      // Don't poison the cache with rejections — clear so a retry can
-      // start fresh after a transient network blip.
-      fetchCache.delete(url);
+  const promise = (async () => {
+    const t0 = performance.now();
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
+    const contentLength = r.headers.get('content-length');
+    const contentType = r.headers.get('content-type');
+    // Read as text first so a parse failure can include diagnostics
+    // (header-claimed size vs. bytes actually received vs. body tail).
+    // Without this, "Unexpected end of JSON input" leaves no clue
+    // whether the body was truncated or never arrived at all.
+    const text = await r.text();
+    const elapsedMs = Math.round(performance.now() - t0);
+
+    if (!text) {
+      throw new Error(
+        `Empty body for ${url} (content-length: ${contentLength}, ${elapsedMs}ms)`,
+      );
+    }
+    try {
+      const parsed = JSON.parse(text);
+      // eslint-disable-next-line no-console
+      console.debug(
+        `[fetchGeoJson] ok ${url}`,
+        `\n  size: ${(text.length / 1024 / 1024).toFixed(2)} MB`,
+        `\n  type: ${contentType ?? '?'}`,
+        `\n  time: ${elapsedMs}ms`,
+        `\n  features: ${parsed?.features?.length ?? '?'}`,
+      );
+      return parsed;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[fetchGeoJson] JSON parse failed for ${url}`,
+        `\n  content-length header: ${contentLength}`,
+        `\n  bytes received:        ${text.length}`,
+        `\n  content-type:          ${contentType ?? '?'}`,
+        `\n  elapsed:               ${elapsedMs}ms`,
+        `\n  starts: ${text.slice(0, 120)}`,
+        `\n  ends:   …${text.slice(-120)}`,
+      );
       throw err;
-    });
+    }
+  })();
   fetchCache.set(url, promise);
+  // Don't poison the cache with rejections — clear so a retry can start
+  // fresh after a transient network blip.
+  promise.catch(() => fetchCache.delete(url));
   return promise;
 }

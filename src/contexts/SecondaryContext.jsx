@@ -13,7 +13,7 @@ import {
 export const SECONDARY_LAYERS = [
   { id: 'national_boundary',     label: 'National Boundary',     geometry: 'polygon', table: 'secondary.national_boundary' },
   { id: 'provincial_boundary',   label: 'Provincial Boundary',   geometry: 'polygon', table: 'secondary.provincial_boundary' },
-  { id: 'district_boundary',     label: 'District Boundary',     geometry: 'polygon', table: 'secondary.district_boundary' },
+  { id: 'district_boundary',     label: 'Northern Districts',    geometry: 'polygon', table: 'secondary.district_boundary' },
   { id: 'akah_infrastructure',   label: 'AKAH Infrastructure',   geometry: 'point',   table: 'secondary.akah_infrastructure' },
   { id: 'akah_hazard_exposure',  label: 'AKAH Hazard Exposure',  geometry: 'polygon', table: 'secondary.akah_hazard_exposure' },
   { id: 'all_stations',          label: 'All Stations',          geometry: 'point',   table: 'secondary.all_stations' },

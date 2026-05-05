@@ -29,6 +29,19 @@ export function MapProvider({ children }) {
   const mapRef = useRef(null);
   mapRef.current = map;
 
+  // Counter of in-flight overlay fetches. Components that drive the map
+  // (MapPanel reconciler, zoomTo helpers) wrap their fetch promises with
+  // `trackPromise` so the loader overlay knows when *anything* is pending.
+  // A counter — not a boolean — handles concurrent fetches correctly.
+  const [pending, setPending] = useState(0);
+  const trackPromise = useCallback((promise) => {
+    setPending((p) => p + 1);
+    Promise.resolve(promise).finally(() => {
+      setPending((p) => Math.max(0, p - 1));
+    });
+    return promise;
+  }, []);
+
   const zoomToBbox = useCallback((bbox, opts) => {
     const m = mapRef.current;
     if (!m || !bbox) return;
@@ -53,13 +66,13 @@ export function MapProvider({ children }) {
       const url = regionLayerUrl(regionId, layerKey);
       if (!url) return;
       try {
-        const data = await fetchGeoJson(url);
+        const data = await trackPromise(fetchGeoJson(url));
         zoomToGeoJson(data);
       } catch (err) {
         console.warn(`zoomToRegionLayer ${regionId}/${layerKey}:`, err);
       }
     },
-    [zoomToGeoJson],
+    [zoomToGeoJson, trackPromise],
   );
 
   // Risk zones are split into low/medium/high files. Combine bboxes so the
@@ -72,7 +85,9 @@ export function MapProvider({ children }) {
         .filter(Boolean);
       if (urls.length === 0) return;
       try {
-        const datasets = await Promise.all(urls.map((u) => fetchGeoJson(u).catch(() => null)));
+        const datasets = await trackPromise(
+          Promise.all(urls.map((u) => fetchGeoJson(u).catch(() => null))),
+        );
         const combined = datasets.reduce(
           (acc, d) => unionBbox(acc, bboxOfGeoJson(d)),
           null,
@@ -82,7 +97,7 @@ export function MapProvider({ children }) {
         console.warn(`zoomToRegionRiskZones ${regionId}:`, err);
       }
     },
-    [zoomToBbox],
+    [zoomToBbox, trackPromise],
   );
 
   const zoomToSecondaryLayer = useCallback(
@@ -90,13 +105,13 @@ export function MapProvider({ children }) {
       const url = secondaryLayerUrl(layerId);
       if (!url) return;
       try {
-        const data = await fetchGeoJson(url);
+        const data = await trackPromise(fetchGeoJson(url));
         zoomToGeoJson(data);
       } catch (err) {
         console.warn(`zoomToSecondaryLayer ${layerId}:`, err);
       }
     },
-    [zoomToGeoJson],
+    [zoomToGeoJson, trackPromise],
   );
 
   const resetView = useCallback(() => {
@@ -115,6 +130,8 @@ export function MapProvider({ children }) {
       zoomToRegionRiskZones,
       zoomToSecondaryLayer,
       resetView,
+      isLoading: pending > 0,
+      trackPromise,
     }),
     [
       map,
@@ -124,6 +141,8 @@ export function MapProvider({ children }) {
       zoomToRegionRiskZones,
       zoomToSecondaryLayer,
       resetView,
+      pending,
+      trackPromise,
     ],
   );
 

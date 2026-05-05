@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { mapboxgl, BASEMAPS, DEFAULT_MAP_VIEW } from '@/config/mapbox';
 import {
   GLACIER_LAYER_ID,
@@ -82,7 +82,7 @@ export default function MapPanel({ className, onMapReady }) {
     styles: secondaryStyles,
     uploads,
   } = useSecondary();
-  const { setMap } = useMapView();
+  const { setMap, trackPromise, isLoading } = useMapView();
   // Ref mirror so style.load handlers + applyStationLayers can read the
   // current disabled set without re-creating callbacks on every change.
   const disabledBinColorsRef = useRef(disabledBinColors);
@@ -433,20 +433,29 @@ export default function MapPanel({ className, onMapReady }) {
         }
       }
 
-      for (const o of desired) {
-        try {
-          const data = o.data ?? (await fetchGeoJson(o.url));
-          if (cancelled || !data || !mapRef.current) return;
-          // Re-detect geometry from the actual file when the per-key hint
-          // disagrees with the data — handles e.g. risk zones loaded from
-          // line-string sources rather than polygons.
-          const geometry = detectGeometry(data) || o.geometry;
-          ensureOverlay(map, o.key, geometry, data, o.paint);
-          tracked.add(o.key);
-        } catch (err) {
-          // Don't block the rest of the batch on a single 404 / parse fail.
-          console.warn(`Overlay ${o.key} failed to load:`, err);
-        }
+      // Resolve every overlay's data in parallel and wrap the whole batch
+      // in a single trackPromise so the loader stays continuous instead
+      // of blinking between sequential fetches.
+      const resolved = await trackPromise(
+        Promise.all(
+          desired.map(async (o) => {
+            try {
+              const data = o.data ?? (await fetchGeoJson(o.url));
+              return data ? { o, data } : null;
+            } catch (err) {
+              console.warn(`Overlay ${o.key} failed to load:`, err);
+              return null;
+            }
+          }),
+        ),
+      );
+      if (cancelled || !mapRef.current) return;
+
+      for (const entry of resolved) {
+        if (!entry) continue;
+        const geometry = detectGeometry(entry.data) || entry.o.geometry;
+        ensureOverlay(map, entry.o.key, geometry, entry.data, entry.o.paint);
+        tracked.add(entry.o.key);
       }
     };
 
@@ -454,7 +463,7 @@ export default function MapPanel({ className, onMapReady }) {
     return () => {
       cancelled = true;
     };
-  }, [desiredOverlays]);
+  }, [desiredOverlays, trackPromise]);
 
   // Re-apply every overlay after a basemap swap (Mapbox wipes user layers
   // on setStyle). The cached fetches make this near-instant.
@@ -467,16 +476,25 @@ export default function MapPanel({ className, onMapReady }) {
       // forget what we tracked. We'll re-add from scratch.
       map._renderedOverlays = new Set();
       const desired = desiredOverlaysRef.current;
-      for (const o of desired) {
-        try {
-          const data = o.data ?? (await fetchGeoJson(o.url));
-          if (!data || !mapRef.current) return;
-          const geometry = detectGeometry(data) || o.geometry;
-          ensureOverlay(map, o.key, geometry, data, o.paint);
-          map._renderedOverlays.add(o.key);
-        } catch (err) {
-          console.warn(`Overlay ${o.key} re-apply failed:`, err);
-        }
+      const resolved = await trackPromise(
+        Promise.all(
+          desired.map(async (o) => {
+            try {
+              const data = o.data ?? (await fetchGeoJson(o.url));
+              return data ? { o, data } : null;
+            } catch (err) {
+              console.warn(`Overlay ${o.key} re-apply failed:`, err);
+              return null;
+            }
+          }),
+        ),
+      );
+      if (!mapRef.current) return;
+      for (const entry of resolved) {
+        if (!entry) continue;
+        const geometry = detectGeometry(entry.data) || entry.o.geometry;
+        ensureOverlay(map, entry.o.key, geometry, entry.data, entry.o.paint);
+        map._renderedOverlays.add(entry.o.key);
       }
     };
 
@@ -484,7 +502,7 @@ export default function MapPanel({ className, onMapReady }) {
     return () => {
       map.off('style.load', onStyleLoad);
     };
-  }, []);
+  }, [trackPromise]);
 
   // Fly to the highlighted station whenever one is picked.
   useEffect(() => {
@@ -532,6 +550,22 @@ export default function MapPanel({ className, onMapReady }) {
           onToggleBin={toggleBin}
         />
         <StationsTable />
+        <AnimatePresence>
+          {isLoading ? (
+            <motion.div
+              key="map-loader"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              role="status"
+              aria-label="Loading map data"
+              className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-auto"
+            >
+              <span className="map-loader" aria-hidden />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
     </motion.div>
   );
