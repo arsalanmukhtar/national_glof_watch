@@ -85,7 +85,11 @@
   .chip           { @apply inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-brand-100 text-brand-800 dark:bg-brand-800/30 dark:text-brand-100; }
 
   /* Title bar */
-  .titlebar       { @apply fixed top-0 left-0 right-0 z-50 h-16 bg-brand-900 text-white shadow-titlebar flex items-center px-4 sm:px-6; }
+  /* Deep emerald/jade — alpine-valley palette that ties to the teal
+     `#16a085` UI accent without being literal ice-blue. Day uses the
+     darkest emerald so it pops against the light body; night lifts
+     one stop so it stays visible against the dark-slate body. */
+  .titlebar       { @apply fixed top-0 left-0 right-0 z-50 h-16 bg-emerald-950 dark:bg-emerald-900 text-white shadow-titlebar flex items-center px-4 sm:px-6; }
   .titlebar-content-offset { @apply pt-16; }
 
   /* Range slider — thin track, small accent-colored thumb. */
