@@ -26,6 +26,15 @@ const STATIONS_RIPPLE_LAYERS = [
 ];
 const NO_HIGHLIGHT_FILTER = ['==', ['get', 'stationId'], -1];
 
+// Layer ids we own — skipped when the basemap-opacity slider iterates the
+// style. Anything else in `map.getStyle().layers` is treated as basemap.
+const CUSTOM_LAYER_IDS = new Set([
+  GLACIER_LAYER_ID,
+  STATIONS_HALO_LAYER,
+  STATIONS_LAYER,
+  ...STATIONS_RIPPLE_LAYERS,
+]);
+
 // Ripple animation tuning. Two phase-shifted layers cycle radius outward
 // while fading opacity, producing a radar-pulse effect on the selected dot.
 const RIPPLE_PERIOD_MS = 1800;
@@ -39,6 +48,7 @@ export default function MapPanel({ className, onMapReady }) {
   const wrapperRef = useRef(null);
   const mapRef = useRef(null);
   const [basemap, setBasemap] = useState(DEFAULT_BASEMAP);
+  const [basemapOpacity, setBasemapOpacity] = useState(1);
   const [mapInstance, setMapInstance] = useState(null);
   const { selected, stations, selectedStation, setSelectedStation } = useParameter();
 
@@ -230,6 +240,40 @@ export default function MapPanel({ className, onMapReady }) {
     };
   }, [selectedStation]);
 
+  // Apply basemap-opacity by iterating the live style's layers and tweaking
+  // each layer's type-appropriate opacity paint property. Custom layers
+  // we own (stations, glacier overlay) are skipped so the data stays at
+  // full opacity regardless of the slider. We re-apply on `style.load`
+  // (basemap swap) AND on the first `idle` after that, because Mapbox
+  // can fire style.load while some layers are still being wired up — at
+  // that moment iterating the style misses or stomps the half-loaded set.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const apply = () => {
+      if (!map.isStyleLoaded()) return;
+      const style = map.getStyle();
+      if (!style?.layers) return;
+      for (const layer of style.layers) {
+        if (CUSTOM_LAYER_IDS.has(layer.id)) continue;
+        applyLayerOpacity(map, layer, basemapOpacity);
+      }
+    };
+
+    const onStyleLoad = () => {
+      apply();
+      // Catch the case where some layers settle after style.load.
+      map.once('idle', apply);
+    };
+
+    apply();
+    map.on('style.load', onStyleLoad);
+    return () => {
+      map.off('style.load', onStyleLoad);
+    };
+  }, [basemapOpacity]);
+
   // Fly to the highlighted station whenever one is picked.
   useEffect(() => {
     const map = mapRef.current;
@@ -263,7 +307,12 @@ export default function MapPanel({ className, onMapReady }) {
         className="relative flex-1 min-h-0 bg-slate-200 dark:bg-night-bg"
       >
         <div ref={containerRef} className="absolute inset-0" />
-        <BasemapSwitcher current={basemap} onChange={changeBasemap} />
+        <BasemapSwitcher
+          current={basemap}
+          onChange={changeBasemap}
+          opacity={basemapOpacity}
+          onOpacityChange={setBasemapOpacity}
+        />
         <MapGeocoder map={mapInstance} />
         <MapControls map={mapInstance} fullscreenTarget={wrapperRef.current} />
         <MapLegend />
@@ -344,6 +393,32 @@ function applyStationLayers(map, data) {
         },
       });
     }
+  }
+}
+
+// Set the type-appropriate opacity paint property on a single layer.
+// Wrapped in try/catch because some Mapbox layers carry data-driven
+// opacity expressions that error on a plain numeric set; for the slider's
+// purposes a silent skip is fine.
+function applyLayerOpacity(map, layer, opacity) {
+  const set = (prop) => {
+    try {
+      map.setPaintProperty(layer.id, prop, opacity);
+    } catch {
+      /* ignore — non-applicable property or expression conflict */
+    }
+  };
+  switch (layer.type) {
+    case 'background':     set('background-opacity');      break;
+    case 'fill':           set('fill-opacity');            break;
+    case 'line':           set('line-opacity');            break;
+    case 'symbol':         set('text-opacity'); set('icon-opacity'); break;
+    case 'raster':         set('raster-opacity');          break;
+    case 'circle':         set('circle-opacity'); set('circle-stroke-opacity'); break;
+    case 'fill-extrusion': set('fill-extrusion-opacity');  break;
+    case 'heatmap':        set('heatmap-opacity');         break;
+    case 'hillshade':      set('hillshade-opacity');       break;
+    default: break;
   }
 }
 
