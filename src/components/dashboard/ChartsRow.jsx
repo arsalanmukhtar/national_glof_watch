@@ -75,11 +75,14 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
         display: true,
         position: 'bottom',
         labels: {
-          boxWidth: 8,
-          boxHeight: 8,
-          padding: 8,
+          boxWidth: 10,
+          boxHeight: 10,
+          padding: 10,
           color: t.text,
-          font: { size: 10 },
+          // Bumped from 10 / regular → 12 / semibold so the axis title
+          // ("Air Temperature (°C)" etc.) reads as a heading rather
+          // than an afterthought.
+          font: { size: 12, weight: '600' },
           usePointStyle: true,
         },
       },
