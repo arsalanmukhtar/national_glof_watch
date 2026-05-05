@@ -64,7 +64,31 @@ const TOKENS = {
   },
 };
 
-function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
+// Tooltip title — same data behind the X-axis tick, expanded with the
+// date so a hovered point reads as "Tue, May 5 · 5:00 PM" instead of
+// the raw `2026-05-05T13:00:00.000Z`. Always renders in the user's
+// local time, matching the axis ticks.
+function formatTooltipTitle(iso, bucket) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const date = d.toLocaleDateString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+  if (bucket === 'hour') {
+    const time = d.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return `${date} · ${time}`;
+  }
+  return date;
+}
+
+function buildOptions(theme, { unit = '', xLabelFormatter, bucket } = {}) {
   const t = TOKENS[theme];
   return {
     responsive: true,
@@ -96,12 +120,19 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
         cornerRadius: 6,
         titleFont: { size: 11, weight: '600' },
         bodyFont: { size: 11 },
-        callbacks: unit
-          ? {
-              label: (ctx) =>
-                `${ctx.dataset.label}: ${ctx.parsed.y} ${unit}`,
-            }
-          : undefined,
+        callbacks: {
+          // Always reformat the title — Chart.js's default would print
+          // the raw ISO label and leave us with the day-mode mismatch
+          // the user reported.
+          title: (items) =>
+            items.length ? formatTooltipTitle(items[0].label, bucket) : '',
+          ...(unit
+            ? {
+                label: (ctx) =>
+                  `${ctx.dataset.label}: ${ctx.parsed.y} ${unit}`,
+              }
+            : {}),
+        },
       },
     },
     scales: {
@@ -338,7 +369,7 @@ function PmdTrendPanel({ theme }) {
   );
 
   const options = useMemo(
-    () => buildOptions(theme, { unit, xLabelFormatter }),
+    () => buildOptions(theme, { unit, xLabelFormatter, bucket }),
     // xLabelFormatter is intentionally derived from `bucket`, captured here
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [theme, unit, bucket],

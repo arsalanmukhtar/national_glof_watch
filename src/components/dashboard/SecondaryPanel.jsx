@@ -14,6 +14,7 @@ import {
   Mountain,
   Radio,
   RotateCcw,
+  Server,
   Shrink,
   Slash,
   Square,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react';
 import EyeToggle from '@/components/ui/EyeToggle';
 import Badge from '@/components/ui/Badge';
+import ConnectDatabaseModal from '@/components/dashboard/ConnectDatabaseModal';
 import { cn } from '@/utils/cn';
 import { DEFAULT_STYLES, useSecondary } from '@/contexts/SecondaryContext';
 import { useMapView } from '@/contexts/MapContext';
@@ -712,6 +714,7 @@ export default function SecondaryPanel({ compact = false }) {
     () => layers.reduce((acc, l) => acc + (visibleLayers.has(l.id) ? 1 : 0), 0),
     [layers, visibleLayers],
   );
+  const [dbModalOpen, setDbModalOpen] = useState(false);
 
   // In compact (mobile drawer) mode the panel sits inside an outer
   // overflow-y-auto, so the inner scroll + h-full constraints are
@@ -752,14 +755,39 @@ export default function SecondaryPanel({ compact = false }) {
       {/* Divider */}
       <div className="my-3 border-t border-day-border dark:border-night-border" />
 
-      {/* Lower half — upload (intentionally untouched per scope) */}
+      {/* Lower half — file upload + remote DB import. The DB shortcut
+          sits inline with the section heading so the two ingestion
+          paths read as peers rather than one being primary. The
+          button stretches to fill the right side so the row reads as
+          [Upload | OR | Connect to database] with no dead space. */}
       <div className="shrink-0 flex flex-col gap-2">
         <div className="flex items-center gap-2 px-1">
-          <FileUp className="h-4 w-4 text-brand-700 dark:text-brand-200" />
-          <span className="label-base">Upload</span>
+          <FileUp className="h-4 w-4 text-brand-700 dark:text-brand-200 shrink-0" />
+          <span className="label-base shrink-0">Upload</span>
+          <span className="text-[10px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted shrink-0">
+            or
+          </span>
+          <button
+            type="button"
+            onClick={() => setDbModalOpen(true)}
+            className={cn(
+              'group inline-flex flex-1 items-center justify-center gap-1.5',
+              'rounded-md border border-[#16a085]/40 hover:border-[#16a085]',
+              'px-2.5 py-1 text-[11px] font-medium',
+              'text-[#16a085] hover:bg-[#16a085]/10 transition-colors',
+            )}
+          >
+            <Server className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Connect to database</span>
+          </button>
         </div>
         <UploadZone />
       </div>
+
+      <ConnectDatabaseModal
+        open={dbModalOpen}
+        onClose={() => setDbModalOpen(false)}
+      />
     </div>
   );
 }
