@@ -230,8 +230,37 @@ uploadRouter.post('/import', async (req, res) => {
       });
     }
 
+    // Build the GiST spatial index *after* the bulk load completes —
+    // creating it before would slow every batch down (each row triggers
+    // an index update). Doing it post-insert is the standard pattern
+    // recommended in the PostGIS docs for fresh imports.
+    send({
+      progress: 1,
+      inserted,
+      skipped,
+      total,
+      stage: 'indexing',
+    });
+    const indexName = `${table}_geom_gix`;
+    await client.query(
+      `CREATE INDEX ${quoteIdent(indexName)} ` +
+        `ON ${quoteIdent(schema)}.${quoteIdent(table)} USING GIST (geom)`,
+    );
+    // ANALYZE primes the planner so the very next spatial query
+    // benefits from realistic row-count + bbox statistics rather than
+    // the empty defaults from CREATE TABLE.
+    await client.query(`ANALYZE ${quoteIdent(schema)}.${quoteIdent(table)}`);
+
     await client.query('COMMIT');
-    send({ done: true, inserted, skipped, total, schema, table });
+    send({
+      done: true,
+      inserted,
+      skipped,
+      total,
+      schema,
+      table,
+      index: indexName,
+    });
   } catch (err) {
     // Stack traces are gold for diagnosing pg/postgis failures — log
     // the full thing on the server, but only ship the human-readable
