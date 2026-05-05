@@ -50,7 +50,28 @@ export default function MapPanel({ className, onMapReady }) {
   const [basemap, setBasemap] = useState(DEFAULT_BASEMAP);
   const [basemapOpacity, setBasemapOpacity] = useState(1);
   const [mapInstance, setMapInstance] = useState(null);
+  // Hex colors of legend bins the user has toggled off — those stations
+  // are filtered out of the dot + halo layers. Resets when the active
+  // parameter changes (each parameter has its own legend).
+  const [disabledBinColors, setDisabledBinColors] = useState(() => new Set());
+  // Ref mirror so style.load handlers + applyStationLayers can read the
+  // current disabled set without re-creating callbacks on every change.
+  const disabledBinColorsRef = useRef(disabledBinColors);
+  disabledBinColorsRef.current = disabledBinColors;
   const { selected, stations, selectedStation, setSelectedStation } = useParameter();
+
+  const toggleBin = (color) => {
+    setDisabledBinColors((prev) => {
+      const next = new Set(prev);
+      if (next.has(color)) next.delete(color);
+      else next.add(color);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    setDisabledBinColors(new Set());
+  }, [selected]);
 
   // Build a colored FeatureCollection from the raw context features.
   // Each feature gets a `color` property derived from its value/lastUpdate
@@ -152,6 +173,11 @@ export default function MapPanel({ className, onMapReady }) {
     const onStyleLoad = () => {
       const data = collectionRef.current;
       if (data) applyStationLayers(map, data);
+      // Re-apply the bin filter after layers are re-created on style swap.
+      const filter = binFilter(disabledBinColorsRef.current);
+      for (const layerId of [STATIONS_LAYER, STATIONS_HALO_LAYER]) {
+        if (map.getLayer(layerId)) map.setFilter(layerId, filter);
+      }
     };
 
     const onStationClick = (e) => {
@@ -240,6 +266,18 @@ export default function MapPanel({ className, onMapReady }) {
     };
   }, [selectedStation]);
 
+  // Push the legend's disabled-bin set as a Mapbox filter on the dot + halo
+  // layers. Re-applied on style.load via the stations-style.load handler
+  // (which reads from disabledBinColorsRef).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const filter = binFilter(disabledBinColors);
+    for (const layerId of [STATIONS_LAYER, STATIONS_HALO_LAYER]) {
+      if (map.getLayer(layerId)) map.setFilter(layerId, filter);
+    }
+  }, [disabledBinColors]);
+
   // Apply basemap-opacity by iterating the live style's layers and tweaking
   // each layer's type-appropriate opacity paint property. Custom layers
   // we own (stations, glacier overlay) are skipped so the data stays at
@@ -315,7 +353,10 @@ export default function MapPanel({ className, onMapReady }) {
         />
         <MapGeocoder map={mapInstance} />
         <MapControls map={mapInstance} fullscreenTarget={wrapperRef.current} />
-        <MapLegend />
+        <MapLegend
+          disabledBinColors={disabledBinColors}
+          onToggleBin={toggleBin}
+        />
         <StationsTable />
       </div>
     </motion.div>
@@ -420,6 +461,17 @@ function applyLayerOpacity(map, layer, opacity) {
     case 'hillshade':      set('hillshade-opacity');       break;
     default: break;
   }
+}
+
+// Build a Mapbox filter expression that excludes features whose computed
+// `color` property is in the disabled set. Returns null (no filter) when
+// nothing is disabled.
+function binFilter(disabledBinColors) {
+  if (!disabledBinColors || disabledBinColors.size === 0) return null;
+  return [
+    '!',
+    ['in', ['get', 'color'], ['literal', [...disabledBinColors]]],
+  ];
 }
 
 function removeStationLayers(map) {

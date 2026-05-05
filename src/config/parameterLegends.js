@@ -45,11 +45,17 @@ export const PARAMETER_LEGENDS = {
     ],
   },
   'Compact GAS State (WPs)': {
-    displayName: 'Compact GAS State (WPs)',
-    unit: '',
+    // Upstream tags Battery Voltage readings under this element name.
+    // The bins below are voltage thresholds for typical 12 V remote-station
+    // batteries — anything below 12 V is a fading battery, 13–14 V is the
+    // normal float/operating range, > 14 V means actively charging.
+    displayName: 'Compact Gas State (WPs)',
+    unit: 'V',
     bins: [
-      { color: '#22c55e', label: 'State = 0 (Normal)',    test: (v) => v === 0 },
-      { color: '#dc2626', label: 'State = 1 (Triggered)', test: (v) => v === 1 },
+      { color: '#dc2626', label: '< 12 V',     test: (v) => v < 12 },
+      { color: '#f97316', label: '12 – 13 V',  test: (v) => v >= 12 && v < 13 },
+      { color: '#22c55e', label: '13 – 14 V',  test: (v) => v >= 13 && v < 14 },
+      { color: '#3b82f6', label: '≥ 14 V',     test: (v) => v >= 14 },
     ],
   },
 };
@@ -84,8 +90,10 @@ export const PARAMETER_GRADIENTS = {
     { value: 50,  color: '#dc2626' },
   ],
   'Compact GAS State (WPs)': [
-    { value: 0,   color: '#22c55e' },
-    { value: 1,   color: '#dc2626' },
+    { value: 11,   color: '#dc2626' },  // critical
+    { value: 12.5, color: '#f97316' },  // low
+    { value: 13.5, color: '#22c55e' },  // normal operating
+    { value: 14.5, color: '#3b82f6' },  // charging
   ],
 };
 
@@ -196,12 +204,6 @@ export function formatValue(element, value, unit) {
   if (value == null || value === '') return '—';
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value);
-
-  if (element === 'Compact GAS State (WPs)') {
-    if (n === 0) return '0 — Normal';
-    if (n === 1) return '1 — Triggered';
-    return String(n);
-  }
 
   const u = unit ?? PARAMETER_LEGENDS[element]?.unit ?? '';
   return u ? `${n} ${u}` : String(n);

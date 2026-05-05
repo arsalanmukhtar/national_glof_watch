@@ -22,7 +22,7 @@ const ELEMENT_OPTIONS = [
   { id: 'Air Temperature',          label: 'Air Temperature' },
   { id: 'Total Rain',               label: 'Total Rain' },
   { id: 'Water Level',              label: 'Water Level' },
-  { id: 'Compact GAS State (WPs)',  label: 'GAS State' },
+  { id: 'Compact GAS State (WPs)',  label: 'Compact Gas State (WPs)' },
   { id: 'Istantaneous Flow',        label: 'Instantaneous Flow' },
 ];
 

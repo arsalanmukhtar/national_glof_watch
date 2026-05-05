@@ -38,7 +38,7 @@ const PARAMETERS = [
   },
   {
     id: 'Compact GAS State (WPs)',
-    label: 'GAS State',
+    label: 'Compact Gas State (WPs)',
     icon: Gauge,
     on:  'bg-violet-500 text-white border-violet-500 shadow-sm',
     off: 'bg-violet-500/10 text-violet-700 border-violet-500/40 hover:bg-violet-500/15 dark:text-violet-300 dark:bg-violet-500/15 dark:border-violet-500/50 dark:hover:bg-violet-500/25',
