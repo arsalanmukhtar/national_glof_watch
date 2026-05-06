@@ -159,19 +159,26 @@ function useLayerData(item) {
     for (const f of sample) {
       const p = f.properties || {};
       for (const [k, v] of Object.entries(p)) {
-        if (!props.has(k)) props.set(k, { name: k, values: [], numericCount: 0, total: 0 });
+        if (!props.has(k)) props.set(k, { name: k, values: [], numericCount: 0, totalNonNull: 0 });
         const entry = props.get(k);
-        entry.total += 1;
-        if (entry.values.length < 6 && v != null && entry.values.indexOf(v) === -1) {
+        if (entry.values.length < 6 && v != null && v !== '' && entry.values.indexOf(v) === -1) {
           entry.values.push(v);
         }
-        if (typeof v === 'number' && Number.isFinite(v)) entry.numericCount += 1;
+        if (v == null || v === '') continue;
+        entry.totalNonNull += 1;
+        // Treat numeric strings ("1234", "35.71") as numeric — many GeoJSON
+        // exporters write numbers as strings.
+        const n = typeof v === 'number' ? v : Number(v);
+        if (Number.isFinite(n)) entry.numericCount += 1;
       }
     }
     return [...props.values()].map((e) => ({
       name: e.name,
       sample: e.values,
-      kind: e.numericCount / Math.max(1, e.total) > 0.7 ? 'numeric' : 'categorical',
+      kind:
+        e.totalNonNull > 0 && e.numericCount / e.totalNonNull >= 0.8
+          ? 'numeric'
+          : 'categorical',
     }));
   }, [data]);
 
@@ -186,10 +193,12 @@ function summarizeAttribute(data, attrName) {
   let max = -Infinity;
   for (const f of data.features) {
     const v = f.properties?.[attrName];
-    if (v == null) continue;
-    if (typeof v === 'number' && Number.isFinite(v)) {
-      if (v < min) min = v;
-      if (v > max) max = v;
+    if (v == null || v === '') continue;
+    // Accept numeric strings — many GeoJSON exporters write numbers as strings.
+    const n = typeof v === 'number' ? v : Number(v);
+    if (Number.isFinite(n)) {
+      if (n < min) min = n;
+      if (n > max) max = n;
     }
     const key = String(v);
     distinct.set(key, (distinct.get(key) || 0) + 1);
@@ -212,17 +221,32 @@ function clamp(n, lo, hi) {
 }
 
 function hexToRgb(hex) {
-  const s = hex.replace('#', '');
-  const v =
-    s.length === 3
-      ? s.split('').map((c) => parseInt(c + c, 16))
-      : [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
-  return { r: v[0] || 0, g: v[1] || 0, b: v[2] || 0 };
+  const s = (hex || '').replace('#', '');
+  if (s.length === 3) {
+    const [r, g, b] = s.split('').map((c) => parseInt(c + c, 16));
+    return { r: r || 0, g: g || 0, b: b || 0, a: 1 };
+  }
+  if (s.length === 8) {
+    return {
+      r: parseInt(s.slice(0, 2), 16) || 0,
+      g: parseInt(s.slice(2, 4), 16) || 0,
+      b: parseInt(s.slice(4, 6), 16) || 0,
+      a: (parseInt(s.slice(6, 8), 16) || 0) / 255,
+    };
+  }
+  // Treat anything else as 6-char (or fall back to 0).
+  return {
+    r: parseInt(s.slice(0, 2), 16) || 0,
+    g: parseInt(s.slice(2, 4), 16) || 0,
+    b: parseInt(s.slice(4, 6), 16) || 0,
+    a: 1,
+  };
 }
 
-function rgbToHex(r, g, b) {
+function rgbToHex(r, g, b, a = 1) {
   const t = (n) => clamp(Math.round(n), 0, 255).toString(16).padStart(2, '0');
-  return `#${t(r)}${t(g)}${t(b)}`;
+  if (a >= 1) return `#${t(r)}${t(g)}${t(b)}`;
+  return `#${t(r)}${t(g)}${t(b)}${t(a * 255)}`;
 }
 
 function rgbToHsv(r, g, b) {
@@ -256,7 +280,9 @@ function hsvToRgb(h, s, v) {
   return { r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 };
 }
 
-function isHex(v) { return /^#([0-9a-fA-F]{3}){1,2}$/.test(v); }
+function isHex(v) {
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v || '');
+}
 
 // ===========================================================================
 // Felt-style color picker — HSL square + hue slider + preset rows
@@ -287,9 +313,14 @@ function ColorButton({ value, onChange, ariaLabel, allowNone = false }) {
             {value ? (
               <>
                 <span
-                  className="h-4 w-4 rounded-sm border border-black/10 dark:border-white/10"
-                  style={{ backgroundColor: value }}
-                />
+                  className="relative h-4 w-4 rounded-sm border border-black/10 dark:border-white/10 overflow-hidden"
+                  style={{
+                    background:
+                      'repeating-conic-gradient(#cbd5e1 0% 25%, #ffffff 0% 50%) 0 0 / 6px 6px',
+                  }}
+                >
+                  <span className="absolute inset-0" style={{ backgroundColor: value }} />
+                </span>
                 <span className="text-day-text dark:text-night-text">{value.toUpperCase()}</span>
               </>
             ) : (
@@ -337,21 +368,22 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
   const [h, setH] = useState(hsv.h);
   const [s, setS] = useState(hsv.s);
   const [v, setV] = useState(hsv.v);
+  const [a, setA] = useState(rgb.a);
   const [hex, setHex] = useState(value);
 
-  // Re-sync when external value changes (e.g. preset click)
+  // Re-sync when external value changes (e.g. preset click via grid).
   useEffect(() => {
     if (value && value.toLowerCase() !== hex.toLowerCase()) {
       const r = hexToRgb(value);
       const o = rgbToHsv(r.r, r.g, r.b);
-      setH(o.h); setS(o.s); setV(o.v);
+      setH(o.h); setS(o.s); setV(o.v); setA(r.a);
       setHex(value);
     }
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const emit = (h_, s_, v_) => {
+  const emit = (h_, s_, v_, a_) => {
     const { r, g, b } = hsvToRgb(h_, s_, v_);
-    const next = rgbToHex(r, g, b);
+    const next = rgbToHex(r, g, b, a_);
     setHex(next);
     onChange(next);
   };
@@ -366,7 +398,7 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
     const ns = x;
     const nv = 1 - y;
     setS(ns); setV(nv);
-    emit(h, ns, nv);
+    emit(h, ns, nv, a);
   };
   const onSvMouseDown = (e) => {
     draggingSv.current = true;
@@ -386,9 +418,26 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
     try {
       const ed = new window.EyeDropper();
       const res = await ed.open();
-      onChange(res.sRGBHex);
+      // Eyedropper returns 6-char hex; preserve the user's current alpha.
+      const r = hexToRgb(res.sRGBHex);
+      const next = rgbToHex(r.r, r.g, r.b, a);
+      onChange(next);
     } catch { /* canceled */ }
   };
+
+  // When clicking a preset, re-paint it with the current alpha so the user
+  // doesn't lose their opacity choice every time they pick a new hue.
+  const pickPreset = (c) => {
+    const r = hexToRgb(c);
+    const next = rgbToHex(r.r, r.g, r.b, a);
+    onChange(next);
+  };
+
+  // SV square gets a hue-tinted background. The preview swatch + opacity
+  // slider thumb need a checkerboard so transparency reads visually.
+  const checker = `
+    repeating-conic-gradient(#cbd5e1 0% 25%, #ffffff 0% 50%) 0 0 / 8px 8px
+  `;
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -409,11 +458,11 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
               <button
                 key={c}
                 type="button"
-                onClick={() => onChange(c)}
+                onClick={() => pickPreset(c)}
                 aria-label={c}
                 className={cn(
                   'h-5 w-5 rounded-sm border transition-transform hover:scale-110',
-                  value.toLowerCase() === c.toLowerCase()
+                  (value || '').slice(0, 7).toLowerCase() === c.toLowerCase()
                     ? 'border-[#16a085] ring-2 ring-[#16a085]/30'
                     : 'border-black/10 dark:border-white/10',
                 )}
@@ -424,7 +473,7 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
         ))}
       </div>
 
-      {/* Hex + format */}
+      {/* Hex */}
       <div className="flex items-center gap-1.5">
         <input
           type="text"
@@ -432,7 +481,11 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
           onChange={(e) => {
             const v_ = e.target.value;
             setHex(v_);
-            if (isHex(v_)) onChange(v_);
+            if (isHex(v_)) {
+              const r = hexToRgb(v_);
+              setA(r.a);
+              onChange(v_);
+            }
           }}
           spellCheck={false}
           className={cn(
@@ -444,7 +497,39 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
           )}
         />
         <span className="text-[11px] text-day-muted dark:text-night-muted">Hex</span>
-        <span className="text-[11px] text-day-muted dark:text-night-muted">100%</span>
+      </div>
+
+      {/* Opacity slider — controls per-color alpha. Stored as hex8 when < 100%. */}
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-day-muted dark:text-night-muted w-12">Opacity</span>
+        <div className="relative flex-1 h-4">
+          <span
+            className="absolute inset-y-1.5 inset-x-0 rounded-full"
+            style={{ background: checker }}
+          />
+          <span
+            className="absolute inset-y-1.5 inset-x-0 rounded-full"
+            style={{
+              background: `linear-gradient(to right, ${rgbToHex(rgb.r, rgb.g, rgb.b, 0).slice(0, 7)}00, ${rgbToHex(rgb.r, rgb.g, rgb.b)})`,
+            }}
+          />
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={a}
+            onChange={(e) => {
+              const na = Number(e.target.value);
+              setA(na);
+              emit(h, s, v, na);
+            }}
+            className="absolute inset-0 w-full h-full appearance-none bg-transparent accent-[#16a085] cursor-pointer"
+          />
+        </div>
+        <span className="w-10 text-right tabular-nums text-[11px] text-day-text dark:text-night-text">
+          {Math.round(a * 100)}%
+        </span>
       </div>
 
       {/* SV square */}
@@ -480,7 +565,7 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
           onChange={(e) => {
             const nh = Number(e.target.value);
             setH(nh);
-            emit(nh, s, v);
+            emit(nh, s, v, a);
           }}
           className="flex-1 h-2 rounded-full appearance-none cursor-pointer"
           style={{
@@ -659,18 +744,60 @@ const ZOOM_MIN = 0;
 const ZOOM_MAX = 22;
 
 function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format }) {
-  const [active, setActive] = useState(1); // 1 → A (low), 2 → B (high)
+  const [active, setActive] = useState(1); // 1 → A (low zoom), 2 → B (high zoom)
+  const trackRef = useRef(null);
   const z = active === 1 ? value.z1 : value.z2;
   const v = active === 1 ? value.v1 : value.v2;
 
+  // Constraints — A's zoom must stay <= B's zoom AND A's value must stay
+  // <= B's value (with one `step` between them so the interpolate is
+  // strictly increasing — i.e., the user can't sneak the high anchor's
+  // value below the low anchor's value).
   const setZ = (nz) => {
-    const z1 = active === 1 ? nz : value.z1;
-    const z2 = active === 2 ? nz : value.z2;
-    // keep A < B so the interpolate stays well-formed
-    onChange({ ...value, z1: Math.min(z1, z2), z2: Math.max(z1, z2) });
+    const clamped = clamp(nz, ZOOM_MIN, ZOOM_MAX);
+    if (active === 1) {
+      onChange({ ...value, z1: Math.min(clamped, value.z2) });
+    } else {
+      onChange({ ...value, z2: Math.max(clamped, value.z1) });
+    }
   };
   const setV = (nv) => {
-    onChange({ ...value, [active === 1 ? 'v1' : 'v2']: nv });
+    if (active === 1) {
+      // A's value can't exceed B's value − step
+      const cap = Math.max(min, value.v2 - step);
+      onChange({ ...value, v1: clamp(nv, min, cap) });
+    } else {
+      // B's value can't drop below A's value + step
+      const floor = Math.min(max, value.v1 + step);
+      onChange({ ...value, v2: clamp(nv, floor, max) });
+    }
+  };
+
+  // Active value's effective slider min/max — disables sliding past the
+  // partner anchor's value.
+  const valueMin = active === 1 ? min : Math.min(max, value.v1 + step);
+  const valueMax = active === 1 ? Math.max(min, value.v2 - step) : max;
+
+  // Drag handler — clicking or dragging the track re-positions the active
+  // anchor's zoom. Snaps to 0.5 zoom increments, same granularity as the
+  // value slider.
+  const onTrackPointerDown = (e) => {
+    if (!trackRef.current) return;
+    e.preventDefault();
+    const update = (clientX) => {
+      const rect = trackRef.current.getBoundingClientRect();
+      const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
+      const raw = ZOOM_MIN + ratio * (ZOOM_MAX - ZOOM_MIN);
+      setZ(Math.round(raw * 2) / 2);
+    };
+    update(e.clientX);
+    const move = (ev) => update(ev.clientX);
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
   };
 
   // Visual preview — two dots sized proportionally to v1/v2.
@@ -681,6 +808,30 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
 
   const pos = (zoom) =>
     `${((zoom - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)) * 100}%`;
+
+  // Anchor bar — small vertical bar instead of a circle, to match the
+  // tick-style markers shown in Felt's UI.
+  const Bar = ({ isActive, onSelect, label }) => (
+    <button
+      type="button"
+      onClick={onSelect}
+      onPointerDown={(e) => e.stopPropagation()}
+      aria-label={label}
+      className={cn(
+        'absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex flex-col items-center',
+        'cursor-pointer',
+      )}
+    >
+      <span
+        className={cn(
+          'block w-1 rounded-sm transition-all',
+          isActive
+            ? 'h-5 bg-[#16a085] shadow-[0_0_0_3px_rgba(22,160,133,0.18)]'
+            : 'h-4 bg-[#16a085]/60 hover:bg-[#16a085]',
+        )}
+      />
+    </button>
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -718,65 +869,54 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
         </div>
       </div>
 
-      {/* Zoom range track — two clickable anchors */}
+      {/* Zoom range track — click or drag to re-position the active anchor */}
       <div>
         <div className="flex items-center justify-between mb-1 text-[10px] text-day-muted dark:text-night-muted">
           <span>z {ZOOM_MIN}</span>
           <span>Zoom range</span>
           <span>z {ZOOM_MAX}</span>
         </div>
-        <div className="relative h-6">
+        <div
+          ref={trackRef}
+          onPointerDown={onTrackPointerDown}
+          className="relative h-7 cursor-pointer select-none"
+        >
           {/* track */}
-          <span className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-day-border dark:bg-night-border" />
+          <span className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-day-border dark:bg-night-border" />
           {/* active range */}
           <span
-            className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#16a085]/50"
+            className="pointer-events-none absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-[#16a085]/50"
             style={{ left: pos(value.z1), right: `calc(100% - ${pos(value.z2)})` }}
           />
           {/* anchor A */}
-          <button
-            type="button"
-            onClick={() => setActive(1)}
-            aria-label="Edit anchor A"
+          <span style={{ left: pos(value.z1), position: 'absolute', top: '50%', transform: 'translate(-50%, -50%)' }}>
+            <Bar isActive={active === 1} onSelect={() => setActive(1)} label="Edit anchor A" />
+          </span>
+          {/* anchor B */}
+          <span style={{ left: pos(value.z2), position: 'absolute', top: '50%', transform: 'translate(-50%, -50%)' }}>
+            <Bar isActive={active === 2} onSelect={() => setActive(2)} label="Edit anchor B" />
+          </span>
+        </div>
+        {/* Anchor zoom labels under the track */}
+        <div className="relative h-3 mt-0.5">
+          <span
             className={cn(
-              'absolute top-1/2 -translate-y-1/2 -translate-x-1/2 inline-flex flex-col items-center',
+              'absolute -translate-x-1/2 text-[9px] tabular-nums',
+              active === 1 ? 'text-[#16a085] font-semibold' : 'text-day-muted dark:text-night-muted',
             )}
             style={{ left: pos(value.z1) }}
           >
-            <span
-              className={cn(
-                'block h-3.5 w-3.5 rounded-full border-2 transition-transform',
-                active === 1
-                  ? 'bg-[#16a085] border-white scale-110 shadow'
-                  : 'bg-white dark:bg-night-surface border-[#16a085]',
-              )}
-            />
-            <span className={cn(
-              'mt-0.5 text-[9px] tabular-nums',
-              active === 1 ? 'text-[#16a085] font-semibold' : 'text-day-muted dark:text-night-muted',
-            )}>{value.z1}</span>
-          </button>
-          {/* anchor B */}
-          <button
-            type="button"
-            onClick={() => setActive(2)}
-            aria-label="Edit anchor B"
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 inline-flex flex-col items-center"
+            {value.z1}
+          </span>
+          <span
+            className={cn(
+              'absolute -translate-x-1/2 text-[9px] tabular-nums',
+              active === 2 ? 'text-[#16a085] font-semibold' : 'text-day-muted dark:text-night-muted',
+            )}
             style={{ left: pos(value.z2) }}
           >
-            <span
-              className={cn(
-                'block h-3.5 w-3.5 rounded-full border-2 transition-transform',
-                active === 2
-                  ? 'bg-[#16a085] border-white scale-110 shadow'
-                  : 'bg-white dark:bg-night-surface border-[#16a085]',
-              )}
-            />
-            <span className={cn(
-              'mt-0.5 text-[9px] tabular-nums',
-              active === 2 ? 'text-[#16a085] font-semibold' : 'text-day-muted dark:text-night-muted',
-            )}>{value.z2}</span>
-          </button>
+            {value.z2}
+          </span>
         </div>
       </div>
 
@@ -794,8 +934,8 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
           <span className="w-10 text-[10px] text-day-muted dark:text-night-muted">Zoom</span>
           <input
             type="range"
-            min={ZOOM_MIN}
-            max={ZOOM_MAX}
+            min={active === 1 ? ZOOM_MIN : value.z1}
+            max={active === 1 ? value.z2 : ZOOM_MAX}
             step={0.5}
             value={z}
             onChange={(e) => setZ(Number(e.target.value))}
@@ -807,8 +947,8 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
           <span className="w-10 text-[10px] text-day-muted dark:text-night-muted">Value</span>
           <input
             type="range"
-            min={min}
-            max={max}
+            min={valueMin}
+            max={valueMax}
             step={step}
             value={v}
             onChange={(e) => setV(Number(e.target.value))}
@@ -1214,8 +1354,13 @@ export default function LayerStyleConfigPanel() {
   const setStyle = (partial) => {
     if (!selected) return;
     const merged = { ...style, ...partial };
+    // Label is partial-merged so callers can pass `{ label: { enabled: false } }`
+    // and keep their other label settings.
     if (partial.label) merged.label = { ...style.label, ...partial.label };
-    if (partial.zoom)  merged.zoom  = { ...style.zoom,  ...partial.zoom  };
+    // Zoom is fully *replaced* — every caller already passes the complete
+    // new map (e.g. ZoomToggle.onDeactivate sends a zoom map with a key
+    // deleted). Spread-merging here would silently re-add the deleted key.
+    if (partial.zoom !== undefined) merged.zoom = partial.zoom;
     setLayerStyle(selected.id, merged);
   };
 
@@ -1352,7 +1497,6 @@ export default function LayerStyleConfigPanel() {
               attrs={attrs}
               value={style.rangeBy}
               onChange={handleRangeByChange}
-              filter="numeric"
             />
           </Field>
         )}
@@ -1362,7 +1506,6 @@ export default function LayerStyleConfigPanel() {
               attrs={attrs}
               value={style.sizeBy}
               onChange={handleSizeByChange}
-              filter="numeric"
             />
           </Field>
         )}
