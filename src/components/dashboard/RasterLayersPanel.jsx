@@ -12,6 +12,8 @@ import {
   Grid3x3,
   Layers,
   Loader2,
+  Pause,
+  Play,
   RefreshCw,
   Search,
   Shrink,
@@ -632,10 +634,49 @@ function FileList({ files, catalogStatus, usedNames, selected, onToggle, onDelet
 // active frame highlighted.
 // ---------------------------------------------------------------------------
 
+// Base per-frame interval for the temporal play loop at 1× speed. The
+// speed button cycles through SPEED_PRESETS to divide this. 1.2 s feels
+// like meaningful animation; 4× makes long series scrub quickly.
+const FRAME_INTERVAL_MS = 1200;
+const SPEED_PRESETS = [0.5, 1, 2, 4];
+
 function GroupRow({ group, onRemove, onToggleVisible, onSetFrame, onZoom }) {
   const [open, setOpen] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
   const isTemporal = group.kind === 'temporal';
   const activeLayer = group.layers[group.activeIndex] ?? null;
+
+  // Live mirror so the play loop's setInterval can advance without
+  // restarting on every frame change.
+  const idxRef = useRef(group.activeIndex);
+  idxRef.current = group.activeIndex;
+
+  // Auto-stop playing whenever the group becomes ineligible — hidden
+  // (renderer won't decode), single-frame, or no longer temporal.
+  useEffect(() => {
+    if (!isTemporal || !group.visible || group.layers.length <= 1) {
+      setPlaying(false);
+    }
+  }, [isTemporal, group.visible, group.layers.length]);
+
+  useEffect(() => {
+    if (!playing || !isTemporal || group.layers.length <= 1) return undefined;
+    const total = group.layers.length;
+    // Speed change reschedules the interval — that's why `speed` is in
+    // the dep array. Watching the group's identity bits keeps the
+    // interval steady across frame ticks.
+    const id = setInterval(() => {
+      onSetFrame((idxRef.current + 1) % total);
+    }, FRAME_INTERVAL_MS / speed);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, isTemporal, group.layers.length, speed]);
+
+  const cycleSpeed = () => {
+    const i = SPEED_PRESETS.indexOf(speed);
+    setSpeed(SPEED_PRESETS[(i + 1) % SPEED_PRESETS.length] ?? 1);
+  };
 
   return (
     <div
@@ -791,7 +832,14 @@ function GroupRow({ group, onRemove, onToggleVisible, onSetFrame, onZoom }) {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden border-t border-[#16a085]/25 dark:border-[#16a085]/30"
           >
-            <RasterLegend group={group} />
+            <RasterLegend
+              group={group}
+              playing={playing}
+              onTogglePlay={() => setPlaying((p) => !p)}
+              onSetFrame={onSetFrame}
+              speed={speed}
+              onCycleSpeed={cycleSpeed}
+            />
           </motion.div>
         ) : null}
       </AnimatePresence>
@@ -800,19 +848,28 @@ function GroupRow({ group, onRemove, onToggleVisible, onSetFrame, onZoom }) {
 }
 
 // ---------------------------------------------------------------------------
-// Inline legend — colormap gradient + min/max labels. Matches the
-// vector LayerLegend's tone (small, padded, sits inside the row card).
+// Inline legend — colormap gradient + min/max labels. For single
+// rasters it's a static read-out. For temporal groups the gradient bar
+// becomes the temporal slider (draggable thumb + play button), and the
+// min/max row picks up an active-frame label in the middle. The min /
+// max numbers update naturally as the user scrubs because the renderer
+// pushes fresh dataStats per frame.
 // ---------------------------------------------------------------------------
 
-function RasterLegend({ group }) {
+function RasterLegend({
+  group,
+  playing,
+  onTogglePlay,
+  onSetFrame,
+  speed,
+  onCycleSpeed,
+}) {
   const style = group.style ?? {};
   const colormapId = style.colormap || 'viridis';
   const colormapLabel = COLORMAPS[colormapId]?.label ?? colormapId;
   const auto = style.autoStretch !== false;
   const dataMin = group.dataStats?.dataMin;
   const dataMax = group.dataStats?.dataMax;
-  // What numbers go on the legend's ends. Manual stretch wins; auto
-  // falls back to the data range; nothing yet reads as "—".
   const lowVal = auto
     ? dataMin
     : Number.isFinite(style.min)
@@ -824,6 +881,13 @@ function RasterLegend({ group }) {
       ? style.max
       : dataMax;
 
+  const isTemporal = group.kind === 'temporal' && group.layers.length > 1;
+  const idx = group.activeIndex;
+  const total = group.layers.length;
+  const activeLayer = group.layers[idx];
+  const frameLabel = activeLayer?.parsedDate || activeLayer?.name || '';
+  const gradient = colormapCssGradient(colormapId);
+
   return (
     <div className="px-2 py-1.5 flex flex-col gap-1">
       <div className="flex items-center justify-between text-[9.5px]">
@@ -834,17 +898,177 @@ function RasterLegend({ group }) {
           opacity {Math.round((style.opacity ?? 1) * 100)}%
         </span>
       </div>
-      <div
-        className="h-2 rounded-sm border border-day-border/40 dark:border-night-border/40"
-        style={{ backgroundImage: colormapCssGradient(colormapId) }}
-        aria-hidden
-      />
-      <div className="flex items-center justify-between text-[10px] tabular-nums text-day-text dark:text-night-text">
+
+      {isTemporal ? (
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onTogglePlay}
+            aria-label={playing ? 'Pause' : 'Play'}
+            title={playing ? 'Pause' : 'Play'}
+            className={cn(
+              'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors',
+              'bg-[#16a085] text-white hover:bg-[#138b72]',
+            )}
+          >
+            {playing ? (
+              <Pause className="h-2.5 w-2.5" />
+            ) : (
+              <Play className="h-2.5 w-2.5" />
+            )}
+          </button>
+          <LegendSlider
+            gradient={gradient}
+            total={total}
+            idx={idx}
+            onChange={onSetFrame}
+          />
+          <button
+            type="button"
+            onClick={onCycleSpeed}
+            aria-label={`Playback speed ${formatSpeed(speed)}, click to change`}
+            title={`Playback speed: ${formatSpeed(speed)}`}
+            className={cn(
+              'inline-flex h-5 min-w-[26px] px-1 shrink-0 items-center justify-center rounded',
+              'text-[10px] font-semibold tabular-nums leading-none transition-colors',
+              'border border-day-border dark:border-night-border',
+              'text-day-muted dark:text-night-muted',
+              'hover:text-[#16a085] hover:border-[#16a085]/60 hover:bg-[#16a085]/10',
+            )}
+          >
+            {formatSpeed(speed)}
+          </button>
+        </div>
+      ) : (
+        <div
+          className="h-2 rounded-sm"
+          style={{ backgroundImage: gradient }}
+          aria-hidden
+        />
+      )}
+
+      <div className="flex items-center justify-between gap-2 text-[10px] tabular-nums text-day-text dark:text-night-text">
         <span>{niceLegendNumber(lowVal)}</span>
+        {isTemporal ? (
+          <span
+            className="flex-1 min-w-0 text-center text-day-muted dark:text-night-muted truncate"
+            title={activeLayer?.name}
+          >
+            {idx + 1}/{total}
+            {frameLabel ? ` · ${frameLabel}` : ''}
+          </span>
+        ) : null}
         <span>{niceLegendNumber(highVal)}</span>
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Compact draggable track. The colormap gradient is the visual track,
+// a small white dot marks the active frame. Click anywhere to seek;
+// drag the thumb (or anywhere on the track) to scrub. Keyboard arrows
+// step one frame.
+// ---------------------------------------------------------------------------
+
+function LegendSlider({ gradient, total, idx, onChange }) {
+  const trackRef = useRef(null);
+  const dragRef = useRef(false);
+
+  const updateFromX = (clientX) => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return;
+    const t = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const next = Math.round(t * (total - 1));
+    if (next !== idx) onChange(next);
+  };
+
+  const handlePointerDown = (e) => {
+    e.preventDefault();
+    e.target.setPointerCapture?.(e.pointerId);
+    dragRef.current = true;
+    updateFromX(e.clientX);
+  };
+  const handlePointerMove = (e) => {
+    if (!dragRef.current) return;
+    updateFromX(e.clientX);
+  };
+  const handlePointerUp = (e) => {
+    dragRef.current = false;
+    e.target.releasePointerCapture?.(e.pointerId);
+  };
+  const handleKey = (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      onChange(Math.max(0, idx - 1));
+    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      onChange(Math.min(total - 1, idx + 1));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      onChange(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      onChange(total - 1);
+    }
+  };
+
+  const pct = total > 1 ? (idx / (total - 1)) * 100 : 0;
+  // Interior tick marks only — frames 1 .. N-2. Ticks at 0 and N-1
+  // would coincide with the bar's edges and read as out-of-place
+  // colored slivers rather than discrete-frame markers.
+  const showTicks = total > 2 && total <= 24;
+
+  return (
+    <div
+      role="slider"
+      aria-label="Temporal frame"
+      aria-valuemin={1}
+      aria-valuemax={total}
+      aria-valuenow={idx + 1}
+      tabIndex={0}
+      onKeyDown={handleKey}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      ref={trackRef}
+      className="relative flex-1 h-3 flex items-center cursor-pointer touch-none select-none focus:outline-none focus:ring-2 focus:ring-[#16a085]/40 rounded"
+    >
+      {/* Border dropped intentionally — it stacked on top of the gradient
+          and produced visible edge slivers when combined with the
+          rounded corners + dark theme. The thumb gives all the framing
+          the track needs. */}
+      <div
+        className="absolute inset-x-0 h-2 rounded-sm"
+        style={{ backgroundImage: gradient }}
+      />
+      {showTicks
+        ? Array.from({ length: total - 2 }).map((_, k) => {
+            const i = k + 1; // skip the first and last (edges)
+            return (
+              <span
+                key={i}
+                aria-hidden
+                className="absolute h-2 w-px bg-black/25 dark:bg-white/30"
+                style={{ left: `${(i / (total - 1)) * 100}%` }}
+              />
+            );
+          })
+        : null}
+      <span
+        aria-hidden
+        className="absolute h-3 w-3 rounded-full bg-white shadow border-2 border-[#16a085] -translate-x-1/2 pointer-events-none"
+        style={{ left: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+// "0.5×" / "1×" / "2×" / "4×" — keeps the button text visually
+// compact across speeds while preserving readability.
+function formatSpeed(speed) {
+  if (Number.isInteger(speed)) return `${speed}×`;
+  return `${speed}×`;
 }
 
 function niceLegendNumber(n) {
