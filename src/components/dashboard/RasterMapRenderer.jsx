@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMapView } from '@/contexts/MapContext';
 import { useRasters } from '@/contexts/RasterContext';
 import { fetchAndDecodeRaster } from '@/utils/rasterRender';
@@ -71,6 +71,25 @@ export default function RasterMapRenderer() {
   // long temporal series or toggles between several colormaps.
   const decodeCacheRef = useRef(new Map());
   const CACHE_LIMIT = 12;
+
+  // Mapbox wipes every custom source + layer when the basemap swaps
+  // (`map.setStyle()` → fires `style.load`). The reconciliation state
+  // ref still claims those sources are present, so without resetting it
+  // the rasters silently disappear. Bumping this counter on every
+  // style.load forces the reconcile effect to re-run with empty
+  // bookkeeping → it re-adds everything from scratch.
+  const [styleEpoch, setStyleEpoch] = useState(0);
+  useEffect(() => {
+    if (!map) return undefined;
+    const onStyleLoad = () => {
+      groupStateRef.current.clear();
+      setStyleEpoch((e) => e + 1);
+    };
+    map.on('style.load', onStyleLoad);
+    return () => {
+      map.off('style.load', onStyleLoad);
+    };
+  }, [map]);
 
   useEffect(() => {
     if (!map) return;
@@ -261,7 +280,7 @@ export default function RasterMapRenderer() {
     return () => {
       cancelled = true;
     };
-  }, [map, groups, setGroupDataStats, setLayerBounds]);
+  }, [map, groups, setGroupDataStats, setLayerBounds, styleEpoch]);
 
   // Tear everything down on unmount (e.g. navigating away from the
   // dashboard) so we don't leave orphaned sources behind.
