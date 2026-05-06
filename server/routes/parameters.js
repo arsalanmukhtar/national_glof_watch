@@ -107,10 +107,11 @@ parametersRouter.get('/:element/geojson', async (req, res) => {
   }
 });
 
-// GET /api/parameters/:element/stations/:stationId/trend?bucket=hour|day
-// Returns aggregated time-series for one station + element. `hour` buckets
-// average over the last 24 hours (daily view); `day` buckets average over
-// the last 7 days (weekly view). Empty buckets are simply omitted.
+// GET /api/parameters/:element/stations/:stationId/trend?days=N
+// Returns raw station_readings rows over the last N days for one station +
+// element — no aggregation. PMD writes every ~10 minutes, so the response
+// is the full point cloud. `?days=` defaults to 1 and caps at 365 to keep
+// a typo from pulling years of rows.
 parametersRouter.get(
   '/:element/stations/:stationId/trend',
   async (req, res) => {
@@ -122,44 +123,33 @@ parametersRouter.get(
     if (!Number.isFinite(stationId)) {
       return res.status(400).json({ error: 'Invalid stationId' });
     }
-    const bucket = req.query.bucket === 'day' ? 'day' : 'hour';
-    let interval = bucket === 'day' ? '7 days' : '24 hours';
 
-    // Optional ?days=N override for the daily-bucket window. Caps at 365
-    // so a typo can't pull years of rows.
-    const customDays = Number(req.query.days);
-    if (
-      bucket === 'day' &&
-      Number.isFinite(customDays) &&
-      customDays > 0 &&
-      customDays <= 365
-    ) {
-      interval = `${Math.floor(customDays)} days`;
-    }
+    const requested = Number(req.query.days);
+    const days =
+      Number.isFinite(requested) && requested > 0 && requested <= 365
+        ? Math.floor(requested)
+        : 1;
+    const interval = `${days} days`;
 
     try {
       const { rows } = await pool.query(
-        `SELECT date_trunc($3, last_update) AS bucket,
-                AVG(value)                  AS value,
-                COUNT(*)                    AS samples
+        `SELECT last_update AS ts, value
            FROM station_readings
           WHERE station_id = $1
             AND element    = $2
             AND last_update IS NOT NULL
-            AND last_update >= NOW() - $4::interval
-          GROUP BY bucket
-          ORDER BY bucket ASC`,
-        [stationId, element, bucket, interval],
+            AND last_update >= NOW() - $3::interval
+          ORDER BY last_update ASC`,
+        [stationId, element, interval],
       );
 
       res.json({
         element,
         stationId,
-        bucket,
+        days,
         points: rows.map((r) => ({
-          ts: r.bucket?.toISOString?.() ?? r.bucket,
+          ts: r.ts?.toISOString?.() ?? r.ts,
           value: r.value == null ? null : Number(r.value),
-          samples: Number(r.samples) || 0,
         })),
       });
     } catch (err) {

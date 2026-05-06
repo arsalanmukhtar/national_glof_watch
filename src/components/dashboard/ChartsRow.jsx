@@ -64,11 +64,10 @@ const TOKENS = {
   },
 };
 
-// Tooltip title — same data behind the X-axis tick, expanded with the
-// date so a hovered point reads as "Tue, May 5 · 5:00 PM" instead of
-// the raw `2026-05-05T13:00:00.000Z`. Always renders in the user's
-// local time, matching the axis ticks.
-function formatTooltipTitle(iso, bucket) {
+// Tooltip title — full date + time, since the X-axis only shows hour
+// labels. A hover should always disambiguate the exact 10-minute reading
+// (e.g. "Tue, May 5 · 5:20 PM").
+function formatTooltipTitle(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -77,18 +76,15 @@ function formatTooltipTitle(iso, bucket) {
     month: 'short',
     day: 'numeric',
   });
-  if (bucket === 'hour') {
-    const time = d.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    });
-    return `${date} · ${time}`;
-  }
-  return date;
+  const time = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `${date} · ${time}`;
 }
 
-function buildOptions(theme, { unit = '', xLabelFormatter, bucket } = {}) {
+function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
   const t = TOKENS[theme];
   return {
     responsive: true,
@@ -121,11 +117,8 @@ function buildOptions(theme, { unit = '', xLabelFormatter, bucket } = {}) {
         titleFont: { size: 11, weight: '600' },
         bodyFont: { size: 11 },
         callbacks: {
-          // Always reformat the title — Chart.js's default would print
-          // the raw ISO label and leave us with the day-mode mismatch
-          // the user reported.
           title: (items) =>
-            items.length ? formatTooltipTitle(items[0].label, bucket) : '',
+            items.length ? formatTooltipTitle(items[0].label) : '',
           ...(unit
             ? {
                 label: (ctx) =>
@@ -138,6 +131,8 @@ function buildOptions(theme, { unit = '', xLabelFormatter, bucket } = {}) {
     scales: {
       x: {
         grid: { display: false },
+        // Hide the per-point tick marks — labels alone (only at hour
+        // boundaries via the callback below) communicate the time scale.
         ticks: {
           color: t.text,
           font: { size: 11, weight: '600' },
@@ -148,8 +143,9 @@ function buildOptions(theme, { unit = '', xLabelFormatter, bucket } = {}) {
               }
             : undefined,
           maxRotation: 0,
-          autoSkip: true,
-          maxTicksLimit: 8,
+          // autoSkip is off so the callback is invoked for every 10-min
+          // point; non-hour timestamps return '' and disappear cleanly.
+          autoSkip: false,
         },
         border: { color: t.axis },
       },
@@ -249,9 +245,10 @@ function Tabs({ tab, onChange }) {
 
 function PmdTrendPanel({ theme }) {
   const { selected, selectedStation } = useParameter();
-  // 'daily' = hour bucket / last 24 h
-  // 'weekly' = day bucket / last 7 d
-  // 'custom' = day bucket / last `customDays` d
+  // Three windows over the raw 10-minute readings — no aggregation:
+  //   'daily'  → last 1 day
+  //   'weekly' → last 7 days
+  //   'custom' → last `customDays` days
   const [mode, setMode] = useState('daily');
   const [customDays, setCustomDays] = useState(14);
   const [points, setPoints] = useState([]);
@@ -260,7 +257,12 @@ function PmdTrendPanel({ theme }) {
 
   const stationId = selectedStation?.stationId;
   const stationName = selectedStation?.stationName;
-  const bucket = mode === 'daily' ? 'hour' : 'day';
+  const days =
+    mode === 'daily'
+      ? 1
+      : mode === 'weekly'
+        ? 7
+        : Math.max(1, Math.min(365, Number(customDays) || 1));
 
   useEffect(() => {
     if (!selected || !stationId) {
@@ -274,10 +276,7 @@ function PmdTrendPanel({ theme }) {
       `/api/parameters/${encodeURIComponent(selected)}/stations/${stationId}/trend`,
       window.location.origin,
     );
-    url.searchParams.set('bucket', bucket);
-    if (mode === 'custom') {
-      url.searchParams.set('days', String(Math.max(1, Math.min(365, customDays || 1))));
-    }
+    url.searchParams.set('days', String(days));
     fetch(url.toString())
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((data) => {
@@ -295,7 +294,7 @@ function PmdTrendPanel({ theme }) {
     return () => {
       cancelled = true;
     };
-  }, [selected, stationId, bucket, mode, customDays]);
+  }, [selected, stationId, days]);
 
   const unit = PARAMETER_LEGENDS[selected]?.unit ?? '';
   const fallbackLine = selected ? colorFor(selected) : '#16a085';
@@ -322,20 +321,52 @@ function PmdTrendPanel({ theme }) {
     return g ?? fallbackFill;
   };
 
+  // Hour-stride: thin the hour-boundary labels so a multi-day window
+  // doesn't try to print 168 hour ticks. Targets ~12 visible labels.
+  // Computed off the actual point span (not the requested days) so a
+  // partial window still picks a sensible step.
+  const hourStep = useMemo(() => {
+    if (points.length < 2) return 1;
+    const first = new Date(points[0].ts).getTime();
+    const last = new Date(points[points.length - 1].ts).getTime();
+    const totalHours = Math.max(1, (last - first) / 3_600_000);
+    return Math.max(1, Math.ceil(totalHours / 12));
+  }, [points]);
+
   const xLabelFormatter = (iso) => {
     if (!iso) return '';
     const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    if (bucket === 'hour') {
-      // 12-hour clock with AM/PM, locale-independent so labels stay
-      // consistent across browsers and parameters.
-      return d.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      });
+    if (Number.isNaN(d.getTime())) return '';
+    // Only label hour boundaries — every 10-minute point in between
+    // returns '' and never shows axis text.
+    if (d.getMinutes() !== 0) return '';
+    // Thin further so multi-day windows don't crowd: only every Nth
+    // absolute hour gets a label.
+    const absHour = Math.floor(d.getTime() / 3_600_000);
+    if (absHour % hourStep !== 0) return '';
+    // Midnight prints the calendar date so the user can read where days
+    // change without a tooltip; other hours print just the hour.
+    if (d.getHours() === 0) {
+      return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
+  };
+
+  // Big dot at every hour boundary (minute === 0), small dot for the
+  // five 10-minute readings in between. Hover bumps both up.
+  const pointRadiusForCtx = (ctx) => {
+    const lbl = ctx.chart?.data?.labels?.[ctx.dataIndex];
+    if (!lbl) return 1.5;
+    const d = new Date(lbl);
+    if (Number.isNaN(d.getTime())) return 1.5;
+    return d.getMinutes() === 0 ? 3.5 : 1.25;
+  };
+  const pointHoverRadiusForCtx = (ctx) => {
+    const lbl = ctx.chart?.data?.labels?.[ctx.dataIndex];
+    if (!lbl) return 4;
+    const d = new Date(lbl);
+    if (Number.isNaN(d.getTime())) return 4;
+    return d.getMinutes() === 0 ? 5.5 : 3;
   };
 
   const data = useMemo(
@@ -353,26 +384,26 @@ function PmdTrendPanel({ theme }) {
           backgroundColor: fillGradient,
           pointBackgroundColor: lineGradient,
           pointBorderColor: lineGradient,
-          pointRadius: 3,
-          pointHoverRadius: 5,
-          borderWidth: 2,
+          pointRadius: pointRadiusForCtx,
+          pointHoverRadius: pointHoverRadiusForCtx,
+          borderWidth: 1.75,
           fill: true,
-          tension: 0.35,
+          tension: 0.3,
           spanGaps: true,
         },
       ],
     }),
-    // Scriptable colors close over `selected` + `theme` via the helpers
-    // above, so depending on `points` and `selected` is sufficient.
+    // Scriptable colors / radii close over `selected` + `theme` + `points`
+    // via the helpers above; depending on the inputs is sufficient.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [points, selected, unit, theme],
   );
 
   const options = useMemo(
-    () => buildOptions(theme, { unit, xLabelFormatter, bucket }),
-    // xLabelFormatter is intentionally derived from `bucket`, captured here
+    () => buildOptions(theme, { unit, xLabelFormatter }),
+    // xLabelFormatter closes over hourStep, so re-build when it changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [theme, unit, bucket],
+    [theme, unit, hourStep],
   );
 
   const empty = !selected || !stationId;
