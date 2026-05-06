@@ -5,6 +5,7 @@ import { RegionLayersProvider } from '@/contexts/RegionLayersContext';
 import { MapProvider } from '@/contexts/MapContext';
 import { AttributeTablesProvider } from '@/contexts/AttributeTablesContext';
 import { CsvDatasetsProvider } from '@/contexts/CsvDatasetsContext';
+import { RasterProvider } from '@/contexts/RasterContext';
 import AppShell from '@/components/layout/AppShell';
 import Dashboard from '@/components/dashboard/Dashboard';
 
@@ -17,9 +18,11 @@ export default function App() {
             <MapProvider>
               <AttributeTablesProvider>
                 <CsvDatasetsProvider>
-                  <AppShell>
-                    <Dashboard />
-                  </AppShell>
+                  <RasterProvider>
+                    <AppShell>
+                      <Dashboard />
+                    </AppShell>
+                  </RasterProvider>
                 </CsvDatasetsProvider>
               </AttributeTablesProvider>
             </MapProvider>

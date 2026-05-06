@@ -7,6 +7,7 @@ import { uploadRouter } from './routes/upload.js';
 import { dbRouter } from './routes/db.js';
 import { gisRouter } from './routes/gis.js';
 import { csvRouter } from './routes/csv.js';
+import { rastersRouter } from './routes/rasters.js';
 import { ensureSchema, pool } from './lib/db.js';
 import { storeAllElements } from './lib/store.js';
 
@@ -43,6 +44,7 @@ app.use('/api/upload', uploadRouter);
 app.use('/api/db', dbRouter);
 app.use('/api/gis', gisRouter);
 app.use('/api/csv', csvRouter);
+app.use('/api/rasters', rastersRouter);
 
 async function runStoreCycle(reason = 'scheduled') {
   const at = new Date().toISOString();

@@ -31,6 +31,7 @@ import BasemapSwitcher from './BasemapSwitcher';
 import MapControls from './MapControls';
 import MapGeocoder from './MapGeocoder';
 import MapLegend from './MapLegend';
+import RasterMapRenderer from './RasterMapRenderer';
 import StationsTable from './StationsTable';
 import { cn } from '@/utils/cn';
 
@@ -574,6 +575,7 @@ export default function MapPanel({ className, onMapReady }) {
           onToggleBin={toggleBin}
         />
         <StationsTable />
+        <RasterMapRenderer />
         <AnimatePresence>
           {isLoading ? (
             <motion.div

@@ -1,30 +1,767 @@
-import { Grid3x3, Hourglass } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  AlertCircle,
+  Calendar,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  FilePlus2,
+  FolderOpen,
+  Grid3x3,
+  Layers,
+  Loader2,
+  RefreshCw,
+  Search,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react';
+import { formatBytes, useRasters } from '@/contexts/RasterContext';
+import { cn } from '@/utils/cn';
 
 // ---------------------------------------------------------------------------
-// Raster Layers panel — placeholder skeleton.
-// User-facing slot for temporal raster overlays. Real wiring (catalog,
-// time slider, basemap composition with the Palette panel) is deferred
-// per the user's "add the button only" instruction.
+// Raster Layers panel — Phase 1 (discovery + grouping).
+//
+// Lists `.tif` / `.tiff` files surfaced by the backend (`/api/rasters`),
+// lets the user add a single raster or a multi-frame temporal series,
+// and tracks frame visibility / active frame in `RasterContext`. Map
+// rendering, symbology controls and the in-map temporal slider land in
+// Phase 2 — the data shape here is already what they'll consume.
 // ---------------------------------------------------------------------------
 
 export default function RasterLayersPanel() {
+  const {
+    available,
+    catalogStatus,
+    refresh,
+    uploadFile,
+    deleteFile,
+    groups,
+    addGroup,
+    removeGroup,
+    toggleVisible,
+    setActiveFrame,
+    usedNames,
+  } = useRasters();
+
+  const [intakeOpen, setIntakeOpen] = useState(false);
+
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-3 py-8 text-center">
-      <div className="relative">
-        <Grid3x3 className="h-9 w-9 text-day-muted/60 dark:text-night-muted/60" />
-        <Hourglass className="absolute -bottom-1 -right-1 h-3.5 w-3.5 text-[#16a085]" />
-      </div>
-      <div className="text-[12px] font-semibold text-day-text dark:text-night-text">
-        Raster Layers
-      </div>
-      <div className="text-[11px] text-day-muted dark:text-night-muted leading-snug max-w-[240px]">
-        Temporal raster catalog with an in-map time slider lands here.
-        Styling will be driven by the same right-sidebar Palette panel
-        used for vector layers.
-      </div>
-      <div className="text-[10px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mt-1">
-        Awaiting data spec
-      </div>
+    <div className="flex flex-col gap-2">
+      {/* Add-raster primary action */}
+      <button
+        type="button"
+        onClick={() => setIntakeOpen((v) => !v)}
+        aria-expanded={intakeOpen}
+        className={cn(
+          'inline-flex items-center justify-center gap-2 rounded-md px-3 py-2',
+          'text-[12px] font-semibold transition-colors',
+          intakeOpen
+            ? 'bg-[#138b72] text-white'
+            : 'bg-[#16a085] text-white hover:bg-[#138b72]',
+        )}
+      >
+        <FilePlus2 className="h-4 w-4" />
+        <span>{intakeOpen ? 'Cancel' : 'Add raster(s)'}</span>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {intakeOpen ? (
+          <motion.div
+            key="intake"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="overflow-hidden"
+          >
+            <RasterIntake
+              available={available}
+              catalogStatus={catalogStatus}
+              usedNames={usedNames}
+              refresh={refresh}
+              uploadFile={uploadFile}
+              deleteFile={deleteFile}
+              onAdd={(spec) => {
+                const id = addGroup(spec);
+                if (id) setIntakeOpen(false);
+              }}
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <Section title="Loaded rasters" count={groups.length}>
+        {groups.length === 0 ? (
+          <EmptyHint>
+            Add a raster to see it here. Phase 2 lights up symbology and the
+            in-map temporal slider.
+          </EmptyHint>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {groups.map((g) => (
+              <GroupRow
+                key={g.id}
+                group={g}
+                onRemove={() => removeGroup(g.id)}
+                onToggleVisible={() => toggleVisible(g.id)}
+                onSetFrame={(idx) => setActiveFrame(g.id, idx)}
+              />
+            ))}
+          </div>
+        )}
+      </Section>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Intake — mode picker (single | temporal) + file list with multi-select.
+// Files already attached to an existing group are dimmed but still
+// pickable (a user might legitimately want the same frame in two groups).
+// ---------------------------------------------------------------------------
+
+function RasterIntake({
+  available,
+  catalogStatus,
+  usedNames,
+  refresh,
+  uploadFile,
+  deleteFile,
+  onAdd,
+}) {
+  const [mode, setMode] = useState('single');
+  const [selected, setSelected] = useState(() => new Set());
+  const [groupName, setGroupName] = useState('');
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState(null);
+
+  // Whenever the catalog refreshes, drop any selections whose filename
+  // is no longer available — otherwise the panel could submit stale
+  // names that the backend will 404.
+  useEffect(() => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const known = new Set(available.map((f) => f.name));
+      for (const n of next) if (!known.has(n)) next.delete(n);
+      return next.size === prev.size ? prev : next;
+    });
+  }, [available]);
+
+  // Plain checkbox toggle — selection is independent of mode. Submit-time
+  // logic decides what to do with N>1 files in single mode (creates one
+  // single-raster group per file).
+  const toggle = (name) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return available;
+    const q = search.toLowerCase();
+    return available.filter((f) => f.name.toLowerCase().includes(q));
+  }, [available, search]);
+
+  const submit = () => {
+    setError(null);
+    const fileNames = [...selected];
+    if (fileNames.length === 0) {
+      setError('Pick at least one raster.');
+      return;
+    }
+    if (mode === 'single') {
+      // N selected files in single mode = N independent single-raster
+      // groups. The user gets one group per file so they can be styled
+      // / toggled independently.
+      for (const fn of fileNames) {
+        onAdd({ kind: 'single', fileNames: [fn], name: null });
+      }
+    } else {
+      onAdd({
+        kind: 'temporal',
+        fileNames,
+        name: groupName.trim() || null,
+      });
+    }
+    setSelected(new Set());
+    setGroupName('');
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <ModePicker mode={mode} onChange={setMode} />
+
+      <UploadZone
+        uploadFile={uploadFile}
+        onComplete={async (uploadedNames) => {
+          // Refresh the catalog so the new rows appear, then auto-select
+          // them so the user can hit "Add" without re-clicking each one.
+          await refresh();
+          setSelected((prev) => {
+            const next = new Set(prev);
+            for (const n of uploadedNames) next.add(n);
+            return next;
+          });
+        }}
+      />
+
+      <div className="flex items-center gap-1.5">
+        <SearchInput value={search} onChange={setSearch} />
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={catalogStatus.loading}
+          aria-label="Refresh raster catalog"
+          title="Refresh"
+          className={cn(
+            'inline-flex h-7 w-7 items-center justify-center rounded-md',
+            'border border-day-border dark:border-night-border',
+            'text-day-muted dark:text-night-muted',
+            'hover:text-[#16a085] hover:border-[#16a085]/60 transition-colors',
+            'disabled:opacity-50 disabled:cursor-not-allowed',
+          )}
+        >
+          {catalogStatus.loading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </div>
+
+      <FileList
+        files={filtered}
+        catalogStatus={catalogStatus}
+        usedNames={usedNames}
+        selected={selected}
+        onToggle={toggle}
+        onDelete={async (name) => {
+          // Optimistically drop from the selection set; deleteFile also
+          // prunes any group still pointing at the file.
+          setSelected((prev) => {
+            if (!prev.has(name)) return prev;
+            const next = new Set(prev);
+            next.delete(name);
+            return next;
+          });
+          try {
+            await deleteFile(name);
+            await refresh();
+          } catch (err) {
+            setError(err.message || 'Delete failed');
+          }
+        }}
+      />
+
+      <input
+        type="text"
+        value={groupName}
+        onChange={(e) => setGroupName(e.target.value)}
+        placeholder={
+          mode === 'temporal' ? 'Series name (optional)' : 'Layer name (optional)'
+        }
+        className={cn(
+          'w-full rounded-md border px-2 py-1.5 text-[11px]',
+          'bg-day-bg dark:bg-night-bg',
+          'border-day-border dark:border-night-border',
+          'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
+          'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+        )}
+      />
+
+      <button
+        type="button"
+        onClick={submit}
+        disabled={selected.size === 0}
+        className={cn(
+          'btn-base btn-sm w-full',
+          'bg-[#16a085] text-white hover:bg-[#138b72]',
+          'disabled:cursor-not-allowed disabled:opacity-50',
+        )}
+      >
+        <Layers className="h-3.5 w-3.5" />
+        <span>
+          {mode === 'temporal'
+            ? `Add series · ${selected.size} frame${selected.size === 1 ? '' : 's'}`
+            : `Add ${selected.size || ''} raster${selected.size === 1 ? '' : 's'}`.trim()}
+        </span>
+      </button>
+
+      {error ? (
+        <div className="inline-flex items-start gap-1.5 text-[10.5px] text-red-600 dark:text-red-400">
+          <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Upload zone — click anywhere or drag-drop one or more `.tif` files.
+// Streams each file via XHR so the progress bar reflects actual bytes
+// sent (fetch's body progress isn't surfaced by any current browser).
+// On completion the catalog is refreshed and the freshly uploaded
+// filenames bubble back to the parent so they auto-populate the
+// selection set.
+// ---------------------------------------------------------------------------
+
+function UploadZone({ uploadFile, onComplete }) {
+  const inputRef = useRef(null);
+  const [dragOver, setDragOver] = useState(false);
+  // { current, total, fileName, sent, size } while a batch is in flight.
+  const [progress, setProgress] = useState(null);
+  const [error, setError] = useState(null);
+
+  const accept = async (fileList) => {
+    if (!fileList?.length) return;
+    const tifs = [...fileList].filter((f) => /\.tiff?$/i.test(f.name));
+    const skipped = fileList.length - tifs.length;
+    if (tifs.length === 0) {
+      setError('Only .tif / .tiff files are supported.');
+      return;
+    }
+    setError(skipped > 0 ? `Skipped ${skipped} non-TIFF file(s).` : null);
+    const uploaded = [];
+    for (let i = 0; i < tifs.length; i++) {
+      const file = tifs[i];
+      try {
+        setProgress({
+          current: i + 1,
+          total: tifs.length,
+          fileName: file.name,
+          sent: 0,
+          size: file.size,
+        });
+        const result = await uploadFile(file, {
+          onProgress: (sent, size) =>
+            setProgress((p) => (p ? { ...p, sent, size } : p)),
+        });
+        uploaded.push(result.name);
+      } catch (err) {
+        setError(`${file.name}: ${err.message || 'upload failed'}`);
+        setProgress(null);
+        if (uploaded.length) onComplete?.(uploaded);
+        return;
+      }
+    }
+    setProgress(null);
+    onComplete?.(uploaded);
+  };
+
+  const busy = progress != null;
+  const pct =
+    progress && progress.size
+      ? Math.min(100, Math.round((progress.sent / progress.size) * 100))
+      : 0;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!busy) setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          if (busy) return;
+          accept(e.dataTransfer.files);
+        }}
+        className={cn(
+          'w-full flex flex-col items-center justify-center gap-1',
+          'rounded-md border-2 border-dashed px-3 py-3 text-center cursor-pointer',
+          'transition-colors focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+          'disabled:cursor-not-allowed disabled:opacity-80',
+          dragOver
+            ? 'border-[#16a085] bg-[#16a085]/5'
+            : 'border-day-border dark:border-night-border hover:border-[#16a085]/60 hover:bg-[#16a085]/5',
+        )}
+      >
+        <Upload className="h-4 w-4 text-day-muted dark:text-night-muted" />
+        <span className="text-[11px] text-day-text dark:text-night-text">
+          Drop .tif files or{' '}
+          <span className="font-semibold text-[#16a085]">
+            {busy ? 'uploading…' : 'click to browse'}
+          </span>
+        </span>
+        {!busy ? (
+          <span className="text-[9.5px] text-day-muted dark:text-night-muted">
+            Files land in <code className="text-[9px]">data/rasters/</code>
+          </span>
+        ) : (
+          <span className="text-[9.5px] tabular-nums text-day-muted dark:text-night-muted truncate max-w-full">
+            {progress.current}/{progress.total} · {progress.fileName} · {pct}%
+          </span>
+        )}
+      </button>
+      {busy ? (
+        <div className="h-1 w-full rounded-full bg-day-bg dark:bg-night-bg overflow-hidden">
+          <div
+            className="h-full bg-[#16a085] transition-[width] duration-150"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      ) : null}
+      {error ? (
+        <div className="inline-flex items-start gap-1.5 text-[10.5px] text-red-600 dark:text-red-400">
+          <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".tif,.tiff,image/tiff"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          accept(e.target.files);
+          // Reset so re-uploading the same file fires onChange again.
+          e.target.value = '';
+        }}
+      />
+    </div>
+  );
+}
+
+function ModePicker({ mode, onChange }) {
+  const items = [
+    { id: 'single', label: 'Single', hint: 'One raster', Icon: Grid3x3 },
+    {
+      id: 'temporal',
+      label: 'Temporal',
+      hint: 'Sequenced frames',
+      Icon: Calendar,
+    },
+  ];
+  return (
+    <div role="radiogroup" aria-label="Raster mode" className="grid grid-cols-2 gap-1">
+      {items.map(({ id, label, hint, Icon }) => {
+        const on = mode === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(id)}
+            className={cn(
+              'flex flex-col items-start gap-0.5 rounded-md border px-2 py-1.5 text-left transition-colors',
+              on
+                ? 'bg-[#16a085]/10 border-[#16a085]/50 text-[#16a085]'
+                : 'border-day-border dark:border-night-border text-day-muted dark:text-night-muted hover:border-day-text/40 dark:hover:border-night-text/40',
+            )}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Icon className="h-3.5 w-3.5" />
+              <span className="text-[11px] font-semibold leading-none">
+                {label}
+              </span>
+            </span>
+            <span className="text-[9.5px] leading-tight opacity-80">{hint}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SearchInput({ value, onChange }) {
+  return (
+    <div className="relative flex-1 min-w-0">
+      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-day-muted dark:text-night-muted pointer-events-none" />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Filter files…"
+        className={cn(
+          'w-full pl-7 pr-2 py-1 rounded-md text-[11px]',
+          'bg-day-bg dark:bg-night-bg',
+          'border border-day-border dark:border-night-border',
+          'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
+          'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+        )}
+      />
+    </div>
+  );
+}
+
+function FileList({ files, catalogStatus, usedNames, selected, onToggle, onDelete }) {
+  if (catalogStatus.loading && files.length === 0) {
+    return (
+      <div className="rounded-md border border-day-border dark:border-night-border bg-day-bg/50 dark:bg-night-bg/50 px-2 py-4 text-center text-[11px] text-day-muted dark:text-night-muted inline-flex items-center justify-center gap-1.5">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Reading catalog…
+      </div>
+    );
+  }
+  if (catalogStatus.error) {
+    return (
+      <div className="rounded-md border border-red-300 dark:border-red-900/40 bg-red-50 dark:bg-red-950/30 px-2 py-2 text-[10.5px] text-red-700 dark:text-red-300">
+        {catalogStatus.error}
+      </div>
+    );
+  }
+  if (files.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed border-day-border dark:border-night-border px-2 py-4 text-center">
+        <FolderOpen className="h-4 w-4 mx-auto mb-1 text-day-muted dark:text-night-muted" />
+        <p className="text-[10.5px] text-day-muted dark:text-night-muted">
+          Catalog is empty.
+        </p>
+        <p className="text-[10px] text-day-muted dark:text-night-muted mt-1">
+          Upload above, or drop GeoTIFFs into{' '}
+          <code className="text-[9.5px]">data/rasters/</code> on the
+          server.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="max-h-56 overflow-y-auto rounded-md border border-day-border dark:border-night-border bg-day-bg/40 dark:bg-night-bg/40">
+      <ul className="divide-y divide-day-border/60 dark:divide-night-border/60">
+        {files.map((f) => {
+          const checked = selected.has(f.name);
+          const used = usedNames.has(f.name);
+          return (
+            <li key={f.name} className="flex items-stretch">
+              <button
+                type="button"
+                onClick={() => onToggle(f.name)}
+                className={cn(
+                  'flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-left transition-colors',
+                  checked
+                    ? 'bg-[#16a085]/15'
+                    : 'hover:bg-day-bg dark:hover:bg-night-bg',
+                )}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    'inline-flex h-3.5 w-3.5 items-center justify-center rounded border shrink-0',
+                    checked
+                      ? 'bg-[#16a085] border-[#16a085]'
+                      : 'border-day-border dark:border-night-border',
+                  )}
+                >
+                  {checked ? (
+                    <span className="inline-block h-1.5 w-1.5 bg-white rounded-sm" />
+                  ) : null}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate text-[11px] text-day-text dark:text-night-text">
+                    {f.name}
+                  </span>
+                  <span className="block text-[9.5px] text-day-muted dark:text-night-muted">
+                    {f.parsedDate ? `${f.parsedDate} · ` : ''}
+                    {formatBytes(f.size)}
+                    {used ? ' · in another group' : ''}
+                  </span>
+                </span>
+              </button>
+              {onDelete ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(f.name);
+                  }}
+                  aria-label={`Delete ${f.name}`}
+                  title="Delete from server"
+                  className="inline-flex w-6 shrink-0 items-center justify-center text-day-muted dark:text-night-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Loaded-group row. Single rasters render as a single line; temporal
+// series collapse to a header row + expandable frame list with the
+// active frame highlighted.
+// ---------------------------------------------------------------------------
+
+function GroupRow({ group, onRemove, onToggleVisible, onSetFrame }) {
+  const [open, setOpen] = useState(false);
+  const isTemporal = group.kind === 'temporal';
+  const activeLayer = group.layers[group.activeIndex] ?? null;
+
+  return (
+    <div
+      className={cn(
+        'rounded-md border transition-colors',
+        group.visible
+          ? 'border-[#16a085]/40 bg-[#16a085]/10'
+          : 'border-day-border dark:border-night-border',
+      )}
+    >
+      <div className="flex items-center gap-1 px-2 py-1.5">
+        {isTemporal ? (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? 'Collapse frames' : 'Expand frames'}
+            className="inline-flex h-5 w-5 items-center justify-center rounded text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text"
+          >
+            {open ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )}
+          </button>
+        ) : (
+          <span className="inline-block w-5" />
+        )}
+
+        <span
+          className={cn(
+            'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded',
+            isTemporal
+              ? 'bg-[#16a085]/15 text-[#16a085]'
+              : 'bg-brand-700/10 text-brand-700 dark:text-brand-200',
+          )}
+        >
+          {isTemporal ? (
+            <Calendar className="h-3 w-3" />
+          ) : (
+            <Grid3x3 className="h-3 w-3" />
+          )}
+        </span>
+
+        <div className="flex-1 min-w-0">
+          <div className="truncate text-[12px] text-day-text dark:text-night-text">
+            {group.name}
+          </div>
+          <div className="text-[9.5px] text-day-muted dark:text-night-muted truncate">
+            {isTemporal
+              ? `${group.layers.length} frames · ${formatBytes(
+                  group.layers.reduce((acc, l) => acc + (l.size || 0), 0),
+                )}${
+                  activeLayer?.parsedDate
+                    ? ` · current: ${activeLayer.parsedDate}`
+                    : ''
+                }`
+              : `${formatBytes(group.layers[0]?.size ?? 0)}${
+                  group.layers[0]?.parsedDate
+                    ? ` · ${group.layers[0].parsedDate}`
+                    : ''
+                }`}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onToggleVisible}
+          aria-pressed={group.visible}
+          aria-label={group.visible ? 'Hide on map' : 'Show on map'}
+          className={cn(
+            'inline-flex h-6 w-6 items-center justify-center rounded',
+            group.visible
+              ? 'text-[#16a085]'
+              : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
+          )}
+        >
+          {group.visible ? (
+            <Eye className="h-3.5 w-3.5" />
+          ) : (
+            <EyeOff className="h-3.5 w-3.5" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${group.name}`}
+          className="inline-flex h-6 w-6 items-center justify-center rounded text-red-500 hover:bg-red-500/10"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+
+      {isTemporal && open ? (
+        <div className="border-t border-day-border/60 dark:border-night-border/60 px-2 py-1">
+          <ul className="flex flex-col gap-0.5">
+            {group.layers.map((l, i) => {
+              const active = i === group.activeIndex;
+              return (
+                <li key={l.name}>
+                  <button
+                    type="button"
+                    onClick={() => onSetFrame(i)}
+                    className={cn(
+                      'w-full flex items-center gap-2 rounded px-1.5 py-1 text-left transition-colors',
+                      active
+                        ? 'bg-[#16a085]/15 text-[#16a085]'
+                        : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text hover:bg-day-bg dark:hover:bg-night-bg',
+                    )}
+                  >
+                    <span className="text-[9.5px] tabular-nums w-5 shrink-0 text-right">
+                      {i + 1}
+                    </span>
+                    <span className="flex-1 min-w-0 truncate text-[11px]">
+                      {l.parsedDate ?? l.name}
+                    </span>
+                    {l.parsedDate && l.parsedDate !== l.name ? (
+                      <span className="text-[9.5px] opacity-70 truncate max-w-[40%]">
+                        {l.name}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section / EmptyHint helpers — same shape as CsvDataPanel for visual
+// consistency across sidebar panels.
+// ---------------------------------------------------------------------------
+
+function Section({ title, count, children }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5 mt-1">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+          {title}
+        </span>
+        {typeof count === 'number' ? (
+          <span className="ml-auto text-[10px] tabular-nums text-day-muted dark:text-night-muted">
+            {count}
+          </span>
+        ) : null}
+        <span className="flex-1 h-px bg-day-border/60 dark:bg-night-border/60" />
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function EmptyHint({ children }) {
+  return (
+    <p className="text-[10.5px] text-day-muted dark:text-night-muted text-center px-2 py-3 rounded-md border border-dashed border-day-border dark:border-night-border">
+      {children}
+    </p>
   );
 }
