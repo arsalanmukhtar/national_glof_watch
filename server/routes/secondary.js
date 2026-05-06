@@ -14,6 +14,7 @@ const ALLOWED_LAYERS = new Set([
   'all_stations',
   'glacial_lakes',
   'settlements',
+  'cell_towers',
 ]);
 
 export const secondaryRouter = express.Router();

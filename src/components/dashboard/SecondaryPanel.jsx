@@ -12,6 +12,7 @@ import {
   MapPin,
   Mountain,
   Radio,
+  RadioTower,
   Server,
   Shrink,
   Table2,
@@ -46,6 +47,7 @@ const LAYER_ICONS = {
   all_stations:         Radio,
   glacial_lakes:        Waves,
   settlements:          MapPin,
+  cell_towers:          RadioTower,
 };
 
 const ACCEPTED_TYPES = '.geojson,.json,application/geo+json,application/json,.zip,application/zip';

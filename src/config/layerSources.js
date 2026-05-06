@@ -146,6 +146,7 @@ const SECONDARY_FILES = {
   all_stations:         'all_stations/glof_stations.geojson',
   glacial_lakes:        'glaciel_lakes/glaciel_lakes.geojson',
   settlements:          'settlements/settlements.geojson',
+  cell_towers:          'cell_towers/cell_towers.geojson',
 };
 
 // ---------------------------------------------------------------------------

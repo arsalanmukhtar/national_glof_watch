@@ -19,6 +19,7 @@ export const SECONDARY_LAYERS = [
   { id: 'all_stations',          label: 'All Stations',          geometry: 'point',   table: 'secondary.all_stations' },
   { id: 'glacial_lakes',         label: 'Glacial Lakes',         geometry: 'polygon', table: 'secondary.glacial_lakes' },
   { id: 'settlements',           label: 'Settlements',           geometry: 'point',   table: 'secondary.settlements' },
+  { id: 'cell_towers',           label: 'Cell Towers',           geometry: 'point',   table: 'secondary.cell_towers' },
 ];
 
 // Sensible defaults per geometry type. The accent color (#16a085) keeps

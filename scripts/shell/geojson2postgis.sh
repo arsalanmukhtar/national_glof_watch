@@ -192,7 +192,13 @@ then
 fi
 
 OK_COUNT=0
+SKIP_COUNT=0
 FAIL_LIST=()
+
+# Set FORCE_RELOAD=1 to drop & re-import every table even when it already
+# has rows. By default existing populated tables are skipped so re-running
+# the script is a cheap no-op once everything is loaded.
+FORCE_RELOAD="${FORCE_RELOAD:-0}"
 
 # ---- helper -----------------------------------------------------------------
 load() {
@@ -203,6 +209,23 @@ load() {
     echo "  -> $table  SKIP (missing: ${src#$REPO_ROOT/})"
     FAIL_LIST+=("$table (missing source)")
     return
+  fi
+
+  # Skip if the table already exists and has rows — unless FORCE_RELOAD=1.
+  # to_regclass returns NULL for missing tables so the row count CTE is
+  # safe to run unconditionally.
+  if [[ "$FORCE_RELOAD" != "1" ]]; then
+    local existing
+    existing=$("$PSQL_BIN" "$TARGET_CONN" -tAc "
+      SELECT CASE
+        WHEN to_regclass('$table') IS NULL THEN 0
+        ELSE (SELECT COUNT(*) FROM $table)
+      END" 2>/dev/null | tr -d '[:space:]')
+    if [[ "$existing" =~ ^[0-9]+$ ]] && (( existing > 0 )); then
+      echo "  -> $table  SKIP (already loaded: $existing rows)"
+      SKIP_COUNT=$((SKIP_COUNT + 1))
+      return
+    fi
   fi
 
   echo "  -> $table  <-  ${src#$REPO_ROOT/}"
@@ -364,8 +387,11 @@ load "$DATA_DIR/glaciel_lakes/glaciel_lakes.geojson" "secondary.glacial_lakes"
 # Populated places / settlements
 load "$DATA_DIR/settlements/settlements.geojson" "secondary.settlements"
 
+# Communication / cell towers (point inventory)
+load "$DATA_DIR/cell_towers/cell_towers.geojson" "secondary.cell_towers"
+
 echo
-echo "[done] $OK_COUNT ok / ${#FAIL_LIST[@]} failed"
+echo "[done] $OK_COUNT ok / $SKIP_COUNT skipped / ${#FAIL_LIST[@]} failed"
 if (( ${#FAIL_LIST[@]} > 0 )); then
   echo "[failures]"
   for t in "${FAIL_LIST[@]}"; do
