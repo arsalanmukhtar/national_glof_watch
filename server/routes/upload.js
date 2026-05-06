@@ -368,6 +368,196 @@ function validateFromDbPayload(body) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// POST /api/upload/peek-db
+//
+// Connect to a remote PostGIS server and return one spatial table as a
+// GeoJSON FeatureCollection (re-projected to EPSG:4326 for Mapbox)
+// without writing anything to the local DB. Used by the "Visualize
+// only" option of the Connect-Database modal — the layer is held in the
+// browser's memory exactly like a Browse-Database layer is.
+//
+// No row cap — large tables are accepted; the client shows the map's
+// loading overlay while the FeatureCollection streams back. The
+// 5-minute statement_timeout below is the only upper bound, and exists
+// just to prevent a stuck connection from leaking forever.
+// ---------------------------------------------------------------------------
+
+function validatePeekPayload(body) {
+  if (!body || typeof body !== 'object') {
+    throw new Error('Empty request body');
+  }
+  const { source } = body;
+  if (!source || typeof source !== 'object') {
+    throw new Error('Missing source connection');
+  }
+  const host = String(source.host ?? '').trim();
+  if (!host) throw new Error('Source host is required');
+  const port = Number(source.port ?? 5432);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error(`Invalid source port: ${source.port}`);
+  }
+  const database = String(source.database ?? '').trim();
+  if (!database) throw new Error('Source database is required');
+  const user = String(source.user ?? '').trim();
+  if (!user) throw new Error('Source user is required');
+  const password = source.password == null ? '' : String(source.password);
+  ensureIdent(source.schema ?? 'public', 'source schema');
+  ensureIdent(source.table, 'source table');
+  return {
+    source: {
+      host,
+      port,
+      database,
+      user,
+      password,
+      ssl: !!source.ssl,
+      schema: source.schema ?? 'public',
+      table: source.table,
+    },
+  };
+}
+
+uploadRouter.post('/peek-db', async (req, res) => {
+  let parsed;
+  try {
+    parsed = validatePeekPayload(req.body);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  const { source } = parsed;
+
+  let remote;
+  try {
+    remote = new pg.Client({
+      host: source.host,
+      port: source.port,
+      database: source.database,
+      user: source.user,
+      password: source.password,
+      ssl: source.ssl ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 30_000,
+      // Per-query budget. Each page is small enough to finish well
+      // inside this; the budget exists mainly so a stuck remote
+      // doesn't tie up our PG client forever.
+      statement_timeout: 120_000,
+    });
+    await remote.connect();
+
+    // Discover geometry column + bucket the type so the client can
+    // pick fill/line/circle paint up front.
+    const geomMeta = await remote.query(
+      `SELECT f_geometry_column AS col, srid, type
+         FROM geometry_columns
+        WHERE f_table_schema = $1 AND f_table_name = $2
+        LIMIT 1`,
+      [source.schema, source.table],
+    );
+    if (geomMeta.rowCount === 0) {
+      throw new Error(
+        `Table ${source.schema}.${source.table} has no entry in geometry_columns — is it a PostGIS table?`,
+      );
+    }
+    const geomCol = geomMeta.rows[0].col;
+    const srid = Number(geomMeta.rows[0].srid) || 4326;
+    const pgType = String(geomMeta.rows[0].type ?? '').toLowerCase();
+    ensureIdent(geomCol, 'remote geom column');
+
+    // Bucket → ('point' | 'line' | 'polygon') for the client renderer.
+    const geometry = pgType.includes('point')
+      ? 'point'
+      : pgType.includes('line')
+        ? 'line'
+        : 'polygon';
+
+    // Discover non-geom columns so we can assemble GeoJSON properties
+    // row-by-row without going through PG's json_agg (that's what
+    // blew up on the 252k-row assets_osm — single aggregate produced
+    // a JSON value too large for the PG protocol / memory).
+    const colMeta = await remote.query(
+      `SELECT column_name
+         FROM information_schema.columns
+        WHERE table_schema = $1 AND table_name = $2
+        ORDER BY ordinal_position`,
+      [source.schema, source.table],
+    );
+    const propCols = colMeta.rows
+      .map((c) => c.column_name)
+      .filter((name) => name !== geomCol);
+    propCols.forEach((c) => ensureIdent(c, 'remote property column'));
+
+    const countRes = await remote.query(
+      `SELECT COUNT(*)::int AS n
+         FROM ${quoteIdent(source.schema)}.${quoteIdent(source.table)}`,
+    );
+    const total = countRes.rows[0]?.n ?? 0;
+
+    // Page through the table so each query is small enough for PG to
+    // handle and serialize, even on a multi-hundred-thousand-row source.
+    // ORDER BY ctid keeps OFFSET pagination stable on a static table
+    // without requiring a known PK column.
+    //
+    // ST_AsGeoJSON(geom, 6) caps coordinate precision at 6 decimals
+    // (~11 cm at the equator) — well below pixel fidelity for any web-
+    // map zoom and a noticeable shrink on dense polygons.
+    const PAGE = 5000;
+    const propIdents = propCols.map((c) => quoteIdent(c));
+    const selectCols = [
+      ...propIdents,
+      `ST_AsGeoJSON(ST_Transform(${quoteIdent(geomCol)}, 4326), 6) AS __geom__`,
+    ].join(', ');
+
+    const features = [];
+    let offset = 0;
+    while (true) {
+      const pageRes = await remote.query(
+        `SELECT ${selectCols}
+           FROM ${quoteIdent(source.schema)}.${quoteIdent(source.table)}
+          ORDER BY ctid
+          LIMIT ${PAGE} OFFSET ${offset}`,
+      );
+      if (pageRes.rows.length === 0) break;
+      for (const row of pageRes.rows) {
+        const geomJson = row.__geom__;
+        if (!geomJson) continue;
+        const props = {};
+        for (const name of propCols) props[name] = row[name];
+        features.push({
+          type: 'Feature',
+          geometry: JSON.parse(geomJson),
+          properties: props,
+        });
+      }
+      if (pageRes.rows.length < PAGE) break;
+      offset += PAGE;
+    }
+
+    res.json({
+      featureCollection: { type: 'FeatureCollection', features },
+      rowCount: total,
+      schema: source.schema,
+      table: source.table,
+      geometry,
+      sourceSrid: srid,
+      host: source.host,
+    });
+  } catch (err) {
+    const safeMsg = String(err?.message ?? err).replace(
+      /password=[^\s]*/gi,
+      'password=***',
+    );
+    console.error('[upload/peek-db] failed:', err.stack ?? err);
+    const detail = err.code ? `${safeMsg} (pg ${err.code})` : safeMsg;
+    res.status(502).json({ error: detail });
+  } finally {
+    if (remote) {
+      remote.end().catch(() => {
+        /* already closed / never opened */
+      });
+    }
+  }
+});
+
 uploadRouter.post('/from-db', async (req, res) => {
   let parsed;
   try {

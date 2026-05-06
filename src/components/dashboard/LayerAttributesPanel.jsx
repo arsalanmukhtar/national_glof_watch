@@ -1,8 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, Search, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Search,
+  X,
+} from 'lucide-react';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
-import { fetchGeoJson, regionLayerUrl } from '@/config/layerSources';
+import {
+  fetchGeoJson,
+  regionLayerUrl,
+  secondaryLayerUrl,
+} from '@/config/layerSources';
 import { cn } from '@/utils/cn';
+
+// Cap the rows the table actually puts in the DOM. A 250k-row layer
+// would otherwise create a quarter-million `<tr>` nodes and freeze the
+// browser. Filter + sort still operate over the full rowset; the page
+// slice only affects what's rendered.
+const PAGE_SIZE = 500;
 
 // Renders inside the chart card's "Attributes Table" tab. Lets the user
 // inspect the raw attributes of any open PMD parameter / region layer /
@@ -12,6 +33,72 @@ import { cn } from '@/utils/cn';
 export default function LayerAttributesPanel() {
   const { tables, activeId, setActiveId, closeTable } = useAttributeTables();
   const active = tables.find((t) => t.id === activeId) ?? tables[0] ?? null;
+
+  // Search + sort + pagination state live at the panel level so the
+  // controls (search, page indicator) can sit alongside the sub-tab strip
+  // and the table itself can stay stateless.
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState({ col: null, dir: 'asc' });
+  const [page, setPage] = useState(1);
+
+  // Reset everything whenever the active table changes — the column
+  // set differs between specs, so prior state is meaningless.
+  useEffect(() => {
+    setSearch('');
+    setSortBy({ col: null, dir: 'asc' });
+    setPage(1);
+  }, [active?.id]);
+
+  // Filtering / sorting changes the result-set size — drop back to page 1
+  // so the user isn't stranded on a now-empty page.
+  useEffect(() => {
+    setPage(1);
+  }, [search, sortBy]);
+
+  const { rows, columns, loading, error } = useTableData(active);
+
+  const filteredSorted = useMemo(() => {
+    let r = rows;
+    if (search) {
+      const q = search.toLowerCase();
+      r = r.filter((row) =>
+        Object.values(row).some(
+          (v) => v != null && String(v).toLowerCase().includes(q),
+        ),
+      );
+    }
+    if (sortBy.col) {
+      const dir = sortBy.dir === 'asc' ? 1 : -1;
+      r = [...r].sort((a, b) => {
+        const av = a[sortBy.col];
+        const bv = b[sortBy.col];
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        const an = Number(av);
+        const bn = Number(bv);
+        if (Number.isFinite(an) && Number.isFinite(bn)) return (an - bn) * dir;
+        return String(av).localeCompare(String(bv)) * dir;
+      });
+    }
+    return r;
+  }, [rows, search, sortBy]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredSorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pageRows = useMemo(
+    () => filteredSorted.slice(pageStart, pageStart + PAGE_SIZE),
+    [filteredSorted, pageStart],
+  );
+
+  const onSort = (col) => {
+    setSortBy((prev) => {
+      if (prev.col !== col) return { col, dir: 'asc' };
+      if (prev.dir === 'asc') return { col, dir: 'desc' };
+      return { col: null, dir: 'asc' };
+    });
+  };
 
   if (tables.length === 0) {
     return (
@@ -26,24 +113,143 @@ export default function LayerAttributesPanel() {
 
   return (
     <div className="p-3 flex flex-col gap-2 h-full min-h-0">
-      <SubTabs
-        tables={tables}
-        activeId={active?.id}
-        onActivate={setActiveId}
-        onClose={closeTable}
-      />
-      {active ? <ActiveTable spec={active} /> : null}
+      {/* One-row header: sub-tabs grow + scroll horizontally, search +
+          row-count sit at the far right. */}
+      <div className="flex items-center gap-2 shrink-0 min-w-0">
+        <SubTabs
+          tables={tables}
+          activeId={active?.id}
+          onActivate={setActiveId}
+          onClose={closeTable}
+        />
+        <SearchInput value={search} onChange={setSearch} />
+        <RowCount
+          count={filteredSorted.length}
+          total={rows.length}
+          loading={loading}
+        />
+      </div>
+      {active ? (
+        <div className="relative flex-1 min-h-0 flex flex-col gap-1.5">
+          <TableView
+            rows={pageRows}
+            columns={columns}
+            totalRows={rows.length}
+            indexOffset={pageStart}
+            sortBy={sortBy}
+            onSort={onSort}
+            loading={loading}
+            error={error}
+          />
+          {pageCount > 1 ? (
+            <Pagination
+              page={safePage}
+              pageCount={pageCount}
+              pageSize={PAGE_SIZE}
+              total={filteredSorted.length}
+              onChange={setPage}
+            />
+          ) : null}
+          {/* Loading overlay — same .map-loader spinner used on the
+              map, so a slow attribute fetch reads as "still working"
+              instead of an empty table. */}
+          <AnimatePresence>
+            {loading ? (
+              <motion.div
+                key="attr-loader"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                role="status"
+                aria-label="Loading attributes"
+                className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-md pointer-events-auto"
+              >
+                <span className="loader" aria-hidden />
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Sub-tabs — one chip per open table; click switches, X closes.
+// Pagination footer — Prev / Next + jump-to-edge controls. Only shown
+// when the result-set spills past one page.
+// ---------------------------------------------------------------------------
+
+function Pagination({ page, pageCount, pageSize, total, onChange }) {
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(total, page * pageSize);
+  const go = (p) => onChange(Math.max(1, Math.min(pageCount, p)));
+  const Btn = ({ onClick, disabled, label, children }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className={cn(
+        'inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors',
+        'border border-day-border dark:border-night-border',
+        'text-day-muted dark:text-night-muted',
+        'hover:text-[#16a085] hover:border-[#16a085]/60',
+        'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-day-muted disabled:hover:border-day-border dark:disabled:hover:text-night-muted dark:disabled:hover:border-night-border',
+      )}
+    >
+      {children}
+    </button>
+  );
+  return (
+    <div className="shrink-0 flex items-center justify-between gap-2 px-1">
+      <span className="text-[10.5px] text-day-muted dark:text-night-muted tabular-nums">
+        Showing {start.toLocaleString()}–{end.toLocaleString()} of{' '}
+        {total.toLocaleString()}
+      </span>
+      <div className="flex items-center gap-1">
+        <Btn onClick={() => go(1)} disabled={page === 1} label="First page">
+          <ChevronsLeft className="h-3 w-3" />
+        </Btn>
+        <Btn
+          onClick={() => go(page - 1)}
+          disabled={page === 1}
+          label="Previous page"
+        >
+          <ChevronLeft className="h-3 w-3" />
+        </Btn>
+        <span className="text-[10.5px] text-day-text dark:text-night-text tabular-nums px-1.5">
+          {page} / {pageCount}
+        </span>
+        <Btn
+          onClick={() => go(page + 1)}
+          disabled={page === pageCount}
+          label="Next page"
+        >
+          <ChevronRight className="h-3 w-3" />
+        </Btn>
+        <Btn
+          onClick={() => go(pageCount)}
+          disabled={page === pageCount}
+          label="Last page"
+        >
+          <ChevronsRight className="h-3 w-3" />
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-tabs — one chip per open table; click switches, X closes. Scrolls
+// horizontally inside its flex-1 container so a long list of open tables
+// never pushes the search input off-screen.
 // ---------------------------------------------------------------------------
 
 function SubTabs({ tables, activeId, onActivate, onClose }) {
   return (
-    <div className="flex items-center gap-1 overflow-x-auto shrink-0 pb-1">
+    <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto pb-1">
       {tables.map((t) => {
         const isActive = t.id === activeId;
         return (
@@ -97,167 +303,125 @@ function KindDot({ kind }) {
 }
 
 // ---------------------------------------------------------------------------
-// Active table — fetches data for the selected spec, supports sort + search
-// + sticky header, and renders empty / loading / error states inline.
+// Stateless table view — receives already-filtered/sorted rows and the
+// active sort spec. Sticky header, empty / loading / error states inline.
 // ---------------------------------------------------------------------------
 
-function ActiveTable({ spec }) {
-  const { rows, columns, loading, error } = useTableData(spec);
-  const [sortBy, setSortBy] = useState({ col: null, dir: 'asc' });
-  const [search, setSearch] = useState('');
-
-  // Reset sort + search whenever the active table changes.
-  useEffect(() => {
-    setSortBy({ col: null, dir: 'asc' });
-    setSearch('');
-  }, [spec.id]);
-
-  const filteredSorted = useMemo(() => {
-    let r = rows;
-    if (search) {
-      const q = search.toLowerCase();
-      r = r.filter((row) =>
-        Object.values(row).some(
-          (v) => v != null && String(v).toLowerCase().includes(q),
-        ),
-      );
-    }
-    if (sortBy.col) {
-      const dir = sortBy.dir === 'asc' ? 1 : -1;
-      r = [...r].sort((a, b) => {
-        const av = a[sortBy.col];
-        const bv = b[sortBy.col];
-        if (av == null && bv == null) return 0;
-        if (av == null) return 1;
-        if (bv == null) return -1;
-        const an = Number(av);
-        const bn = Number(bv);
-        if (Number.isFinite(an) && Number.isFinite(bn)) return (an - bn) * dir;
-        return String(av).localeCompare(String(bv)) * dir;
-      });
-    }
-    return r;
-  }, [rows, search, sortBy]);
-
-  const onSort = (col) => {
-    setSortBy((prev) => {
-      if (prev.col !== col) return { col, dir: 'asc' };
-      if (prev.dir === 'asc') return { col, dir: 'desc' };
-      return { col: null, dir: 'asc' };
-    });
-  };
-
+function TableView({
+  rows,
+  columns,
+  totalRows,
+  indexOffset = 0,
+  sortBy,
+  onSort,
+  loading,
+  error,
+}) {
   return (
-    <>
-      <Toolbar
-        search={search}
-        onSearch={setSearch}
-        count={filteredSorted.length}
-        total={rows.length}
-        loading={loading}
-      />
-      <div className="flex-1 min-h-0 overflow-auto rounded-md border border-day-border dark:border-night-border bg-white dark:bg-night-surface">
-        {error ? (
-          <EmptyState>
-            <span className="text-red-600 dark:text-red-400">
-              Failed to load attributes: {error}
-            </span>
-          </EmptyState>
-        ) : !loading && rows.length === 0 ? (
-          <EmptyState>No features found for this layer.</EmptyState>
-        ) : (
-          <table className="w-full text-[11px] tabular-nums border-collapse">
-            <thead>
-              <tr className="bg-day-bg/80 dark:bg-night-bg/80 backdrop-blur-sm sticky top-0 z-[1] shadow-[inset_0_-1px_0_0] shadow-day-border dark:shadow-night-border">
-                <th className="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-day-muted dark:text-night-muted w-10">
-                  #
-                </th>
-                {columns.map((c) => {
-                  const sorted = sortBy.col === c;
-                  const Icon = !sorted
-                    ? ArrowUpDown
-                    : sortBy.dir === 'asc'
-                      ? ArrowUp
-                      : ArrowDown;
-                  return (
-                    <th
-                      key={c}
-                      onClick={() => onSort(c)}
-                      className={cn(
-                        'px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap select-none cursor-pointer hover:text-[#16a085]',
-                        sorted
-                          ? 'text-[#16a085]'
-                          : 'text-day-muted dark:text-night-muted',
-                      )}
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        {prettyHeader(c)}
-                        <Icon className="h-3 w-3 opacity-70" />
-                      </span>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSorted.map((row, i) => (
-                <tr
-                  key={i}
-                  className={cn(
-                    'border-b border-day-border/60 dark:border-night-border/60',
-                    'odd:bg-day-bg/30 dark:odd:bg-night-bg/30',
-                    'hover:bg-[#16a085]/10 transition-colors',
-                  )}
-                >
-                  <td className="px-2 py-1 text-day-muted dark:text-night-muted">
-                    {i + 1}
+    <div className="flex-1 min-h-0 overflow-auto rounded-md border border-day-border dark:border-night-border bg-white dark:bg-night-surface">
+      {error ? (
+        <EmptyState>
+          <span className="text-red-600 dark:text-red-400">
+            Failed to load attributes: {error}
+          </span>
+        </EmptyState>
+      ) : !loading && totalRows === 0 ? (
+        <EmptyState>No features found for this layer.</EmptyState>
+      ) : (
+        <table className="w-full text-[11px] tabular-nums border-collapse">
+          <thead>
+            <tr className="bg-day-bg/80 dark:bg-night-bg/80 backdrop-blur-sm sticky top-0 z-[1] shadow-[inset_0_-1px_0_0] shadow-day-border dark:shadow-night-border">
+              <th className="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-day-muted dark:text-night-muted w-10">
+                #
+              </th>
+              {columns.map((c) => {
+                const sorted = sortBy.col === c;
+                const Icon = !sorted
+                  ? ArrowUpDown
+                  : sortBy.dir === 'asc'
+                    ? ArrowUp
+                    : ArrowDown;
+                return (
+                  <th
+                    key={c}
+                    onClick={() => onSort(c)}
+                    className={cn(
+                      'px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap select-none cursor-pointer hover:text-[#16a085]',
+                      sorted
+                        ? 'text-[#16a085]'
+                        : 'text-day-muted dark:text-night-muted',
+                    )}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {prettyHeader(c)}
+                      <Icon className="h-3 w-3 opacity-70" />
+                    </span>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr
+                key={i}
+                className={cn(
+                  'border-b border-day-border/60 dark:border-night-border/60',
+                  'odd:bg-day-bg/30 dark:odd:bg-night-bg/30',
+                  'hover:bg-[#16a085]/10 transition-colors',
+                )}
+              >
+                <td className="px-2 py-1 text-day-muted dark:text-night-muted">
+                  {indexOffset + i + 1}
+                </td>
+                {columns.map((c) => (
+                  <td
+                    key={c}
+                    className="px-2 py-1 text-day-text dark:text-night-text whitespace-nowrap max-w-[280px] truncate"
+                    title={formatCell(row[c])}
+                  >
+                    {formatCell(row[c])}
                   </td>
-                  {columns.map((c) => (
-                    <td
-                      key={c}
-                      className="px-2 py-1 text-day-text dark:text-night-text whitespace-nowrap max-w-[280px] truncate"
-                      title={formatCell(row[c])}
-                    >
-                      {formatCell(row[c])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
 
-function Toolbar({ search, onSearch, count, total, loading }) {
+function SearchInput({ value, onChange }) {
   return (
-    <div className="flex items-center gap-2 shrink-0">
-      <div className="relative flex-1 max-w-xs">
-        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-day-muted dark:text-night-muted pointer-events-none" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => onSearch(e.target.value)}
-          placeholder="Search rows…"
-          className={cn(
-            'w-full pl-7 pr-2 py-1 rounded-md text-[11px]',
-            'bg-day-bg dark:bg-night-bg',
-            'border border-day-border dark:border-night-border',
-            'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
-            'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
-          )}
-        />
-      </div>
-      <span className="text-[10.5px] text-day-muted dark:text-night-muted">
-        {loading
-          ? 'Loading…'
-          : total === count
-            ? `${total} row${total === 1 ? '' : 's'}`
-            : `${count} of ${total}`}
-      </span>
+    <div className="relative w-44 sm:w-56 shrink-0">
+      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-day-muted dark:text-night-muted pointer-events-none" />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Search rows…"
+        className={cn(
+          'w-full pl-7 pr-2 py-1 rounded-md text-[11px]',
+          'bg-day-bg dark:bg-night-bg',
+          'border border-day-border dark:border-night-border',
+          'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
+          'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+        )}
+      />
     </div>
+  );
+}
+
+function RowCount({ count, total, loading }) {
+  return (
+    <span className="text-[10.5px] text-day-muted dark:text-night-muted shrink-0 whitespace-nowrap">
+      {loading
+        ? 'Loading…'
+        : total === count
+          ? `${total} row${total === 1 ? '' : 's'}`
+          : `${count} of ${total}`}
+    </span>
   );
 }
 
@@ -321,6 +485,19 @@ function useTableData(spec) {
               /* skip missing level */
             }
           }
+        } else if (spec.kind === 'secondary') {
+          // Routes through secondaryLayerUrl, which transparently picks
+          // bundled GeoJSON, the local PostGIS proxy, or the live PMD GIS
+          // proxy depending on the layer id.
+          const url = secondaryLayerUrl(spec.layerId);
+          if (!url) throw new Error('No URL for secondary layer');
+          const json = await fetchGeoJson(url);
+          collected = featuresToRows(json?.features);
+        } else if (spec.kind === 'database') {
+          // The Browse Database flow already loaded the full
+          // FeatureCollection into memory — read it straight off the
+          // spec instead of re-fetching.
+          collected = featuresToRows(spec.data?.features);
         }
         if (cancelled) return;
         setRows(collected);

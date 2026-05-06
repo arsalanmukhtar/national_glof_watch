@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertCircle, CheckCircle2, Database, Loader2, Server } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Database,
+  Eye,
+  EyeClosed,
+  Loader2,
+  Server,
+} from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import { useSecondary } from '@/contexts/SecondaryContext';
+import { useMapView } from '@/contexts/MapContext';
 import { cn } from '@/utils/cn';
 
 // Sanitize a potential identifier — same rule the backend re-applies.
@@ -72,7 +82,15 @@ const INITIAL_FORM = {
 };
 
 export default function ConnectDatabaseModal({ open, onClose }) {
+  const { addDbLayers } = useSecondary();
+  const { zoomToGeoJson, trackPromise } = useMapView();
+  // 'import'    → write the remote table into the local PostGIS DB
+  // 'visualize' → fetch the FeatureCollection and add it as an in-memory
+  //                dbLayer (same path as Browse Database) without
+  //                writing anything to the local DB.
+  const [mode, setMode] = useState('import');
   const [form, setForm] = useState(INITIAL_FORM);
+  const [showPassword, setShowPassword] = useState(false);
   const [phase, setPhase] = useState('idle'); // 'idle' | 'running' | 'done' | 'error'
   const [progress, setProgress] = useState(0);
   const [insertedCount, setInsertedCount] = useState(0);
@@ -85,7 +103,9 @@ export default function ConnectDatabaseModal({ open, onClose }) {
   // leave stale credentials sitting in the form.
   useEffect(() => {
     if (!open) return;
+    setMode('import');
     setForm(INITIAL_FORM);
+    setShowPassword(false);
     setPhase('idle');
     setProgress(0);
     setInsertedCount(0);
@@ -103,8 +123,8 @@ export default function ConnectDatabaseModal({ open, onClose }) {
     form.database.trim() &&
     form.user.trim() &&
     form.sourceTable.trim() &&
-    form.targetSchema.trim() &&
-    form.targetTable.trim();
+    (mode === 'visualize' ||
+      (form.targetSchema.trim() && form.targetTable.trim()));
 
   const handleSubmit = async () => {
     setPhase('running');
@@ -115,17 +135,75 @@ export default function ConnectDatabaseModal({ open, onClose }) {
     setError(null);
     setResult(null);
 
+    const sourcePayload = {
+      host: form.host.trim(),
+      port: Number(form.port) || 5432,
+      database: form.database.trim(),
+      user: form.user.trim(),
+      password: form.password,
+      ssl: form.ssl,
+      schema: toIdent(form.sourceSchema) || 'public',
+      table: toIdent(form.sourceTable),
+    };
+
+    if (mode === 'visualize') {
+      // One-shot fetch — no streaming, no progress bar in the modal,
+      // but the wrapping `trackPromise` lights up the map's existing
+      // loading overlay so the user has a clear visual cue while a
+      // large remote table is being assembled and transferred.
+      try {
+        const reqPromise = (async () => {
+          const r = await fetch('/api/upload/peek-db', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source: sourcePayload }),
+          });
+          const json = await r.json().catch(() => ({}));
+          if (!r.ok) {
+            throw new Error(json?.error ?? `Server returned ${r.status}`);
+          }
+          return json;
+        })();
+        const json = await trackPromise(reqPromise);
+        const layerId = `remote:${sourcePayload.host}:${sourcePayload.schema}:${sourcePayload.table}`;
+        const layerLabel = `${sourcePayload.host} · ${sourcePayload.schema}.${sourcePayload.table}`;
+        addDbLayers([
+          {
+            id: layerId,
+            label: layerLabel,
+            schema: `${sourcePayload.host} · ${sourcePayload.schema}`,
+            table: sourcePayload.table,
+            geometry: json.geometry || 'polygon',
+            data: json.featureCollection,
+          },
+        ]);
+        // Frame the layer so the user immediately sees what they
+        // just connected — same UX as the local Browse-Database flow.
+        zoomToGeoJson(json.featureCollection);
+        setProgress(1);
+        setStage(null);
+        setResult({
+          mode: 'visualize',
+          rowCount: json.rowCount ?? 0,
+          schema: sourcePayload.schema,
+          table: sourcePayload.table,
+        });
+        setPhase('done');
+        // Auto-close on successful visualize so the user lands straight
+        // on the map with the new layer in view. Import keeps the modal
+        // open so the success summary (table name, SRID, feature count)
+        // remains readable.
+        onClose?.();
+      } catch (err) {
+        setError(err?.message ?? String(err));
+        setPhase('error');
+      }
+      return;
+    }
+
+    // Import path — streaming, writes into local PostGIS.
     const payload = {
-      source: {
-        host: form.host.trim(),
-        port: Number(form.port) || 5432,
-        database: form.database.trim(),
-        user: form.user.trim(),
-        password: form.password,
-        ssl: form.ssl,
-        schema: toIdent(form.sourceSchema) || 'public',
-        table: toIdent(form.sourceTable),
-      },
+      source: sourcePayload,
       target: {
         schema: toIdent(form.targetSchema) || 'public',
         table: toIdent(form.targetTable),
@@ -146,6 +224,7 @@ export default function ConnectDatabaseModal({ open, onClose }) {
           setProgress(1);
           setStage(null);
           setResult({
+            mode: 'import',
             inserted: evt.inserted,
             schema: evt.schema,
             table: evt.table,
@@ -175,15 +254,81 @@ export default function ConnectDatabaseModal({ open, onClose }) {
     <Modal
       open={open}
       onClose={phase === 'running' ? () => {} : onClose}
-      title="Import from Database"
+      title="Connect to Database"
       size="lg"
     >
       <div className="flex items-center gap-2 mb-3 text-[12px] text-day-muted dark:text-night-muted">
         <Server className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200" />
         <span>
-          Connect to any reachable PostgreSQL/PostGIS server and pull a
-          spatial table into this database.
+          Connect to any reachable PostgreSQL/PostGIS server. You can
+          either pull the table into this database, or just visualize it
+          on the map without writing anything locally.
         </span>
+      </div>
+
+      {/* Mode toggle — Import vs Visualize. Disabled mid-run so we
+          don't switch payload shape while the request is in flight. */}
+      <div className="mb-4">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1.5">
+          Action
+        </div>
+        <div
+          role="radiogroup"
+          aria-label="Connection action"
+          className={cn(
+            'grid grid-cols-2 gap-1 p-1 rounded-md',
+            'bg-day-bg dark:bg-night-bg',
+            'border border-day-border dark:border-night-border',
+            phase === 'running' && 'opacity-50 pointer-events-none',
+          )}
+        >
+          {[
+            {
+              id: 'import',
+              label: 'Import to database',
+              hint: 'Write into local PostGIS',
+              Icon: Database,
+            },
+            {
+              id: 'visualize',
+              label: 'Visualize only',
+              hint: 'In-memory · no local copy',
+              Icon: Eye,
+            },
+          ].map(({ id, label, hint, Icon }) => {
+            const active = mode === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setMode(id)}
+                className={cn(
+                  'relative flex items-start gap-2 px-3 py-2 rounded text-left transition-colors',
+                  active
+                    ? 'bg-[#16a085] text-white shadow-sm'
+                    : 'text-day-text dark:text-night-text hover:bg-day-bg/60 dark:hover:bg-night-bg/60',
+                )}
+              >
+                <Icon className="h-4 w-4 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-semibold leading-tight">
+                    {label}
+                  </div>
+                  <div
+                    className={cn(
+                      'text-[10.5px] leading-tight mt-0.5',
+                      active ? 'text-white/80' : 'text-day-muted dark:text-night-muted',
+                    )}
+                  >
+                    {hint}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Connection */}
@@ -230,14 +375,37 @@ export default function ConnectDatabaseModal({ open, onClose }) {
             />
           </Field>
           <Field label="Password" className="sm:col-span-2">
-            <input
-              type="password"
-              value={form.password}
-              onChange={(e) => update('password', e.target.value)}
-              disabled={phase === 'running'}
-              className="input-base w-full"
-              autoComplete="off"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={form.password}
+                onChange={(e) => update('password', e.target.value)}
+                disabled={phase === 'running'}
+                className="input-base w-full pr-9"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                disabled={phase === 'running'}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                title={showPassword ? 'Hide password' : 'Show password'}
+                tabIndex={-1}
+                className={cn(
+                  'absolute right-1.5 top-1/2 -translate-y-1/2',
+                  'inline-flex h-7 w-7 items-center justify-center rounded-md',
+                  'text-day-muted dark:text-night-muted',
+                  'hover:text-[#16a085] hover:bg-[#16a085]/10 transition-colors',
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                )}
+              >
+                {showPassword ? (
+                  <Eye className="h-3.5 w-3.5" aria-hidden />
+                ) : (
+                  <EyeClosed className="h-3.5 w-3.5" aria-hidden />
+                )}
+              </button>
+            </div>
           </Field>
         </div>
         <label className="mt-2 inline-flex items-center gap-2 text-[12px] text-day-text dark:text-night-text">
@@ -278,31 +446,34 @@ export default function ConnectDatabaseModal({ open, onClose }) {
         </div>
       </Section>
 
-      {/* Target */}
-      <Section title="Target (this database)">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Schema">
-            <input
-              type="text"
-              value={form.targetSchema}
-              onChange={(e) => update('targetSchema', e.target.value)}
-              disabled={phase === 'running'}
-              className="input-base w-full"
-              placeholder="secondary"
-            />
-          </Field>
-          <Field label="Table">
-            <input
-              type="text"
-              value={form.targetTable}
-              onChange={(e) => update('targetTable', e.target.value)}
-              disabled={phase === 'running'}
-              className="input-base w-full"
-              placeholder="imported_rivers"
-            />
-          </Field>
-        </div>
-      </Section>
+      {/* Target — only when importing into the local DB. Visualize-only
+          mode doesn't write anywhere, so no target naming is needed. */}
+      {mode === 'import' && (
+        <Section title="Target (this database)">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Schema">
+              <input
+                type="text"
+                value={form.targetSchema}
+                onChange={(e) => update('targetSchema', e.target.value)}
+                disabled={phase === 'running'}
+                className="input-base w-full"
+                placeholder="secondary"
+              />
+            </Field>
+            <Field label="Table">
+              <input
+                type="text"
+                value={form.targetTable}
+                onChange={(e) => update('targetTable', e.target.value)}
+                disabled={phase === 'running'}
+                className="input-base w-full"
+                placeholder="imported_rivers"
+              />
+            </Field>
+          </div>
+        </Section>
+      )}
 
       {/* Progress */}
       {phase !== 'idle' ? (
@@ -323,11 +494,16 @@ export default function ConnectDatabaseModal({ open, onClose }) {
               {phase === 'error' && <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />}
               <span className="break-words leading-snug">
                 {phase === 'running' &&
-                  (stageLabel ??
-                    `Inserting features… ${insertedCount.toLocaleString()} / ${totalCount.toLocaleString()}`)}
+                  (mode === 'visualize'
+                    ? 'Fetching features from remote database…'
+                    : stageLabel ??
+                      `Inserting features… ${insertedCount.toLocaleString()} / ${totalCount.toLocaleString()}`)}
                 {phase === 'done' && result &&
-                  `Imported ${result.inserted.toLocaleString()} features into ${result.schema}.${result.table} (SRID ${result.srid})`}
-                {phase === 'error' && `Import failed: ${error}`}
+                  (result.mode === 'visualize'
+                    ? `Loaded ${result.rowCount.toLocaleString()} features from ${result.schema}.${result.table} into the map.`
+                    : `Imported ${result.inserted.toLocaleString()} features into ${result.schema}.${result.table} (SRID ${result.srid})`)}
+                {phase === 'error' &&
+                  `${mode === 'visualize' ? 'Visualization' : 'Import'} failed: ${error}`}
               </span>
             </div>
             <span className="tabular-nums text-day-muted dark:text-night-muted shrink-0">
@@ -371,11 +547,21 @@ export default function ConnectDatabaseModal({ open, onClose }) {
         >
           {phase === 'running' ? (
             <Loader2 className="h-4 w-4 animate-spin" />
+          ) : mode === 'visualize' ? (
+            <Eye className="h-4 w-4" />
           ) : (
             <Database className="h-4 w-4" />
           )}
           <span>
-            {phase === 'running' ? 'Importing…' : phase === 'error' ? 'Retry' : 'Import'}
+            {phase === 'running'
+              ? mode === 'visualize'
+                ? 'Connecting…'
+                : 'Importing…'
+              : phase === 'error'
+                ? 'Retry'
+                : mode === 'visualize'
+                  ? 'Connect & Visualize'
+                  : 'Import'}
           </span>
         </button>
       </div>

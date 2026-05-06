@@ -18,6 +18,7 @@ import {
   Server,
   Shrink,
   Table2,
+  TableProperties,
   Triangle,
   Trash2,
   Waves,
@@ -30,6 +31,7 @@ import Tooltip from '@/components/ui/Tooltip';
 import { cn } from '@/utils/cn';
 import { useSecondary } from '@/contexts/SecondaryContext';
 import { useMapView } from '@/contexts/MapContext';
+import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import { effectiveStyle } from '@/utils/layerStyle';
 import {
   equalIntervalBreaks,
@@ -272,14 +274,32 @@ function LayerLegend({ id, geometry }) {
 // QGIS-style legend below itself when the layer is toggled on.
 // ---------------------------------------------------------------------------
 
-function LayerRow({ id, label, geometry, icon: Icon, isUpload, uploadData, onRemove }) {
+function LayerRow({
+  id,
+  label,
+  geometry,
+  icon: Icon,
+  // kind: 'secondary' (catalog) | 'upload' (user file) | 'database' (loaded
+  // via Browse Database). Drives which extra controls are rendered:
+  //   • trash:           upload + database
+  //   • attribute table: secondary + database  (uploads have their own
+  //                      attribute table panel in the right sidebar, so
+  //                      we don't double up here)
+  kind = 'secondary',
+  uploadData,
+  onRemove,
+}) {
   const { visibleLayers, toggleLayer } = useSecondary();
   const { zoomToSecondaryLayer, zoomToGeoJson } = useMapView();
+  const { toggleTable, closeTable, isOpen } = useAttributeTables();
 
   const on = visibleLayers.has(id);
+  const isInMemory = kind === 'upload' || kind === 'database';
+  const canRemove = kind === 'upload' || kind === 'database';
+  const canTable = kind === 'secondary' || kind === 'database';
 
   const handleZoom = () => {
-    if (isUpload) zoomToGeoJson(uploadData);
+    if (isInMemory) zoomToGeoJson(uploadData);
     else zoomToSecondaryLayer(id);
   };
 
@@ -288,6 +308,23 @@ function LayerRow({ id, label, geometry, icon: Icon, isUpload, uploadData, onRem
   const handleToggle = () => {
     toggleLayer(id);
     handleZoom();
+  };
+
+  const tableId =
+    kind === 'database' ? `db:${id}` : `secondary:${id}`;
+  const tableOpen = isOpen(tableId);
+  const handleTableToggle = () => {
+    if (kind === 'secondary') {
+      toggleTable({ id: tableId, kind: 'secondary', layerId: id, label });
+    } else if (kind === 'database') {
+      toggleTable({
+        id: tableId,
+        kind: 'database',
+        layerId: id,
+        data: uploadData,
+        label,
+      });
+    }
   };
 
   return (
@@ -304,14 +341,41 @@ function LayerRow({ id, label, geometry, icon: Icon, isUpload, uploadData, onRem
         <span className="flex-1 truncate text-[13px] text-day-text dark:text-night-text">
           {label}
         </span>
-        {isUpload && (
+        {canRemove && (
           <button
             type="button"
-            onClick={onRemove}
+            onClick={() => {
+              // Auto-close the attribute table sub-tab so the chart
+              // panel doesn't end up holding a stale spec for a layer
+              // the user just deleted.
+              if (canTable) closeTable(tableId);
+              onRemove?.();
+            }}
             aria-label={`Remove ${label}`}
             className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-red-500 dark:text-red-400 hover:bg-red-500/15 transition-colors"
           >
             <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {canTable && (
+          <button
+            type="button"
+            onClick={handleTableToggle}
+            aria-pressed={tableOpen}
+            aria-label={
+              tableOpen ? `Close ${label} attributes` : `Open ${label} attributes`
+            }
+            title={
+              tableOpen ? `Close ${label} attributes` : `Open ${label} attributes`
+            }
+            className={cn(
+              'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
+              tableOpen
+                ? 'bg-[#16a085]/15 text-[#16a085]'
+                : 'text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10',
+            )}
+          >
+            <TableProperties className="h-3.5 w-3.5" aria-hidden />
           </button>
         )}
         <button
@@ -591,7 +655,7 @@ function UploadZone() {
                 label={u.label}
                 geometry={u.geometry || 'polygon'}
                 icon={u.kind === 'shapefile' ? FileArchive : FileJson}
-                isUpload
+                kind="upload"
                 uploadData={u.data}
                 onRemove={() => removeUpload(u.id)}
               />
@@ -683,7 +747,7 @@ export default function SecondaryPanel({ compact = false }) {
                   label={l.label}
                   geometry={l.geometry}
                   icon={Table2}
-                  isUpload
+                  kind="database"
                   uploadData={l.data}
                   onRemove={() => removeDbLayer(l.id)}
                 />
