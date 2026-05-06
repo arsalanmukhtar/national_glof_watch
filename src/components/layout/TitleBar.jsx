@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Layers, Moon, PanelRight, Sun } from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
+import StationStatusBadge from '@/components/layout/StationStatusBadge';
 import { useTheme } from '@/hooks/useTheme';
 import { logos } from '@/assets';
 
@@ -36,6 +37,12 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
       </div>
 
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
+        {/* Live PMD network status — sits just before the theme toggle
+            with a bit of breathing room (`mr-3`) so it doesn't crowd the
+            sun/moon icon. */}
+        <StationStatusBadge />
+        <span aria-hidden className="hidden md:block w-3" />
+
         <Tooltip label={theme === 'day' ? 'Switch to night' : 'Switch to day'} side="bottom" align="end">
           <motion.button
             type="button"

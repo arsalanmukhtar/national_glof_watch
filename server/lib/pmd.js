@@ -5,10 +5,27 @@
 import { Agent, fetch as undiciFetch } from 'undici';
 
 const PMD_BASE = 'https://115.186.56.181/ews/classes/stations.php';
+const PMD_STATUS_URL = 'https://115.186.56.181/ews/classes/station_status.php';
 
 const insecureDispatcher = new Agent({
   connect: { rejectUnauthorized: false },
 });
+
+// Lightweight network-wide status: total stations + how many are
+// active/currently reporting. Used by the titlebar status badge.
+// Shape: { totalStations, totalActive, currentActive, windowMinutes }.
+export async function fetchStationStatus() {
+  const res = await undiciFetch(PMD_STATUS_URL, {
+    dispatcher: insecureDispatcher,
+    headers: { Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    const err = new Error(`PMD upstream ${res.status} ${res.statusText}`);
+    err.status = 502;
+    throw err;
+  }
+  return res.json();
+}
 
 export const VALID_ELEMENTS = [
   'Air Temperature',

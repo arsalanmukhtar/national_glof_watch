@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { fetchPmd, toGeoJSON, VALID_ELEMENTS, isValidElement } from '../lib/pmd.js';
+import {
+  fetchPmd,
+  fetchStationStatus,
+  toGeoJSON,
+  VALID_ELEMENTS,
+  isValidElement,
+} from '../lib/pmd.js';
 import { storeElement, storeAllElements } from '../lib/store.js';
 import { pool } from '../lib/db.js';
 
@@ -37,6 +43,21 @@ parametersRouter.get('/status', async (_req, res) => {
   } catch (err) {
     console.error('[GET status]', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/parameters/station-status
+// Live PMD network status — total + active station counts plus the
+// windowMinutes bucket the upstream uses to decide "active". Cached
+// 30 s so the titlebar badge can poll without hammering upstream.
+parametersRouter.get('/station-status', async (_req, res) => {
+  try {
+    const data = await fetchStationStatus();
+    res.set('Cache-Control', 'public, max-age=30');
+    res.json(data);
+  } catch (err) {
+    console.error('[GET station-status]', err.message);
+    res.status(err.status ?? 500).json({ error: err.message });
   }
 });
 
