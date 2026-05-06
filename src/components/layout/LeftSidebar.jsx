@@ -1,17 +1,32 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Layers, Shapes, SlidersHorizontal, X } from 'lucide-react';
+import {
+  CloudDownload,
+  FileSpreadsheet,
+  Grid3x3,
+  Layers,
+  Shapes,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
+import CsvDataPanel from '@/components/dashboard/CsvDataPanel';
+import GeeImageryPanel from '@/components/dashboard/GeeImageryPanel';
 import LayerMenu from '@/components/dashboard/LayerMenu';
 import ParametersPanel from '@/components/dashboard/ParametersPanel';
+import RasterLayersPanel from '@/components/dashboard/RasterLayersPanel';
 import SecondaryPanel from '@/components/dashboard/SecondaryPanel';
 import { cn } from '@/utils/cn';
 
-// `secondary` is "modal": activating it hides primary, and activating
-// primary deactivates secondary. Primary is a single icon-strip button
-// that fans out to both PMD parameters and Layers panels.
+// All non-Primary icons are "solo" modes — turning one on clears the
+// rest. Primary fans out to both PMD parameters and Layers panels at
+// once; toggling it off / clicking another icon dismisses it.
 const SECONDARY_ID = 'secondary';
-const PRIMARY_IDS = ['parameters', 'layers'];
+const CSV_ID       = 'csv';
+const RASTER_ID    = 'raster';
+const GEE_ID       = 'gee';
+const PRIMARY_IDS  = ['parameters', 'layers'];
+const SOLO_IDS     = [SECONDARY_ID, CSV_ID, RASTER_ID, GEE_ID];
 
 const SECTIONS = [
   {
@@ -38,12 +53,41 @@ const SECTIONS = [
     grow: true,
     render: () => <SecondaryPanel />,
   },
+  {
+    id: CSV_ID,
+    label: 'CSV Data',
+    headerIcon: FileSpreadsheet,
+    title: 'CSV Data',
+    grow: true,
+    render: () => <CsvDataPanel />,
+  },
+  {
+    id: RASTER_ID,
+    label: 'Raster Layers',
+    headerIcon: Grid3x3,
+    title: 'Raster Layers',
+    grow: true,
+    render: () => <RasterLayersPanel />,
+  },
+  {
+    id: GEE_ID,
+    label: 'GEE Imagery',
+    headerIcon: CloudDownload,
+    title: 'GEE Imagery',
+    grow: true,
+    render: () => <GeeImageryPanel />,
+  },
 ];
 
-// One icon-strip button per group. Primary covers both parameters + layers.
+// Icon strip — one row per top-level mode. Order mirrors the sidebar
+// reading order the user asked for: Primary, Secondary, CSV, Raster,
+// GEE.
 const ICON_BUTTONS = [
-  { id: 'primary', label: 'Primary Layers', icon: Layers },
+  { id: 'primary',  label: 'Primary Layers',   icon: Layers },
   { id: SECONDARY_ID, label: 'Secondary Layers', icon: Shapes },
+  { id: CSV_ID,     label: 'CSV Data',         icon: FileSpreadsheet },
+  { id: RASTER_ID,  label: 'Raster Layers',    icon: Grid3x3 },
+  { id: GEE_ID,     label: 'GEE Imagery',      icon: CloudDownload },
 ];
 
 export default function LeftSidebar({ className }) {
@@ -55,23 +99,26 @@ export default function LeftSidebar({ className }) {
   const toggleIconButton = (id) => {
     setActiveIds((prev) => {
       const next = new Set(prev);
-      if (id === SECONDARY_ID) {
-        // Activating secondary takes over; deactivating it leaves the bar empty.
-        if (next.has(SECONDARY_ID)) {
-          next.delete(SECONDARY_ID);
+      if (SOLO_IDS.includes(id)) {
+        // Solo modes (Secondary / CSV / Raster / GEE) take over the
+        // sidebar — turning one on clears every other section, turning
+        // it off leaves the bar empty.
+        if (next.has(id)) {
+          next.delete(id);
         } else {
           next.clear();
-          next.add(SECONDARY_ID);
+          next.add(id);
         }
         return next;
       }
       if (id === 'primary') {
-        // Primary fans out to both parameters + layers and exits secondary.
+        // Primary fans out to both parameters + layers and dismisses
+        // whichever solo mode was active.
         const anyOn = PRIMARY_IDS.some((pid) => next.has(pid));
         if (anyOn) {
           PRIMARY_IDS.forEach((pid) => next.delete(pid));
         } else {
-          next.delete(SECONDARY_ID);
+          SOLO_IDS.forEach((sid) => next.delete(sid));
           PRIMARY_IDS.forEach((pid) => next.add(pid));
         }
         return next;

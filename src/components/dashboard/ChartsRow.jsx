@@ -13,12 +13,12 @@ import {
   Filler,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import Panel from '@/components/ui/Panel';
-import Select from '@/components/ui/Select';
 import LayerAttributesPanel from '@/components/dashboard/LayerAttributesPanel';
 import { useTheme } from '@/hooks/useTheme';
 import { useParameter } from '@/contexts/ParameterContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
+import { useCsvDatasets } from '@/contexts/CsvDatasetsContext';
+import { applyFilters } from '@/utils/csvParser';
 import { colorFor } from '@/config/parameterColors';
 import {
   PARAMETER_LEGENDS,
@@ -37,17 +37,6 @@ ChartJS.register(
   Legend,
   Filler,
 );
-
-const SERIES = {
-  area: {
-    day:   { line: '#1d4ed8', fill: 'rgba(29, 78, 216, 0.14)' },
-    night: { line: '#60a5fa', fill: 'rgba(96, 165, 250, 0.22)' },
-  },
-  volume: {
-    day:   { line: '#0e7490', fill: 'rgba(14, 116, 144, 0.14)' },
-    night: { line: '#22d3ee', fill: 'rgba(34, 211, 238, 0.22)' },
-  },
-};
 
 const TOKENS = {
   day: {
@@ -309,27 +298,6 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
         border: { color: t.axis },
       },
     },
-  };
-}
-
-function buildPlaceholder(label, palette) {
-  return {
-    labels: [],
-    datasets: [
-      {
-        label,
-        data: [],
-        borderColor: palette.line,
-        backgroundColor: palette.fill,
-        pointBackgroundColor: palette.line,
-        pointBorderColor: palette.line,
-        pointRadius: 3,
-        pointHoverRadius: 5,
-        borderWidth: 2,
-        fill: true,
-        tension: 0.35,
-      },
-    ],
   };
 }
 
@@ -812,46 +780,183 @@ function EmptyState({ children }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Lakes Trend tab — bound to the active CSV dataset from
+// `CsvDatasetsContext`. Renders a single line chart whose X / Y come
+// straight off `dataset.chartConfig`. Filters from the side panel are
+// applied here too so the chart and the panel preview always match.
+// ---------------------------------------------------------------------------
+
 function LakesPanel({ theme }) {
-  const options = useMemo(() => buildOptions(theme), [theme]);
-  const lakeAreaData = useMemo(
-    () => buildPlaceholder('Lake area (m²)', SERIES.area[theme]),
-    [theme],
+  const { activeDataset } = useCsvDatasets();
+  const t = TOKENS[theme];
+
+  const { labels, values, xLabel, yLabel } = useMemo(() => {
+    if (!activeDataset)
+      return { labels: [], values: [], xLabel: '', yLabel: '' };
+    const { chartConfig, rows, filters } = activeDataset;
+    const xLabel = chartConfig?.x ?? '';
+    const yLabel = chartConfig?.y ?? '';
+    if (!xLabel || !yLabel) {
+      return { labels: [], values: [], xLabel, yLabel };
+    }
+    const filtered = applyFilters(rows, filters);
+    const out = { labels: [], values: [] };
+    for (const row of filtered) {
+      const yRaw = row[yLabel];
+      const y =
+        typeof yRaw === 'number' ? yRaw : Number(yRaw);
+      if (!Number.isFinite(y)) continue;
+      const xRaw = row[xLabel];
+      out.labels.push(xRaw == null ? '' : String(xRaw));
+      out.values.push(y);
+    }
+    return { ...out, xLabel, yLabel };
+  }, [activeDataset]);
+
+  const data = useMemo(
+    () => ({
+      labels,
+      datasets: [
+        {
+          label: yLabel || 'Series',
+          data: values,
+          borderColor: '#16a085',
+          backgroundColor:
+            theme === 'night'
+              ? 'rgba(22, 160, 133, 0.22)'
+              : 'rgba(22, 160, 133, 0.14)',
+          pointBackgroundColor: '#16a085',
+          pointBorderColor: '#16a085',
+          pointRadius: values.length > 200 ? 0 : 3,
+          pointHoverRadius: 5,
+          borderWidth: 1.75,
+          fill: true,
+          tension: 0.3,
+          spanGaps: true,
+        },
+      ],
+    }),
+    [labels, values, yLabel, theme],
   );
-  const lakeVolumeData = useMemo(
-    () => buildPlaceholder('Lake volume (m³)', SERIES.volume[theme]),
-    [theme],
+
+  const options = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: {
+            boxWidth: 10,
+            boxHeight: 10,
+            padding: 10,
+            color: t.text,
+            font: { size: 12, weight: '600' },
+            usePointStyle: true,
+          },
+        },
+        tooltip: {
+          backgroundColor: t.tooltipBg,
+          titleColor: t.tooltipFg,
+          bodyColor: t.tooltipFg,
+          borderColor: t.axis,
+          borderWidth: 1,
+          padding: 8,
+          cornerRadius: 6,
+          titleFont: { size: 11, weight: '600' },
+          bodyFont: { size: 11 },
+        },
+        // Day separator plugin is intentionally disabled here — X-axis
+        // categories on a generic CSV aren't necessarily ISO timestamps.
+        dayMarker: { enabled: false },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: t.text,
+            font: { size: 11, weight: '600' },
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 12,
+          },
+          title: xLabel
+            ? {
+                display: true,
+                text: xLabel,
+                color: t.text,
+                font: { size: 11, weight: '600' },
+              }
+            : undefined,
+          border: { color: t.axis },
+        },
+        y: {
+          beginAtZero: false,
+          grid: { color: t.grid },
+          ticks: { color: t.text, font: { size: 11, weight: '600' } },
+          title: yLabel
+            ? {
+                display: true,
+                text: yLabel,
+                color: t.text,
+                font: { size: 11, weight: '600' },
+              }
+            : undefined,
+          border: { color: t.axis },
+        },
+      },
+    }),
+    [t, xLabel, yLabel],
   );
+
+  if (!activeDataset) {
+    return (
+      <div className="p-3 h-full">
+        <EmptyState>
+          Add a CSV from the side panel to plot it here.
+        </EmptyState>
+      </div>
+    );
+  }
+  if (!xLabel || !yLabel) {
+    return (
+      <div className="p-3 h-full">
+        <EmptyState>
+          Pick an X and Y column in the CSV panel to render the chart.
+        </EmptyState>
+      </div>
+    );
+  }
+  if (values.length === 0) {
+    return (
+      <div className="p-3 h-full">
+        <EmptyState>
+          No numeric values found in <strong>{yLabel}</strong> after
+          filtering.
+        </EmptyState>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <Panel
-        title="Lake Area"
-        className="!p-3"
-        actions={
-          <Select aria-label="Lake selector" defaultValue="" className="text-xs py-1">
-            <option value="">All lakes</option>
-          </Select>
-        }
-      >
-        <div className="h-28 sm:h-32 lg:h-36">
-          <Line data={lakeAreaData} options={options} />
-        </div>
-      </Panel>
-
-      <Panel
-        title="Lake Volume"
-        className="!p-3"
-        actions={
-          <Select aria-label="Lake selector" defaultValue="" className="text-xs py-1">
-            <option value="">All lakes</option>
-          </Select>
-        }
-      >
-        <div className="h-28 sm:h-32 lg:h-36">
-          <Line data={lakeVolumeData} options={options} />
-        </div>
-      </Panel>
+    <div className="p-3 flex flex-col gap-2 h-full min-h-0">
+      <div className="flex items-center gap-2 flex-wrap shrink-0">
+        <h3 className="text-sm font-semibold text-day-text dark:text-night-text truncate">
+          {activeDataset.name}
+        </h3>
+        <span className="text-[11px] tabular-nums text-day-muted dark:text-night-muted px-1.5 py-0.5 rounded bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border">
+          {values.length.toLocaleString()} pts
+        </span>
+        <span className="text-[11px] text-day-muted dark:text-night-muted">
+          {xLabel} → {yLabel}
+        </span>
+      </div>
+      <div className="flex-1 min-h-0">
+        <Line data={data} options={options} />
+      </div>
     </div>
   );
 }
