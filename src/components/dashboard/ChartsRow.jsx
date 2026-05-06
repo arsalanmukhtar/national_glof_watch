@@ -54,6 +54,10 @@ const TOKENS = {
     axis:       '#cbd5e1',
     tooltipBg:  '#0f172a',
     tooltipFg:  '#f8fafc',
+    dayBand:    'rgba(15, 23, 42, 0.04)',
+    dayLine:    'rgba(71, 85, 105, 0.45)',
+    dayPillBg:  'rgba(15, 23, 42, 0.92)',
+    dayPillFg:  '#f8fafc',
   },
   night: {
     text:       '#cbd5e1',
@@ -61,8 +65,145 @@ const TOKENS = {
     axis:       '#475569',
     tooltipBg:  '#1e272e',
     tooltipFg:  '#f1f5f9',
+    dayBand:    'rgba(255, 255, 255, 0.035)',
+    dayLine:    'rgba(203, 213, 225, 0.4)',
+    dayPillBg:  'rgba(241, 245, 249, 0.92)',
+    dayPillFg:  '#0f172a',
   },
 };
+
+// Chart.js plugin — segregates the chart by calendar day:
+//   1. Faint alternating background band so each day reads as its own
+//      column.
+//   2. Dashed vertical line at every midnight crossing.
+//   3. A date pill anchored just inside the new day so the boundary is
+//      labeled inline (no need to scan the bottom axis to find where
+//      "May 6" begins).
+// Configured via `options.plugins.dayMarker` (theme colors + max-pill
+// budget so very-long windows don't crowd the top of the chart).
+const dayMarkerPlugin = {
+  id: 'dayMarker',
+  beforeDatasetsDraw(chart, _args, opts) {
+    if (!opts?.enabled) return;
+    const { ctx, chartArea, scales, data } = chart;
+    if (!chartArea || !scales?.x) return;
+    const labels = data?.labels || [];
+    if (labels.length < 2) return;
+
+    const dayStarts = collectDayStarts(labels);
+    if (dayStarts.length < 1) return;
+
+    ctx.save();
+    for (let i = 0; i < dayStarts.length; i++) {
+      if (i % 2 === 0) continue; // band every other day for the alternation
+      const startIdx = dayStarts[i].index;
+      const endIdx =
+        i + 1 < dayStarts.length ? dayStarts[i + 1].index - 1 : labels.length - 1;
+      const xStart = scales.x.getPixelForValue(startIdx);
+      const xEnd = scales.x.getPixelForValue(endIdx);
+      ctx.fillStyle = opts.band || 'rgba(148,163,184,0.05)';
+      ctx.fillRect(
+        xStart,
+        chartArea.top,
+        Math.max(1, xEnd - xStart),
+        chartArea.bottom - chartArea.top,
+      );
+    }
+    ctx.restore();
+  },
+  afterDatasetsDraw(chart, _args, opts) {
+    if (!opts?.enabled) return;
+    const { ctx, chartArea, scales, data } = chart;
+    if (!chartArea || !scales?.x) return;
+    const labels = data?.labels || [];
+    if (labels.length < 2) return;
+
+    const dayStarts = collectDayStarts(labels);
+    // Skip the first one — chart's left edge is the natural start.
+    const boundaries = dayStarts.slice(1);
+    if (boundaries.length === 0) return;
+
+    // For very wide windows (e.g. 60+ day boundaries) only label every
+    // Nth pill to avoid pills overlapping at the top.
+    const maxPills = Math.max(2, opts.maxPills || 14);
+    const pillStep = Math.max(1, Math.ceil(boundaries.length / maxPills));
+
+    ctx.save();
+    for (let i = 0; i < boundaries.length; i++) {
+      const { index, date } = boundaries[i];
+      const x = scales.x.getPixelForValue(index);
+      if (x < chartArea.left - 1 || x > chartArea.right + 1) continue;
+
+      // Dashed vertical line spans the plot
+      ctx.strokeStyle = opts.line || 'rgba(148,163,184,0.55)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x, chartArea.top);
+      ctx.lineTo(x, chartArea.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Pill with the date — only every pillStep boundary to keep top clear
+      if (i % pillStep !== 0) continue;
+      const label = date.toLocaleDateString([], {
+        month: 'short',
+        day: 'numeric',
+      });
+      ctx.font = '600 10px Inter, system-ui, sans-serif';
+      const labelW = ctx.measureText(label).width;
+      const padX = 6;
+      const pillW = labelW + padX * 2;
+      const pillH = 16;
+      const pillX = Math.min(x + 4, chartArea.right - pillW - 2);
+      const pillY = chartArea.top + 2;
+      const r = 8;
+
+      ctx.fillStyle = opts.pillBg || 'rgba(15,23,42,0.92)';
+      ctx.beginPath();
+      ctx.moveTo(pillX + r, pillY);
+      ctx.lineTo(pillX + pillW - r, pillY);
+      ctx.quadraticCurveTo(pillX + pillW, pillY, pillX + pillW, pillY + r);
+      ctx.lineTo(pillX + pillW, pillY + pillH - r);
+      ctx.quadraticCurveTo(
+        pillX + pillW,
+        pillY + pillH,
+        pillX + pillW - r,
+        pillY + pillH,
+      );
+      ctx.lineTo(pillX + r, pillY + pillH);
+      ctx.quadraticCurveTo(pillX, pillY + pillH, pillX, pillY + pillH - r);
+      ctx.lineTo(pillX, pillY + r);
+      ctx.quadraticCurveTo(pillX, pillY, pillX + r, pillY);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = opts.pillFg || '#f8fafc';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, pillX + padX, pillY + pillH / 2);
+    }
+    ctx.restore();
+  },
+};
+
+// Walk the timestamp labels and emit one entry per first-point-of-each-day.
+function collectDayStarts(labels) {
+  const out = [];
+  let prevKey = null;
+  for (let i = 0; i < labels.length; i++) {
+    const iso = labels[i];
+    if (!iso) continue;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) continue;
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (key !== prevKey) {
+      out.push({ index: i, date: d, key });
+      prevKey = key;
+    }
+  }
+  return out;
+}
 
 // Tooltip title — full date + time, since the X-axis only shows hour
 // labels. A hover should always disambiguate the exact 10-minute reading
@@ -126,6 +267,16 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
               }
             : {}),
         },
+      },
+      // Day separators (alternating band + dashed line + date pill).
+      // Picked up by `dayMarkerPlugin` registered on the chart instance.
+      dayMarker: {
+        enabled: true,
+        band: t.dayBand,
+        line: t.dayLine,
+        pillBg: t.dayPillBg,
+        pillFg: t.dayPillFg,
+        maxPills: 14,
       },
     },
     scales: {
@@ -321,52 +472,98 @@ function PmdTrendPanel({ theme }) {
     return g ?? fallbackFill;
   };
 
-  // Hour-stride: thin the hour-boundary labels so a multi-day window
-  // doesn't try to print 168 hour ticks. Targets ~12 visible labels.
-  // Computed off the actual point span (not the requested days) so a
-  // partial window still picks a sensible step.
-  const hourStep = useMemo(() => {
+  // Pick the axis granularity from the actual data span. Single-day
+  // windows show hours; anything wider shows calendar days. This is
+  // computed off the loaded points (not `days`) so a partial first-day
+  // window still picks the right scale.
+  const axisScale = useMemo(() => {
+    if (points.length < 2) return days <= 1 ? 'hour' : 'day';
+    const first = new Date(points[0].ts).getTime();
+    const last = new Date(points[points.length - 1].ts).getTime();
+    const totalHours = (last - first) / 3_600_000;
+    return totalHours <= 30 ? 'hour' : 'day';
+  }, [points, days]);
+
+  // Stride: thin the labels so a wide window doesn't try to print 168
+  // hour ticks (or 365 day ticks). Targets ~10–12 visible labels.
+  const labelStep = useMemo(() => {
     if (points.length < 2) return 1;
     const first = new Date(points[0].ts).getTime();
     const last = new Date(points[points.length - 1].ts).getTime();
-    const totalHours = Math.max(1, (last - first) / 3_600_000);
-    return Math.max(1, Math.ceil(totalHours / 12));
-  }, [points]);
+    if (axisScale === 'hour') {
+      const totalHours = Math.max(1, (last - first) / 3_600_000);
+      return Math.max(1, Math.ceil(totalHours / 12));
+    }
+    const totalDays = Math.max(1, (last - first) / 86_400_000);
+    return Math.max(1, Math.ceil(totalDays / 8));
+  }, [points, axisScale]);
 
   const xLabelFormatter = (iso) => {
     if (!iso) return '';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    // Only label hour boundaries — every 10-minute point in between
-    // returns '' and never shows axis text.
-    if (d.getMinutes() !== 0) return '';
-    // Thin further so multi-day windows don't crowd: only every Nth
-    // absolute hour gets a label.
-    const absHour = Math.floor(d.getTime() / 3_600_000);
-    if (absHour % hourStep !== 0) return '';
-    // Midnight prints the calendar date so the user can read where days
-    // change without a tooltip; other hours print just the hour.
-    if (d.getHours() === 0) {
-      return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    if (axisScale === 'hour') {
+      // Only hour boundaries — every 10-min point in between returns ''.
+      if (d.getMinutes() !== 0) return '';
+      // Midnight is owned by the dayMarker plugin (vertical line + date
+      // pill at the top of the chart), so we suppress it on the bottom
+      // axis to keep the day boundary visually unambiguous.
+      if (d.getHours() === 0) return '';
+      const absHour = Math.floor(d.getTime() / 3_600_000);
+      if (absHour % labelStep !== 0) return '';
+      return d.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
     }
-    return d.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true });
+    // Day scale — label only midnight points, thinned by labelStep.
+    if (d.getMinutes() !== 0 || d.getHours() !== 0) return '';
+    const absDay = Math.floor(d.getTime() / 86_400_000);
+    if (absDay % labelStep !== 0) return '';
+    return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
   };
 
-  // Big dot at every hour boundary (minute === 0), small dot for the
-  // five 10-minute readings in between. Hover bumps both up.
+  // Human-readable date range for the panel header — clarifies which
+  // days the curve covers without relying on a single midnight tick.
+  const dateRangeLabel = useMemo(() => {
+    if (points.length === 0) return null;
+    const first = new Date(points[0].ts);
+    const last = new Date(points[points.length - 1].ts);
+    if (Number.isNaN(first.getTime()) || Number.isNaN(last.getTime())) return null;
+    const fmt = (d) =>
+      d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return first.toDateString() === last.toDateString()
+      ? fmt(first)
+      : `${fmt(first)} → ${fmt(last)}`;
+  }, [points]);
+
+  // Dot sizing: big at the most-significant boundary for the scale, small
+  // at the secondary boundary, and (on day-scale) hidden for 10-minute
+  // in-between points so 1000+ dots don't drown the curve.
   const pointRadiusForCtx = (ctx) => {
     const lbl = ctx.chart?.data?.labels?.[ctx.dataIndex];
-    if (!lbl) return 1.5;
+    if (!lbl) return 0;
     const d = new Date(lbl);
-    if (Number.isNaN(d.getTime())) return 1.5;
-    return d.getMinutes() === 0 ? 3.5 : 1.25;
+    if (Number.isNaN(d.getTime())) return 0;
+    const isHour = d.getMinutes() === 0;
+    const isMidnight = isHour && d.getHours() === 0;
+    if (axisScale === 'hour') {
+      return isHour ? 3.5 : 1.25;
+    }
+    if (isMidnight) return 4;
+    if (isHour) return 1.5;
+    return 0;
   };
   const pointHoverRadiusForCtx = (ctx) => {
     const lbl = ctx.chart?.data?.labels?.[ctx.dataIndex];
     if (!lbl) return 4;
     const d = new Date(lbl);
     if (Number.isNaN(d.getTime())) return 4;
-    return d.getMinutes() === 0 ? 5.5 : 3;
+    const isHour = d.getMinutes() === 0;
+    const isMidnight = isHour && d.getHours() === 0;
+    if (axisScale === 'hour') {
+      return isHour ? 5.5 : 3;
+    }
+    if (isMidnight) return 6;
+    if (isHour) return 3.5;
+    return 2.5;
   };
 
   const data = useMemo(
@@ -401,9 +598,10 @@ function PmdTrendPanel({ theme }) {
 
   const options = useMemo(
     () => buildOptions(theme, { unit, xLabelFormatter }),
-    // xLabelFormatter closes over hourStep, so re-build when it changes.
+    // xLabelFormatter closes over axisScale + labelStep — rebuild when
+    // either changes so axis labels follow the active window.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [theme, unit, hourStep],
+    [theme, unit, axisScale, labelStep],
   );
 
   const empty = !selected || !stationId;
@@ -417,6 +615,11 @@ function PmdTrendPanel({ theme }) {
             ? 'PMD Parameter Trend'
             : `${stationName || `Station ${stationId}`}${selected ? ` · ${selected}` : ''}`}
         </h3>
+        {!empty && dateRangeLabel && (
+          <span className="text-[11px] tabular-nums text-day-muted dark:text-night-muted px-1.5 py-0.5 rounded bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border">
+            {dateRangeLabel}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <BucketToggle value={mode} onChange={setMode} disabled={empty} />
           {mode === 'custom' && (
@@ -445,7 +648,7 @@ function PmdTrendPanel({ theme }) {
             .
           </EmptyState>
         ) : (
-          <Line data={data} options={options} />
+          <Line data={data} options={options} plugins={[dayMarkerPlugin]} />
         )}
         {error && (
           <p className="mt-1 text-[10.5px] text-red-600 dark:text-red-400">
@@ -506,12 +709,19 @@ function BucketToggle({ value, onChange, disabled }) {
 }
 
 function CustomDaysInput({ value, onChange, disabled }) {
-  // Local string state lets the user clear the field while typing without
-  // immediately snapping back to a valid number; commit on blur / Enter.
+  // Local string state lets the user temporarily clear the field while
+  // typing without snapping back. We still commit on every valid
+  // keystroke so the chart updates live; blur just cleans up an empty
+  // / out-of-range draft.
   const [draft, setDraft] = useState(String(value));
   useEffect(() => {
     setDraft(String(value));
   }, [value]);
+
+  const tryCommit = (raw) => {
+    const n = Math.floor(Number(raw));
+    if (Number.isFinite(n) && n >= 1 && n <= 365) onChange(n);
+  };
 
   const commit = () => {
     const n = Math.floor(Number(draft));
@@ -545,7 +755,11 @@ function CustomDaysInput({ value, onChange, disabled }) {
           min={1}
           max={365}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setDraft(v);
+            tryCommit(v);
+          }}
           onBlur={commit}
           onKeyDown={(e) => {
             if (e.key === 'Enter') e.currentTarget.blur();
