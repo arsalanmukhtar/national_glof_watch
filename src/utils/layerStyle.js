@@ -129,21 +129,33 @@ function sizeRangeExpr(style, fallback) {
 // when `label.enabled`.
 export function paintExprsFor(style, geometry) {
   if (geometry === 'point' && style.type === 'heatmap') {
+    // Build the density gradient from the user's selected ramp. The first
+    // stop is forced transparent so empty / very-low-density pixels don't
+    // paint solid color over the basemap.
+    const ramp = rampById(style.rampId);
+    const stops = style.rampReversed ? [...ramp.stops].reverse() : ramp.stops;
+    const heatColor = ['interpolate', ['linear'], ['heatmap-density']];
+    // Mapbox's heatmap-color parser rejects hex8 (#RRGGBBAA), so emit
+    // rgba() for the transparent first stop instead.
+    stops.forEach((c, i) => {
+      const t = stops.length === 1 ? 1 : i / (stops.length - 1);
+      if (i === 0) {
+        const s = c.replace('#', '');
+        const r = parseInt(s.slice(0, 2), 16) || 0;
+        const g = parseInt(s.slice(2, 4), 16) || 0;
+        const b = parseInt(s.slice(4, 6), 16) || 0;
+        heatColor.push(t, `rgba(${r},${g},${b},0)`);
+      } else {
+        heatColor.push(t, c);
+      }
+    });
     return {
       kind: 'heatmap',
       paint: {
         'heatmap-radius': zoomedOrLiteral(style, 'heatRadius', style.heatRadius ?? 24),
         'heatmap-intensity': style.heatIntensity ?? 1,
         'heatmap-opacity': style.fillOpacity ?? 0.85,
-        'heatmap-color': [
-          'interpolate', ['linear'], ['heatmap-density'],
-          0,    'rgba(0,0,255,0)',
-          0.2,  'rgba(0,255,255,0.5)',
-          0.4,  'rgba(0,255,0,0.7)',
-          0.6,  'rgba(255,255,0,0.85)',
-          0.8,  'rgba(255,128,0,0.95)',
-          1,    'rgba(255,0,0,1)',
-        ],
+        'heatmap-color': heatColor,
       },
     };
   }

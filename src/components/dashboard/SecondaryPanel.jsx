@@ -23,6 +23,8 @@ import ConnectDatabaseModal from '@/components/dashboard/ConnectDatabaseModal';
 import { cn } from '@/utils/cn';
 import { useSecondary } from '@/contexts/SecondaryContext';
 import { useMapView } from '@/contexts/MapContext';
+import { effectiveStyle } from '@/utils/layerStyle';
+import { rampById } from '@/utils/stylePalettes';
 
 const MAX_UPLOADS = 5;
 
@@ -41,12 +43,188 @@ const LAYER_ICONS = {
 const ACCEPTED_TYPES = '.geojson,.json,application/geo+json,application/json,.zip,application/zip';
 
 // ---------------------------------------------------------------------------
-// Layer row — toggle + zoom + (uploads only) trash. Per-layer style editing
-// lives in the right-sidebar Palette panel; that's why there's no chevron
-// expand here anymore.
+// Layer legend — QGIS-style summary that auto-renders below a toggled-on
+// row, reflecting whatever symbology the right-sidebar Palette panel is
+// currently applying. Reads `style.type` to switch between simple swatch /
+// categories list / color- or size-range gradient / heatmap density.
 // ---------------------------------------------------------------------------
 
-function LayerRow({ id, label, icon: Icon, isUpload, uploadData, onRemove }) {
+function SimpleSwatch({ style, geometry }) {
+  if (geometry === 'point') {
+    return (
+      <span
+        className="inline-block h-3 w-3 rounded-full border"
+        style={{
+          backgroundColor: style.fillColor,
+          borderColor: style.strokeColor,
+        }}
+      />
+    );
+  }
+  if (geometry === 'line') {
+    return (
+      <span
+        className="inline-block h-[3px] w-5 rounded-sm"
+        style={{ backgroundColor: style.color }}
+      />
+    );
+  }
+  // polygon
+  return (
+    <span
+      className="inline-block h-3 w-5 rounded-sm border"
+      style={{
+        backgroundColor: style.fillColor,
+        borderColor: style.strokeColor,
+      }}
+    />
+  );
+}
+
+function GradientBar({ stops, label, minLabel, maxLabel }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      {label && (
+        <span className="text-[10px] text-day-muted dark:text-night-muted">
+          {label}
+        </span>
+      )}
+      <div
+        className="h-2 rounded-sm"
+        style={{ background: `linear-gradient(to right, ${stops.join(', ')})` }}
+      />
+      <div className="flex items-center justify-between text-[9px] tabular-nums text-day-muted dark:text-night-muted">
+        <span>{minLabel}</span>
+        <span>{maxLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+function fmtNum(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '';
+  const v = Number(n);
+  if (Math.abs(v) >= 1000) return v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  if (Math.abs(v) >= 1)    return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return v.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function LayerLegend({ id, geometry }) {
+  const { styles } = useSecondary();
+  const style = effectiveStyle(id, geometry, styles[id]);
+
+  if (style.type === 'categories' && (style.categories?.length ?? 0) > 0) {
+    return (
+      <div className="flex flex-col gap-1 px-2.5 py-1.5">
+        <span className="text-[10px] text-day-muted dark:text-night-muted">
+          {style.colorBy}
+        </span>
+        {style.categories.slice(0, 8).map((c, i) => (
+          <div key={`${c.value}:${i}`} className="flex items-center gap-1.5 min-w-0">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-sm border border-black/10 dark:border-white/10"
+              style={{ backgroundColor: c.color }}
+            />
+            <span className="text-[11px] truncate text-day-text dark:text-night-text">
+              {String(c.value)}
+            </span>
+          </div>
+        ))}
+        {style.categories.length > 8 && (
+          <span className="text-[10px] italic text-day-muted dark:text-night-muted">
+            …{style.categories.length - 8} more
+          </span>
+        )}
+        {style.showOther && (
+          <div className="flex items-center gap-1.5 min-w-0 mt-0.5 pt-1 border-t border-day-border/50 dark:border-night-border/50">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-sm border border-black/10 dark:border-white/10"
+              style={{ backgroundColor: style.otherColor }}
+            />
+            <span className="text-[11px] italic text-day-muted dark:text-night-muted">
+              Other
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (style.type === 'colorRange' && style.rangeBy) {
+    const ramp = rampById(style.rampId);
+    const stops = style.rampReversed ? [...ramp.stops].reverse() : ramp.stops;
+    return (
+      <div className="px-2.5 py-1.5">
+        <GradientBar
+          stops={stops}
+          label={style.rangeBy}
+          minLabel={fmtNum(style.rangeMin)}
+          maxLabel={fmtNum(style.rangeMax)}
+        />
+      </div>
+    );
+  }
+
+  if (style.type === 'sizeRange' && style.sizeBy) {
+    const cap = (n) => Math.max(2, Math.min(18, Number(n) || 0));
+    return (
+      <div className="px-2.5 py-1.5 flex flex-col gap-1">
+        <span className="text-[10px] text-day-muted dark:text-night-muted">
+          {style.sizeBy}
+        </span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col items-center gap-0.5">
+            <span
+              className="rounded-full bg-[#16a085]"
+              style={{ width: cap(style.sizeMin), height: cap(style.sizeMin) }}
+            />
+            <span className="text-[9px] tabular-nums text-day-muted dark:text-night-muted">
+              {fmtNum(style.rangeMin)}
+            </span>
+          </div>
+          <div className="flex-1 h-px bg-day-border dark:bg-night-border" />
+          <div className="flex flex-col items-center gap-0.5">
+            <span
+              className="rounded-full bg-[#16a085]"
+              style={{ width: cap(style.sizeMax), height: cap(style.sizeMax) }}
+            />
+            <span className="text-[9px] tabular-nums text-day-muted dark:text-night-muted">
+              {fmtNum(style.rangeMax)}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (style.type === 'heatmap') {
+    const ramp = rampById(style.rampId);
+    const stops = style.rampReversed ? [...ramp.stops].reverse() : ramp.stops;
+    return (
+      <div className="px-2.5 py-1.5">
+        <GradientBar stops={stops} label="Density" minLabel="low" maxLabel="high" />
+      </div>
+    );
+  }
+
+  // Simple — single swatch + geometry hint.
+  return (
+    <div className="px-2.5 py-1.5 flex items-center gap-2">
+      <SimpleSwatch style={style} geometry={geometry} />
+      <span className="text-[10px] capitalize text-day-muted dark:text-night-muted">
+        {geometry}
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Layer row — toggle + zoom + (uploads only) trash. Per-layer style editing
+// lives in the right-sidebar Palette panel. The row auto-expands to show a
+// QGIS-style legend below itself when the layer is toggled on.
+// ---------------------------------------------------------------------------
+
+function LayerRow({ id, label, geometry, icon: Icon, isUpload, uploadData, onRemove }) {
   const { visibleLayers, toggleLayer } = useSecondary();
   const { zoomToSecondaryLayer, zoomToGeoJson } = useMapView();
 
@@ -103,6 +281,20 @@ function LayerRow({ id, label, icon: Icon, isUpload, uploadData, onRemove }) {
           label={`Toggle ${label}`}
         />
       </div>
+      <AnimatePresence initial={false}>
+        {on && geometry && (
+          <motion.div
+            key="legend"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden border-t border-[#16a085]/25 dark:border-[#16a085]/30"
+          >
+            <LayerLegend id={id} geometry={geometry} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -349,6 +541,7 @@ function UploadZone() {
                 key={u.id}
                 id={u.id}
                 label={u.label}
+                geometry={u.geometry || 'polygon'}
                 icon={u.kind === 'shapefile' ? FileArchive : FileJson}
                 isUpload
                 uploadData={u.data}
@@ -403,6 +596,7 @@ export default function SecondaryPanel({ compact = false }) {
               key={l.id}
               id={l.id}
               label={l.label}
+              geometry={l.geometry}
               icon={LAYER_ICONS[l.id] ?? Mountain}
             />
           ))}

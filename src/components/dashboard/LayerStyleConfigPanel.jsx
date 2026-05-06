@@ -1400,10 +1400,12 @@ export default function LayerStyleConfigPanel() {
 
   if (!selected) {
     return (
-      <div className="flex flex-col gap-2.5">
-        <LayerSelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
-        <div className="rounded-md border border-dashed border-day-border dark:border-night-border px-3 py-6 text-center text-[12px] text-day-muted dark:text-night-muted">
-          Toggle a layer on (Primary or Secondary) to start styling.
+      <div className="flex flex-col h-full -mx-3 -my-3">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-3 pb-3 flex flex-col gap-2.5">
+          <LayerSelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
+          <div className="rounded-md border border-dashed border-day-border dark:border-night-border px-3 py-6 text-center text-[12px] text-day-muted dark:text-night-muted">
+            Toggle a layer on (Primary or Secondary) to start styling.
+          </div>
         </div>
       </div>
     );
@@ -1469,7 +1471,14 @@ export default function LayerStyleConfigPanel() {
   };
 
   return (
-    <div className="flex flex-col gap-3.5">
+    // Outer column fills the right-sidebar's content area so the footer can
+    // pin to the bottom while the form body owns its own scroll. Negative
+    // margins cancel the parent's `p-3` so we can re-add padding inside the
+    // scroll region (otherwise the pinned footer would have padding above it
+    // that doesn't match the rest of the surface).
+    <div className="flex flex-col h-full -mx-3 -my-3">
+      {/* Scrollable body */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-3 pb-3 flex flex-col gap-3.5">
       <LayerSelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
 
       {/* General — Type */}
@@ -1514,6 +1523,14 @@ export default function LayerStyleConfigPanel() {
       {/* ===== Geometry-specific paint ===== */}
       {style.type === 'heatmap' ? (
         <Section title="Heatmap">
+          <Field label="Color">
+            <RampSwatch
+              rampId={style.rampId}
+              reversed={style.rampReversed}
+              onChangeRamp={(id) => setStyle({ rampId: id })}
+              onToggleReverse={() => setStyle({ rampReversed: !style.rampReversed })}
+            />
+          </Field>
           <Field label="Radius">
             <NumberSlider
               value={style.heatRadius}
@@ -1847,8 +1864,11 @@ export default function LayerStyleConfigPanel() {
         )}
       </Section>
 
-      {/* Footer */}
-      <div className="flex items-center justify-between border-t border-day-border dark:border-night-border pt-2.5 mt-1">
+      </div>
+
+      {/* Pinned footer — sits below the scroll region so it stays visible
+          regardless of how much the body scrolls. */}
+      <div className="shrink-0 flex items-center justify-between border-t border-day-border dark:border-night-border bg-white dark:bg-night-surface px-3 py-2.5">
         <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
           <GeometryGlyph geometry={selected.geometry} className="h-3 w-3 text-[#16a085]" />
           {selected.geometry} layer
