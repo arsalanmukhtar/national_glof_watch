@@ -172,9 +172,14 @@ uploadRouter.post('/import', async (req, res) => {
     const colDefs = columns
       .map((c) => `${quoteIdent(c.target)} ${c.type}`)
       .join(', ');
+    // Skip the synthetic id column when the source already supplies one —
+    // duplicating it raises pg 42701 "column 'id' specified more than once".
+    const sourceHasId = columns.some(
+      (c) => c.target.toLowerCase() === 'id',
+    );
     const createSql = `
       CREATE TABLE ${quoteIdent(schema)}.${quoteIdent(table)} (
-        id SERIAL PRIMARY KEY,
+        ${sourceHasId ? '' : 'id SERIAL PRIMARY KEY,'}
         ${colDefs},
         geom geometry(Geometry, ${srid})
       )
@@ -474,9 +479,13 @@ uploadRouter.post('/from-db', async (req, res) => {
     const colDefs = propCols
       .map((c) => `${quoteIdent(c.name)} ${c.type}`)
       .join(', ');
+    // Source tables commonly already carry their own `id` column — adding
+    // ours on top causes pg 42701 "column 'id' specified more than once".
+    // When the source has it, keep theirs and skip the synthetic PK.
+    const sourceHasId = propCols.some((c) => c.name.toLowerCase() === 'id');
     const createSql = `
       CREATE TABLE ${quoteIdent(target.schema)}.${quoteIdent(target.table)} (
-        id SERIAL PRIMARY KEY,
+        ${sourceHasId ? '' : 'id SERIAL PRIMARY KEY,'}
         ${colDefs ? `${colDefs},` : ''}
         geom geometry(Geometry, ${srcSrid})
       )

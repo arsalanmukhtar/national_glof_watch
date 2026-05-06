@@ -65,3 +65,65 @@ export function paletteById(id) {
 export function rampById(id) {
   return COLOR_RAMPS.find((r) => r.id === id) ?? COLOR_RAMPS[0];
 }
+
+// --- discrete-class helpers --------------------------------------------------
+// Used when a numeric attribute is binned into N classes (Classified mode of
+// the Color range type) so each class needs one solid color. We linearly
+// interpolate the ramp to produce the requested count, regardless of how
+// many stops the original ramp defines.
+
+function hexBytes(hex) {
+  const s = (hex || '').replace('#', '');
+  if (s.length === 3) {
+    return s.split('').map((c) => parseInt(c + c, 16) || 0);
+  }
+  return [
+    parseInt(s.slice(0, 2), 16) || 0,
+    parseInt(s.slice(2, 4), 16) || 0,
+    parseInt(s.slice(4, 6), 16) || 0,
+  ];
+}
+
+function bytesToHex(r, g, b) {
+  const t = (n) =>
+    Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+  return `#${t(r)}${t(g)}${t(b)}`;
+}
+
+function lerpHex(a, b, t) {
+  const ax = hexBytes(a);
+  const bx = hexBytes(b);
+  return bytesToHex(
+    ax[0] + (bx[0] - ax[0]) * t,
+    ax[1] + (bx[1] - ax[1]) * t,
+    ax[2] + (bx[2] - ax[2]) * t,
+  );
+}
+
+// Sample N colors evenly along a ramp's stops. N=1 returns the middle stop;
+// N>=2 returns endpoints + interior colors interpolated between adjacent
+// stops.
+export function sampleRampColors(stops, n) {
+  if (!Array.isArray(stops) || stops.length === 0) return [];
+  const count = Math.max(1, Math.floor(n));
+  if (count === 1) return [stops[Math.floor(stops.length / 2)]];
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const t = i / (count - 1);
+    const seg = t * (stops.length - 1);
+    const idx = Math.min(Math.floor(seg), stops.length - 2);
+    const localT = seg - idx;
+    out.push(lerpHex(stops[idx], stops[idx + 1], localT));
+  }
+  return out;
+}
+
+// Equal-interval class breaks: returns N-1 internal break points that split
+// [min, max] into N equally sized buckets.
+export function equalIntervalBreaks(min, max, n) {
+  const count = Math.max(2, Math.min(50, Math.floor(n)));
+  const span = (max ?? 0) - (min ?? 0);
+  const breaks = [];
+  for (let i = 1; i < count; i++) breaks.push(min + (span * i) / count);
+  return breaks;
+}

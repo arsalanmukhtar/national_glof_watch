@@ -60,6 +60,11 @@ export function SecondaryProvider({ children }) {
   const [styles, setStyles] = useState(() => ({}));
   // user-uploaded layers (client-side, kept in memory)
   const [uploads, setUploads] = useState([]);
+  // db-loaded layers — entries pulled live from the connected PostGIS DB
+  // via the BrowseDatabaseModal. Each entry is shaped like an upload
+  // ({ id, label, geometry, data }) so the existing render path can treat
+  // them uniformly.
+  const [dbLayers, setDbLayers] = useState([]);
 
   const toggleLayer = useCallback((id) => {
     setVisibleLayers((prev) => {
@@ -113,6 +118,36 @@ export function SecondaryProvider({ children }) {
     });
   }, []);
 
+  const addDbLayers = useCallback((layers) => {
+    if (!Array.isArray(layers) || !layers.length) return;
+    setDbLayers((prev) => {
+      const seen = new Set(prev.map((l) => l.id));
+      const fresh = layers.filter((l) => l && l.id && !seen.has(l.id));
+      return fresh.length ? [...prev, ...fresh] : prev;
+    });
+    setVisibleLayers((prev) => {
+      const next = new Set(prev);
+      for (const l of layers) if (l?.id) next.add(l.id);
+      return next;
+    });
+  }, []);
+
+  const removeDbLayer = useCallback((id) => {
+    setDbLayers((prev) => prev.filter((l) => l.id !== id));
+    setVisibleLayers((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setStyles((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
+
   const value = useMemo(
     () => ({
       layers: SECONDARY_LAYERS,
@@ -124,16 +159,22 @@ export function SecondaryProvider({ children }) {
       uploads,
       addUpload,
       removeUpload,
+      dbLayers,
+      addDbLayers,
+      removeDbLayer,
     }),
     [
       visibleLayers,
       styles,
       uploads,
+      dbLayers,
       toggleLayer,
       setLayerStyle,
       resetLayerStyle,
       addUpload,
       removeUpload,
+      addDbLayers,
+      removeDbLayer,
     ],
   );
 

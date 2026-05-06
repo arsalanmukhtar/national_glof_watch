@@ -4,6 +4,7 @@ import cors from 'cors';
 import { parametersRouter } from './routes/parameters.js';
 import { secondaryRouter } from './routes/secondary.js';
 import { uploadRouter } from './routes/upload.js';
+import { dbRouter } from './routes/db.js';
 import { ensureSchema, pool } from './lib/db.js';
 import { storeAllElements } from './lib/store.js';
 
@@ -37,6 +38,7 @@ app.get('/health', async (_req, res) => {
 app.use('/api/parameters', parametersRouter);
 app.use('/api/secondary', secondaryRouter);
 app.use('/api/upload', uploadRouter);
+app.use('/api/db', dbRouter);
 
 async function runStoreCycle(reason = 'scheduled') {
   const at = new Date().toISOString();

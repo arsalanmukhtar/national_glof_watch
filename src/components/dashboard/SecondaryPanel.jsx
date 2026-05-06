@@ -4,6 +4,7 @@ import shp from 'shpjs';
 import {
   AlertTriangle,
   Building2,
+  Database,
   FileArchive,
   FileJson,
   FileUp,
@@ -13,6 +14,7 @@ import {
   Radio,
   Server,
   Shrink,
+  Table2,
   Triangle,
   Trash2,
   Waves,
@@ -20,11 +22,17 @@ import {
 import EyeToggle from '@/components/ui/EyeToggle';
 import Badge from '@/components/ui/Badge';
 import ConnectDatabaseModal from '@/components/dashboard/ConnectDatabaseModal';
+import BrowseDatabaseModal from '@/components/dashboard/BrowseDatabaseModal';
+import Tooltip from '@/components/ui/Tooltip';
 import { cn } from '@/utils/cn';
 import { useSecondary } from '@/contexts/SecondaryContext';
 import { useMapView } from '@/contexts/MapContext';
 import { effectiveStyle } from '@/utils/layerStyle';
-import { rampById } from '@/utils/stylePalettes';
+import {
+  equalIntervalBreaks,
+  rampById,
+  sampleRampColors,
+} from '@/utils/stylePalettes';
 
 const MAX_UPLOADS = 5;
 
@@ -153,6 +161,39 @@ function LayerLegend({ id, geometry }) {
   if (style.type === 'colorRange' && style.rangeBy) {
     const ramp = rampById(style.rampId);
     const stops = style.rampReversed ? [...ramp.stops].reverse() : ramp.stops;
+
+    // Classified — render one row per class with its bucket range, the
+    // same way QGIS's Graduated symbology preview reads.
+    if (
+      style.classMode === 'classified' &&
+      style.rangeMin != null &&
+      style.rangeMax != null
+    ) {
+      const n = Math.max(2, Math.min(10, Math.floor(style.classCount) || 5));
+      const breaks = equalIntervalBreaks(style.rangeMin, style.rangeMax, n);
+      const colors = sampleRampColors(stops, n);
+      const lower = [style.rangeMin, ...breaks];
+      const upper = [...breaks, style.rangeMax];
+      return (
+        <div className="px-2.5 py-1.5 flex flex-col gap-1">
+          <span className="text-[10px] text-day-muted dark:text-night-muted">
+            {style.rangeBy}
+          </span>
+          {colors.map((c, i) => (
+            <div key={`${c}:${i}`} className="flex items-center gap-1.5 min-w-0">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-sm border border-black/10 dark:border-white/10"
+                style={{ backgroundColor: c }}
+              />
+              <span className="text-[11px] tabular-nums text-day-text dark:text-night-text">
+                {fmtNum(lower[i])} – {fmtNum(upper[i])}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     return (
       <div className="px-2.5 py-1.5">
         <GradientBar
@@ -560,12 +601,13 @@ function UploadZone() {
 // ---------------------------------------------------------------------------
 
 export default function SecondaryPanel({ compact = false }) {
-  const { layers, visibleLayers } = useSecondary();
+  const { layers, visibleLayers, dbLayers, removeDbLayer } = useSecondary();
   const visibleCount = useMemo(
     () => layers.reduce((acc, l) => acc + (visibleLayers.has(l.id) ? 1 : 0), 0),
     [layers, visibleLayers],
   );
   const [dbModalOpen, setDbModalOpen] = useState(false);
+  const [browseDbOpen, setBrowseDbOpen] = useState(false);
 
   // In compact (mobile drawer) mode the panel sits inside an outer
   // overflow-y-auto, so the inner scroll + h-full constraints are
@@ -582,6 +624,21 @@ export default function SecondaryPanel({ compact = false }) {
             <Badge tone="brand" className="ml-auto">
               {visibleCount > 0 ? `${visibleCount} / ${layers.length}` : layers.length}
             </Badge>
+            <Tooltip label="Browse database tables" side="bottom" align="end">
+              <button
+                type="button"
+                onClick={() => setBrowseDbOpen(true)}
+                aria-label="Browse database tables"
+                className={cn(
+                  'inline-flex h-6 w-6 items-center justify-center rounded-md',
+                  'text-[#16a085]',
+                  'hover:bg-[#16a085] hover:text-white',
+                  'transition-colors',
+                )}
+              >
+                <Database className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip>
           </div>
         )}
 
@@ -600,6 +657,32 @@ export default function SecondaryPanel({ compact = false }) {
               icon={LAYER_ICONS[l.id] ?? Mountain}
             />
           ))}
+
+          {dbLayers.length > 0 && (
+            <>
+              <div className="flex items-center gap-1.5 px-1 mt-2 mb-1">
+                <Database className="h-3 w-3 text-[#16a085]" />
+                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+                  From Database
+                </span>
+                <span className="ml-auto text-[10px] tabular-nums text-day-muted dark:text-night-muted">
+                  {dbLayers.length}
+                </span>
+              </div>
+              {dbLayers.map((l) => (
+                <LayerRow
+                  key={l.id}
+                  id={l.id}
+                  label={l.label}
+                  geometry={l.geometry}
+                  icon={Table2}
+                  isUpload
+                  uploadData={l.data}
+                  onRemove={() => removeDbLayer(l.id)}
+                />
+              ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -638,6 +721,10 @@ export default function SecondaryPanel({ compact = false }) {
       <ConnectDatabaseModal
         open={dbModalOpen}
         onClose={() => setDbModalOpen(false)}
+      />
+      <BrowseDatabaseModal
+        open={browseDbOpen}
+        onClose={() => setBrowseDbOpen(false)}
       />
     </div>
   );

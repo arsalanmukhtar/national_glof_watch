@@ -23,6 +23,7 @@ import {
   COLOR_RAMPS,
   paletteById,
   rampById,
+  sampleRampColors,
 } from '@/utils/stylePalettes';
 import { cn } from '@/utils/cn';
 
@@ -46,7 +47,12 @@ function regionPretty(id) {
 
 function useLayerRegistry() {
   const { visibleLayers: regionVisible } = useRegionLayers();
-  const { layers: secondaryLayers, visibleLayers: secondaryVisible, uploads } = useSecondary();
+  const {
+    layers: secondaryLayers,
+    visibleLayers: secondaryVisible,
+    uploads,
+    dbLayers,
+  } = useSecondary();
 
   return useMemo(() => {
     const groups = [];
@@ -93,8 +99,22 @@ function useLayerRegistry() {
       });
     }
 
+    if (dbLayers.length) {
+      groups.push({
+        name: 'Database',
+        items: dbLayers.map((l) => ({
+          id: l.id,
+          group: 'Database',
+          regionLabel: l.schema || null,
+          layerLabel: l.table || l.label,
+          geometry: l.geometry || 'polygon',
+          visible: secondaryVisible.has(l.id),
+        })),
+      });
+    }
+
     return groups;
-  }, [regionVisible, secondaryLayers, secondaryVisible, uploads]);
+  }, [regionVisible, secondaryLayers, secondaryVisible, uploads, dbLayers]);
 }
 
 function flatten(groups) {
@@ -108,7 +128,7 @@ function flatten(groups) {
 // ===========================================================================
 
 function useLayerData(item) {
-  const { uploads } = useSecondary();
+  const { uploads, dbLayers } = useSecondary();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -121,6 +141,13 @@ function useLayerData(item) {
     if (item.group === 'Uploads') {
       const u = uploads.find((up) => up.id === item.id);
       setData(u?.data ?? null);
+      return () => {};
+    }
+    if (item.group === 'Database') {
+      // DB layers are already fetched at load time and cached on the
+      // SecondaryContext entry — no extra round-trip needed.
+      const l = dbLayers.find((d) => d.id === item.id);
+      setData(l?.data ?? null);
       return () => {};
     }
     let url = null;
@@ -148,7 +175,7 @@ function useLayerData(item) {
     return () => {
       cancelled = true;
     };
-  }, [item, uploads]);
+  }, [item, uploads, dbLayers]);
 
   // Derive: list of attributes + per-attribute summary (numeric/categorical)
   const attrs = useMemo(() => {
@@ -1132,9 +1159,11 @@ function CategoryList({ categories, otherColor, showOther, onChange }) {
 // Color-range ramp swatch
 // ===========================================================================
 
-function RampSwatch({ rampId, reversed, onChangeRamp, onToggleReverse }) {
+function RampSwatch({ rampId, reversed, classCount, onChangeRamp, onToggleReverse }) {
   const ramp = rampById(rampId);
   const stops = reversed ? [...ramp.stops].reverse() : ramp.stops;
+  const discrete = Number.isFinite(classCount) && classCount >= 2;
+  const discreteColors = discrete ? sampleRampColors(stops, classCount) : null;
   return (
     <Popover className="relative flex-1">
       {() => (
@@ -1149,10 +1178,18 @@ function RampSwatch({ rampId, reversed, onChangeRamp, onToggleReverse }) {
               'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
             )}
           >
-            <div
-              className="flex-1 h-4 rounded-sm"
-              style={{ background: `linear-gradient(to right, ${stops.join(', ')})` }}
-            />
+            {discrete ? (
+              <div className="flex flex-1 h-4 overflow-hidden rounded-sm">
+                {discreteColors.map((c, i) => (
+                  <span key={`${c}:${i}`} className="flex-1" style={{ backgroundColor: c }} />
+                ))}
+              </div>
+            ) : (
+              <div
+                className="flex-1 h-4 rounded-sm"
+                style={{ background: `linear-gradient(to right, ${stops.join(', ')})` }}
+              />
+            )}
             <ChevronDown className="h-3 w-3 text-day-muted dark:text-night-muted" />
           </Popover.Button>
           <Transition as={Fragment} enter="transition ease-out duration-100"
@@ -1501,13 +1538,55 @@ export default function LayerStyleConfigPanel() {
           </Field>
         )}
         {style.type === 'colorRange' && (
-          <Field label="Color by">
-            <AttributePicker
-              attrs={attrs}
-              value={style.rangeBy}
-              onChange={handleRangeByChange}
-            />
-          </Field>
+          <>
+            <Field label="Color by">
+              <AttributePicker
+                attrs={attrs}
+                value={style.rangeBy}
+                onChange={handleRangeByChange}
+              />
+            </Field>
+            <Field label="Mode">
+              <div className="inline-flex w-full rounded-md border border-day-border dark:border-night-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setStyle({ classMode: 'continuous' })}
+                  className={cn(
+                    'flex-1 px-2 py-1 text-[11px] transition-colors',
+                    (style.classMode || 'continuous') === 'continuous'
+                      ? 'bg-[#16a085] text-white'
+                      : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+                  )}
+                >
+                  Continuous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStyle({ classMode: 'classified' })}
+                  className={cn(
+                    'flex-1 px-2 py-1 text-[11px] transition-colors border-l border-day-border dark:border-night-border',
+                    style.classMode === 'classified'
+                      ? 'bg-[#16a085] text-white'
+                      : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+                  )}
+                >
+                  Classified
+                </button>
+              </div>
+            </Field>
+            {style.classMode === 'classified' && (
+              <Field label="Classes">
+                <NumberSlider
+                  value={style.classCount || 5}
+                  onChange={(v) => setStyle({ classCount: Math.round(v) })}
+                  min={2}
+                  max={10}
+                  step={1}
+                  format={(v) => `${v}`}
+                />
+              </Field>
+            )}
+          </>
         )}
         {style.type === 'sizeRange' && (
           <Field label="Size by">
@@ -1627,6 +1706,11 @@ export default function LayerStyleConfigPanel() {
                 <RampSwatch
                   rampId={style.rampId}
                   reversed={style.rampReversed}
+                  classCount={
+                    style.classMode === 'classified'
+                      ? style.classCount || 5
+                      : null
+                  }
                   onChangeRamp={(id) => setStyle({ rampId: id })}
                   onToggleReverse={() => setStyle({ rampReversed: !style.rampReversed })}
                 />

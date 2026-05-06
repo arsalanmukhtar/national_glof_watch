@@ -82,6 +82,7 @@ export default function MapPanel({ className, onMapReady }) {
     visibleLayers: secondaryVisible,
     styles: secondaryStyles,
     uploads,
+    dbLayers,
   } = useSecondary();
   const { setMap, trackPromise, isLoading, focusedFeature } = useMapView();
   // Ref mirror so style.load handlers + applyStationLayers can read the
@@ -160,8 +161,20 @@ export default function MapPanel({ className, onMapReady }) {
       });
     }
 
+    for (const dbLayer of dbLayers) {
+      if (!secondaryVisible.has(dbLayer.id)) continue;
+      const geometry = dbLayer.geometry || 'polygon';
+      list.push({
+        key: `db:${dbLayer.id}`,
+        url: null,
+        data: dbLayer.data,
+        geometry,
+        style: effectiveStyle(dbLayer.id, geometry, secondaryStyles[dbLayer.id]),
+      });
+    }
+
     return list;
-  }, [regionVisible, secondaryLayers, secondaryVisible, secondaryStyles, uploads]);
+  }, [regionVisible, secondaryLayers, secondaryVisible, secondaryStyles, uploads, dbLayers]);
 
   // Mirror so the style.load handler can re-apply overlays on basemap swap
   // without re-creating the listener on every visibility change.

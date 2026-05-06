@@ -1,7 +1,11 @@
 import { parseRegionLayerId } from '@/contexts/RegionLayersContext';
 import { DEFAULT_STYLES } from '@/contexts/SecondaryContext';
 import { regionLayerColor } from '@/config/layerSources';
-import { rampById } from '@/utils/stylePalettes';
+import {
+  equalIntervalBreaks,
+  rampById,
+  sampleRampColors,
+} from '@/utils/stylePalettes';
 
 // ---------------------------------------------------------------------------
 // Defaults — `effectiveStyle()` composes layered base → region tint → user
@@ -23,6 +27,11 @@ const TYPE_DEFAULTS = {
   rampReversed: false,
   rangeMin: null, // computed from data when null
   rangeMax: null,
+  // 'continuous' = smooth interpolate over the ramp.
+  // 'classified' = bin into N equal-interval classes and emit a `step`
+  // expression so each class paints as a solid swatch (graduated style).
+  classMode: 'continuous',
+  classCount: 5,
   // Size range
   sizeBy: null,
   sizeMin: 2,
@@ -103,7 +112,26 @@ function colorRangeExpr(style, fallback) {
   if (!style.rangeBy || style.rangeMin == null || style.rangeMax == null) return fallback;
   const ramp = rampById(style.rampId);
   const stops = style.rampReversed ? [...ramp.stops].reverse() : ramp.stops;
-  const expr = ['interpolate', ['linear'], ['to-number', ['get', style.rangeBy]]];
+  const input = ['to-number', ['get', style.rangeBy]];
+
+  // Classified — emit a `step` expression with N solid colors and N-1
+  // internal breaks. Mapbox `step` semantics:
+  //   value <  breaks[0]                     → defaultColor (colors[0])
+  //   value >= breaks[i] && < breaks[i+1]    → colors[i+1]
+  //   value >= breaks[N-2]                   → colors[N-1]
+  if (style.classMode === 'classified') {
+    const n = Math.max(2, Math.min(10, Math.floor(style.classCount) || 5));
+    const breaks = equalIntervalBreaks(style.rangeMin, style.rangeMax, n);
+    const colors = sampleRampColors(stops, n);
+    const expr = ['step', input, colors[0]];
+    for (let i = 0; i < breaks.length; i++) {
+      expr.push(breaks[i], colors[i + 1]);
+    }
+    return expr;
+  }
+
+  // Continuous — smooth interpolate across the ramp's full stop list.
+  const expr = ['interpolate', ['linear'], input];
   const span = style.rangeMax - style.rangeMin || 1;
   stops.forEach((s, i) => {
     const t = i / (stops.length - 1);

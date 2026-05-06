@@ -1,33 +1,65 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/utils/cn';
 
-const POSITION = {
-  top: {
-    axis: 'bottom-full mb-2',
-    start: 'left-0',
-    center: 'left-1/2 -translate-x-1/2',
-    end: 'right-0',
-  },
-  bottom: {
-    axis: 'top-full mt-2',
-    start: 'left-0',
-    center: 'left-1/2 -translate-x-1/2',
-    end: 'right-0',
-  },
-  left: {
-    axis: 'right-full mr-2',
-    start: 'top-0',
-    center: 'top-1/2 -translate-y-1/2',
-    end: 'bottom-0',
-  },
-  right: {
-    axis: 'left-full ml-2',
-    start: 'top-0',
-    center: 'top-1/2 -translate-y-1/2',
-    end: 'bottom-0',
-  },
-};
+// Compute fixed-position coordinates relative to the viewport for each
+// side+align combo. The tooltip is rendered into <body>, so we anchor by
+// the trigger's bounding rect and use a CSS transform to handle the
+// align-axis offset (so we don't need to know the tooltip's own size).
+function computeCoords(rect, side, align, gap = 8) {
+  if (side === 'top') {
+    return {
+      top: rect.top - gap,
+      left:
+        align === 'start' ? rect.left
+        : align === 'end' ? rect.right
+        : rect.left + rect.width / 2,
+      transform:
+        align === 'start' ? 'translate(0, -100%)'
+        : align === 'end' ? 'translate(-100%, -100%)'
+        : 'translate(-50%, -100%)',
+    };
+  }
+  if (side === 'bottom') {
+    return {
+      top: rect.bottom + gap,
+      left:
+        align === 'start' ? rect.left
+        : align === 'end' ? rect.right
+        : rect.left + rect.width / 2,
+      transform:
+        align === 'start' ? 'translate(0, 0)'
+        : align === 'end' ? 'translate(-100%, 0)'
+        : 'translate(-50%, 0)',
+    };
+  }
+  if (side === 'left') {
+    return {
+      top:
+        align === 'start' ? rect.top
+        : align === 'end' ? rect.bottom
+        : rect.top + rect.height / 2,
+      left: rect.left - gap,
+      transform:
+        align === 'start' ? 'translate(-100%, 0)'
+        : align === 'end' ? 'translate(-100%, -100%)'
+        : 'translate(-100%, -50%)',
+    };
+  }
+  // right
+  return {
+    top:
+      align === 'start' ? rect.top
+      : align === 'end' ? rect.bottom
+      : rect.top + rect.height / 2,
+    left: rect.right + gap,
+    transform:
+      align === 'start' ? 'translate(0, 0)'
+      : align === 'end' ? 'translate(0, -100%)'
+      : 'translate(0, -50%)',
+  };
+}
 
 export default function Tooltip({
   label,
@@ -37,36 +69,71 @@ export default function Tooltip({
   className,
 }) {
   const [open, setOpen] = useState(false);
-  const pos = POSITION[side] ?? POSITION.top;
-  const placement = `${pos.axis} ${pos[align] ?? pos.center}`;
+  const [coords, setCoords] = useState(null);
+  const triggerRef = useRef(null);
+
+  const refresh = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setCoords(computeCoords(rect, side, align));
+    }
+  };
+
+  const onOpen = () => {
+    setOpen(true);
+    refresh();
+  };
+  const onClose = () => setOpen(false);
+
+  // Keep the tooltip pinned to the trigger if the page scrolls or the
+  // window resizes while it's visible.
+  useEffect(() => {
+    if (!open) return undefined;
+    const handler = () => refresh();
+    window.addEventListener('scroll', handler, true);
+    window.addEventListener('resize', handler);
+    return () => {
+      window.removeEventListener('scroll', handler, true);
+      window.removeEventListener('resize', handler);
+    };
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <span
+      ref={triggerRef}
       className="relative inline-flex"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={() => setOpen(false)}
+      onMouseEnter={onOpen}
+      onMouseLeave={onClose}
+      onFocus={onOpen}
+      onBlur={onClose}
     >
       {children}
-      <AnimatePresence>
-        {open && label ? (
-          <motion.span
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 4 }}
-            transition={{ duration: 0.15 }}
-            role="tooltip"
-            className={cn(
-              'absolute z-50 whitespace-nowrap rounded-md bg-slate-900 text-white text-xs px-2 py-1 shadow-panel pointer-events-none',
-              placement,
-              className,
-            )}
-          >
-            {label}
-          </motion.span>
-        ) : null}
-      </AnimatePresence>
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <AnimatePresence>
+            {open && label && coords ? (
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.12 }}
+                role="tooltip"
+                className={cn(
+                  'fixed z-[100] whitespace-nowrap rounded-md bg-slate-900 text-white text-xs px-2 py-1 shadow-panel pointer-events-none',
+                  className,
+                )}
+                style={{
+                  top: coords.top,
+                  left: coords.left,
+                  transform: coords.transform,
+                }}
+              >
+                {label}
+              </motion.span>
+            ) : null}
+          </AnimatePresence>,
+          document.body,
+        )}
     </span>
   );
 }
