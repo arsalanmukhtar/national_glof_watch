@@ -67,6 +67,10 @@ export default function Tooltip({
   align = 'center',
   children,
   className,
+  // Replaces the wrapper's default `inline-flex` display. Useful when
+  // the trigger needs `block min-w-0 truncate` (long-text labels) so the
+  // wrapper itself becomes the ellipsis target.
+  triggerClassName,
 }) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState(null);
@@ -101,7 +105,7 @@ export default function Tooltip({
   return (
     <span
       ref={triggerRef}
-      className="relative inline-flex"
+      className={cn('relative', triggerClassName ?? 'inline-flex')}
       onMouseEnter={onOpen}
       onMouseLeave={onClose}
       onFocus={onOpen}

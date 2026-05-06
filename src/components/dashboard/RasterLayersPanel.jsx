@@ -14,11 +14,20 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  Shrink,
   Trash2,
   Upload,
   X,
 } from 'lucide-react';
 import { formatBytes, useRasters } from '@/contexts/RasterContext';
+import { useMapView } from '@/contexts/MapContext';
+import {
+  boundsToBbox,
+  colormapCssGradient,
+  COLORMAPS,
+  fetchRasterBounds,
+} from '@/utils/rasterRender';
+import TruncateLabel from '@/components/ui/TruncateLabel';
 import { cn } from '@/utils/cn';
 
 // ---------------------------------------------------------------------------
@@ -43,8 +52,10 @@ export default function RasterLayersPanel() {
     removeGroup,
     toggleVisible,
     setActiveFrame,
+    setLayerBounds,
     usedNames,
   } = useRasters();
+  const { zoomToBbox } = useMapView();
 
   const [intakeOpen, setIntakeOpen] = useState(false);
 
@@ -108,6 +119,27 @@ export default function RasterLayersPanel() {
                 onRemove={() => removeGroup(g.id)}
                 onToggleVisible={() => toggleVisible(g.id)}
                 onSetFrame={(idx) => setActiveFrame(g.id, idx)}
+                onZoom={async () => {
+                  const layer = g.layers[g.activeIndex] ?? g.layers[0];
+                  if (!layer) return;
+                  // Cached path — instant fly-to.
+                  const cached = boundsToBbox(layer.bounds);
+                  if (cached) {
+                    zoomToBbox(cached);
+                    return;
+                  }
+                  // Cold path — fast bounds-only fetch (no pixel decode).
+                  try {
+                    const bounds = await fetchRasterBounds(layer.name);
+                    setLayerBounds(g.id, layer.name, bounds);
+                    const bbox = boundsToBbox(bounds);
+                    if (bbox) zoomToBbox(bbox);
+                  } catch (err) {
+                    console.warn(
+                      `Zoom-to-extent failed for "${layer.name}": ${err.message}`,
+                    );
+                  }
+                }}
               />
             ))}
           </div>
@@ -561,9 +593,10 @@ function FileList({ files, catalogStatus, usedNames, selected, onToggle, onDelet
                   ) : null}
                 </span>
                 <span className="flex-1 min-w-0">
-                  <span className="block truncate text-[11px] text-day-text dark:text-night-text">
-                    {f.name}
-                  </span>
+                  <TruncateLabel
+                    text={f.name}
+                    className="text-[11px] text-day-text dark:text-night-text"
+                  />
                   <span className="block text-[9.5px] text-day-muted dark:text-night-muted">
                     {f.parsedDate ? `${f.parsedDate} · ` : ''}
                     {formatBytes(f.size)}
@@ -599,7 +632,7 @@ function FileList({ files, catalogStatus, usedNames, selected, onToggle, onDelet
 // active frame highlighted.
 // ---------------------------------------------------------------------------
 
-function GroupRow({ group, onRemove, onToggleVisible, onSetFrame }) {
+function GroupRow({ group, onRemove, onToggleVisible, onSetFrame, onZoom }) {
   const [open, setOpen] = useState(false);
   const isTemporal = group.kind === 'temporal';
   const activeLayer = group.layers[group.activeIndex] ?? null;
@@ -627,9 +660,7 @@ function GroupRow({ group, onRemove, onToggleVisible, onSetFrame }) {
               <ChevronRight className="h-3 w-3" />
             )}
           </button>
-        ) : (
-          <span className="inline-block w-5" />
-        )}
+        ) : null}
 
         <span
           className={cn(
@@ -647,9 +678,10 @@ function GroupRow({ group, onRemove, onToggleVisible, onSetFrame }) {
         </span>
 
         <div className="flex-1 min-w-0">
-          <div className="truncate text-[12px] text-day-text dark:text-night-text">
-            {group.name}
-          </div>
+          <TruncateLabel
+            text={group.name}
+            className="text-[12px] text-day-text dark:text-night-text"
+          />
           <div className="text-[9.5px] text-day-muted dark:text-night-muted truncate">
             {isTemporal
               ? `${group.layers.length} frames · ${formatBytes(
@@ -667,6 +699,15 @@ function GroupRow({ group, onRemove, onToggleVisible, onSetFrame }) {
           </div>
         </div>
 
+        <button
+          type="button"
+          onClick={onZoom}
+          aria-label={`Zoom to ${group.name}`}
+          title={`Zoom to ${group.name}`}
+          className="inline-flex h-6 w-6 items-center justify-center rounded text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10 transition-colors"
+        >
+          <Shrink className="h-3.5 w-3.5" />
+        </button>
         <button
           type="button"
           onClick={onToggleVisible}
@@ -715,12 +756,18 @@ function GroupRow({ group, onRemove, onToggleVisible, onSetFrame }) {
                     <span className="text-[9.5px] tabular-nums w-5 shrink-0 text-right">
                       {i + 1}
                     </span>
-                    <span className="flex-1 min-w-0 truncate text-[11px]">
-                      {l.parsedDate ?? l.name}
+                    <span className="flex-1 min-w-0">
+                      <TruncateLabel
+                        text={l.parsedDate ?? l.name}
+                        className="text-[11px]"
+                      />
                     </span>
                     {l.parsedDate && l.parsedDate !== l.name ? (
-                      <span className="text-[9.5px] opacity-70 truncate max-w-[40%]">
-                        {l.name}
+                      <span className="hidden sm:block max-w-[40%] min-w-0 shrink-0 opacity-70">
+                        <TruncateLabel
+                          text={l.name}
+                          className="text-[9.5px]"
+                        />
                       </span>
                     ) : null}
                   </button>
@@ -730,8 +777,83 @@ function GroupRow({ group, onRemove, onToggleVisible, onSetFrame }) {
           </ul>
         </div>
       ) : null}
+
+      {/* Colormap legend — mirrors the vector LayerLegend pattern: only
+          drops when the group is visible, so the panel stays compact
+          until the user actually wants to read the ramp. */}
+      <AnimatePresence initial={false}>
+        {group.visible ? (
+          <motion.div
+            key="raster-legend"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden border-t border-[#16a085]/25 dark:border-[#16a085]/30"
+          >
+            <RasterLegend group={group} />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Inline legend — colormap gradient + min/max labels. Matches the
+// vector LayerLegend's tone (small, padded, sits inside the row card).
+// ---------------------------------------------------------------------------
+
+function RasterLegend({ group }) {
+  const style = group.style ?? {};
+  const colormapId = style.colormap || 'viridis';
+  const colormapLabel = COLORMAPS[colormapId]?.label ?? colormapId;
+  const auto = style.autoStretch !== false;
+  const dataMin = group.dataStats?.dataMin;
+  const dataMax = group.dataStats?.dataMax;
+  // What numbers go on the legend's ends. Manual stretch wins; auto
+  // falls back to the data range; nothing yet reads as "—".
+  const lowVal = auto
+    ? dataMin
+    : Number.isFinite(style.min)
+      ? style.min
+      : dataMin;
+  const highVal = auto
+    ? dataMax
+    : Number.isFinite(style.max)
+      ? style.max
+      : dataMax;
+
+  return (
+    <div className="px-2 py-1.5 flex flex-col gap-1">
+      <div className="flex items-center justify-between text-[9.5px]">
+        <span className="text-day-muted dark:text-night-muted">
+          {colormapLabel}
+        </span>
+        <span className="text-day-muted/80 dark:text-night-muted/80 tabular-nums">
+          opacity {Math.round((style.opacity ?? 1) * 100)}%
+        </span>
+      </div>
+      <div
+        className="h-2 rounded-sm border border-day-border/40 dark:border-night-border/40"
+        style={{ backgroundImage: colormapCssGradient(colormapId) }}
+        aria-hidden
+      />
+      <div className="flex items-center justify-between text-[10px] tabular-nums text-day-text dark:text-night-text">
+        <span>{niceLegendNumber(lowVal)}</span>
+        <span>{niceLegendNumber(highVal)}</span>
+      </div>
+    </div>
+  );
+}
+
+function niceLegendNumber(n) {
+  if (!Number.isFinite(n)) return '—';
+  const abs = Math.abs(n);
+  if (abs === 0) return '0';
+  if (abs >= 100) return Math.round(n).toString();
+  if (abs >= 1) return Number(n.toFixed(2)).toString();
+  return Number(n.toPrecision(3)).toString();
 }
 
 // ---------------------------------------------------------------------------

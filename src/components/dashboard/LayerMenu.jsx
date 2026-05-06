@@ -4,6 +4,7 @@ import Accordion, { AccordionItem } from '@/components/ui/Accordion';
 import EyeToggle from '@/components/ui/EyeToggle';
 import SearchBox from '@/components/ui/SearchBox';
 import Badge from '@/components/ui/Badge';
+import TruncateLabel from '@/components/ui/TruncateLabel';
 import { cn } from '@/utils/cn';
 import { useMemo, useState } from 'react';
 import { useRegionLayers } from '@/contexts/RegionLayersContext';
@@ -147,7 +148,9 @@ function LayerToggle({ regionId, name }) {
         outline,
       )}
     >
-      <span className="text-[13px] flex-1 truncate">{name}</span>
+      <span className="flex-1 min-w-0">
+        <TruncateLabel text={name} className="text-[13px]" />
+      </span>
       <AttrTableButton
         open={tableOpen}
         onClick={handleTableToggle}

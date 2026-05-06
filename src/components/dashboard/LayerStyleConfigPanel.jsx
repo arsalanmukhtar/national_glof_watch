@@ -16,8 +16,11 @@ import {
   useRegionLayers,
 } from '@/contexts/RegionLayersContext';
 import { useSecondary } from '@/contexts/SecondaryContext';
+import { useRasters } from '@/contexts/RasterContext';
+import TruncateLabel from '@/components/ui/TruncateLabel';
 import { fetchGeoJson, regionLayerGeometry, regionLayerUrl, secondaryLayerUrl } from '@/config/layerSources';
 import { effectiveStyle } from '@/utils/layerStyle';
+import { colormapCssGradient, listColormaps } from '@/utils/rasterRender';
 import {
   CATEGORICAL_PALETTES,
   COLOR_RAMPS,
@@ -53,6 +56,7 @@ function useLayerRegistry() {
     uploads,
     dbLayers,
   } = useSecondary();
+  const { groups: rasterGroups } = useRasters();
 
   return useMemo(() => {
     const groups = [];
@@ -113,8 +117,22 @@ function useLayerRegistry() {
       });
     }
 
+    if (rasterGroups.length) {
+      groups.push({
+        name: 'Rasters',
+        items: rasterGroups.map((g) => ({
+          id: g.id,
+          group: 'Rasters',
+          regionLabel: g.kind === 'temporal' ? 'Temporal' : 'Single',
+          layerLabel: g.name,
+          geometry: 'raster',
+          visible: g.visible,
+        })),
+      });
+    }
+
     return groups;
-  }, [regionVisible, secondaryLayers, secondaryVisible, uploads, dbLayers]);
+  }, [regionVisible, secondaryLayers, secondaryVisible, uploads, dbLayers, rasterGroups]);
 }
 
 function flatten(groups) {
@@ -582,7 +600,13 @@ function NumberSlider({ value, onChange, min, max, step = 1, format = (v) => v }
 
 function GeometryGlyph({ geometry, className }) {
   const Icon =
-    geometry === 'point' ? CircleDot : geometry === 'line' ? Slash : Square;
+    geometry === 'point'
+      ? CircleDot
+      : geometry === 'line'
+        ? Slash
+        : geometry === 'raster'
+          ? LayersIcon
+          : Square;
   return <Icon className={className} aria-hidden />;
 }
 
@@ -1240,15 +1264,14 @@ function LayerSelector({ groups, selectedId, onSelect }) {
           {selected ? (
             <>
               <GeometryGlyph geometry={selected.geometry} className="h-3.5 w-3.5 shrink-0 text-[#16a085]" />
-              <span className="flex-1 min-w-0 truncate">
-                {selected.regionLabel ? (
-                  <>
-                    <span className="text-day-muted dark:text-night-muted">{selected.regionLabel} · </span>
-                    {selected.layerLabel}
-                  </>
-                ) : (
-                  selected.layerLabel
-                )}
+              <span className="flex-1 min-w-0">
+                <TruncateLabel
+                  text={
+                    selected.regionLabel
+                      ? `${selected.regionLabel} · ${selected.layerLabel}`
+                      : selected.layerLabel
+                  }
+                />
               </span>
             </>
           ) : (
@@ -1295,13 +1318,14 @@ function LayerSelector({ groups, selectedId, onSelect }) {
                           className={cn('h-3 w-3 shrink-0',
                             item.visible ? 'text-[#16a085]' : 'text-day-muted dark:text-night-muted')}
                         />
-                        <span className="flex-1 min-w-0 truncate">
-                          {item.regionLabel ? (
-                            <>
-                              <span className="text-day-muted dark:text-night-muted">{item.regionLabel} · </span>
-                              {item.layerLabel}
-                            </>
-                          ) : item.layerLabel}
+                        <span className="flex-1 min-w-0">
+                          <TruncateLabel
+                            text={
+                              item.regionLabel
+                                ? `${item.regionLabel} · ${item.layerLabel}`
+                                : item.layerLabel
+                            }
+                          />
                         </span>
                         {!item.visible && (
                           <span className="text-[9px] uppercase tracking-wider text-day-muted/70 dark:text-night-muted/70">hidden</span>
@@ -1321,6 +1345,257 @@ function LayerSelector({ groups, selectedId, onSelect }) {
 }
 
 // ===========================================================================
+// Raster style form — colormap + opacity + min/max stretch.
+// ===========================================================================
+
+function RasterStyleForm({ groups, selectedId, onSelect }) {
+  const { groups: rasterGroups, setGroupStyle } = useRasters();
+  const group = rasterGroups.find((g) => g.id === selectedId);
+  if (!group) {
+    // Selected layer was a raster but is no longer present — surface a
+    // soft state instead of crashing the panel.
+    return (
+      <div className="flex flex-col h-full -mx-3 -my-3">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-3 pb-3 flex flex-col gap-2.5">
+          <LayerSelector groups={groups} selectedId={selectedId} onSelect={onSelect} />
+        </div>
+      </div>
+    );
+  }
+
+  const style = group.style ?? {};
+  const setStyle = (partial) => setGroupStyle(group.id, partial);
+  const colormaps = listColormaps();
+  const auto = style.autoStretch !== false;
+  const dataMin = group.dataStats?.dataMin;
+  const dataMax = group.dataStats?.dataMax;
+  // Pre-fill manual inputs from the data range if user-provided values
+  // aren't set yet (typical when toggling auto → manual).
+  const minVal = style.min ?? (Number.isFinite(dataMin) ? dataMin : '');
+  const maxVal = style.max ?? (Number.isFinite(dataMax) ? dataMax : '');
+
+  return (
+    <div className="flex flex-col h-full -mx-3 -my-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-3 pb-3 flex flex-col gap-3.5">
+        <LayerSelector groups={groups} selectedId={selectedId} onSelect={onSelect} />
+
+        <Section title="Colormap">
+          <Field label="Preset">
+            <ColormapDropdown
+              options={colormaps}
+              value={style.colormap || 'viridis'}
+              onChange={(id) => setStyle({ colormap: id })}
+            />
+          </Field>
+        </Section>
+
+        <Section title="Range">
+          <Field label="Stretch">
+            <div className="inline-flex w-full rounded-md border border-day-border dark:border-night-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setStyle({ autoStretch: true })}
+                className={cn(
+                  'flex-1 px-2 py-1 text-[11px] transition-colors',
+                  auto
+                    ? 'bg-[#16a085] text-white'
+                    : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+                )}
+              >
+                Auto
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setStyle({
+                    autoStretch: false,
+                    min: Number.isFinite(dataMin) ? dataMin : 0,
+                    max: Number.isFinite(dataMax) ? dataMax : 1,
+                  })
+                }
+                className={cn(
+                  'flex-1 px-2 py-1 text-[11px] transition-colors border-l border-day-border dark:border-night-border',
+                  !auto
+                    ? 'bg-[#16a085] text-white'
+                    : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+                )}
+              >
+                Manual
+              </button>
+            </div>
+          </Field>
+          <Field label="Min">
+            <input
+              type="number"
+              value={auto ? '' : minVal}
+              placeholder={Number.isFinite(dataMin) ? String(dataMin) : '—'}
+              disabled={auto}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                setStyle({ min: Number.isFinite(n) ? n : null });
+              }}
+              className="w-full rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[11px] px-2 py-1 text-day-text dark:text-night-text disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+            />
+          </Field>
+          <Field label="Max">
+            <input
+              type="number"
+              value={auto ? '' : maxVal}
+              placeholder={Number.isFinite(dataMax) ? String(dataMax) : '—'}
+              disabled={auto}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                setStyle({ max: Number.isFinite(n) ? n : null });
+              }}
+              className="w-full rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[11px] px-2 py-1 text-day-text dark:text-night-text disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+            />
+          </Field>
+          {auto && (Number.isFinite(dataMin) || Number.isFinite(dataMax)) ? (
+            <p className="text-[10px] text-day-muted dark:text-night-muted px-1">
+              Auto stretch ·{' '}
+              <span className="tabular-nums text-day-text dark:text-night-text">
+                {Number.isFinite(dataMin) ? niceNumber(dataMin) : '—'}
+              </span>{' '}
+              →{' '}
+              <span className="tabular-nums text-day-text dark:text-night-text">
+                {Number.isFinite(dataMax) ? niceNumber(dataMax) : '—'}
+              </span>
+            </p>
+          ) : null}
+        </Section>
+
+        <Section title="Appearance">
+          <Field label="Opacity">
+            <NumberSlider
+              value={style.opacity ?? 1}
+              onChange={(v) => setStyle({ opacity: v })}
+              min={0}
+              max={1}
+              step={0.05}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+          </Field>
+        </Section>
+      </div>
+
+      <div className="shrink-0 flex items-center justify-between border-t border-day-border dark:border-night-border bg-white dark:bg-night-surface px-3 py-2.5">
+        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+          <GeometryGlyph geometry="raster" className="h-3 w-3 text-[#16a085]" />
+          raster {group.kind === 'temporal' ? 'series' : 'layer'}
+        </span>
+        <button
+          type="button"
+          onClick={() =>
+            setGroupStyle(group.id, {
+              colormap: 'viridis',
+              opacity: 1,
+              autoStretch: true,
+              min: null,
+              max: null,
+            })
+          }
+          className="inline-flex items-center gap-1 text-[11px] text-day-muted dark:text-night-muted hover:text-[#16a085] transition-colors"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Reset
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Compact preview-swatch-and-label dropdown for picking the active
+// colormap. Rendered with the same Listbox primitive the vector
+// AttributePicker uses so the visual style matches.
+function ColormapDropdown({ options, value, onChange }) {
+  const current = options.find((o) => o.id === value) ?? options[0];
+  // Group options by category, preserving the order from listColormaps.
+  const grouped = [];
+  const groupIndex = new Map();
+  for (const o of options) {
+    const cat = o.category || 'Other';
+    if (!groupIndex.has(cat)) {
+      groupIndex.set(cat, grouped.length);
+      grouped.push({ category: cat, items: [] });
+    }
+    grouped[groupIndex.get(cat)].items.push(o);
+  }
+  return (
+    <Listbox value={value} onChange={onChange}>
+      <div className="relative w-full">
+        <Listbox.Button className="w-full inline-flex items-center gap-2 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-2 py-1 text-[11px] text-day-text dark:text-night-text hover:border-[#16a085]/60 transition-colors">
+          <ColormapPreview id={current.id} className="h-3 w-12 shrink-0 rounded" />
+          <span className="flex-1 text-left truncate">{current.label}</span>
+          <ChevronDown className="h-3 w-3 text-day-muted dark:text-night-muted" />
+        </Listbox.Button>
+        <Transition
+          as={Fragment}
+          leave="transition ease-in duration-75"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <Listbox.Options className="absolute z-30 mt-1 w-full rounded-md border border-day-border dark:border-night-border bg-white dark:bg-night-surface shadow-lg max-h-72 overflow-y-auto">
+            {grouped.map((g) => (
+              <div key={g.category}>
+                <div className="px-2 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+                  {g.category}
+                </div>
+                {g.items.map((o) => (
+                  <Listbox.Option
+                    key={o.id}
+                    value={o.id}
+                    className={({ active }) =>
+                      cn(
+                        'flex items-center gap-2 px-2 py-1 text-[11px] cursor-pointer',
+                        active
+                          ? 'bg-[#16a085]/10 text-[#16a085]'
+                          : 'text-day-text dark:text-night-text',
+                      )
+                    }
+                  >
+                    {({ selected: isSel }) => (
+                      <>
+                        <ColormapPreview id={o.id} className="h-3 w-12 shrink-0 rounded" />
+                        <span className="flex-1 truncate">{o.label}</span>
+                        {isSel ? <Check className="h-3 w-3 text-[#16a085]" /> : null}
+                      </>
+                    )}
+                  </Listbox.Option>
+                ))}
+              </div>
+            ))}
+          </Listbox.Options>
+        </Transition>
+      </div>
+    </Listbox>
+  );
+}
+
+// CSS-only horizontal gradient previewing each colormap. Derived from
+// the LUT in `rasterRender.js` so a new colormap shows up here for
+// free.
+function ColormapPreview({ id, className }) {
+  return (
+    <span
+      aria-hidden
+      className={className}
+      style={{ backgroundImage: colormapCssGradient(id) }}
+    />
+  );
+}
+
+// Trim trailing zeros so "192.000" reads as "192", but keep meaningful
+// decimal places on small floats ("0.0042" stays "0.0042").
+function niceNumber(n) {
+  if (!Number.isFinite(n)) return '—';
+  const abs = Math.abs(n);
+  if (abs === 0) return '0';
+  if (abs >= 100) return Math.round(n).toString();
+  if (abs >= 1) return Number(n.toFixed(2)).toString();
+  return Number(n.toPrecision(3)).toString();
+}
+
+// ===========================================================================
 // Main panel
 // ===========================================================================
 
@@ -1335,10 +1610,15 @@ export default function LayerStyleConfigPanel() {
   }, [flat, selectedId]);
 
   const selected = flat.find((l) => l.id === selectedId) ?? null;
-  const { data, attrs, loading } = useLayerData(selected);
+  const isRaster = selected?.geometry === 'raster';
+  // Vector layer data only — rasters don't carry per-feature attributes.
+  const { data, attrs, loading } = useLayerData(isRaster ? null : selected);
 
   const { styles, setLayerStyle, resetLayerStyle } = useSecondary();
-  const style = selected ? effectiveStyle(selected.id, selected.geometry, styles[selected.id]) : null;
+  const style =
+    selected && !isRaster
+      ? effectiveStyle(selected.id, selected.geometry, styles[selected.id])
+      : null;
 
   const setStyle = (partial) => {
     if (!selected) return;
@@ -1397,6 +1677,19 @@ export default function LayerStyleConfigPanel() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  // Rasters live in their own context with a tiny style schema (colormap
+  // + opacity + min/max), so they get a dedicated form. Returning here
+  // keeps the vector-property block below untouched.
+  if (isRaster) {
+    return (
+      <RasterStyleForm
+        groups={groups}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+      />
     );
   }
 

@@ -28,6 +28,7 @@ import Badge from '@/components/ui/Badge';
 import ConnectDatabaseModal from '@/components/dashboard/ConnectDatabaseModal';
 import BrowseDatabaseModal from '@/components/dashboard/BrowseDatabaseModal';
 import Tooltip from '@/components/ui/Tooltip';
+import TruncateLabel from '@/components/ui/TruncateLabel';
 import { cn } from '@/utils/cn';
 import { useSecondary } from '@/contexts/SecondaryContext';
 import { useMapView } from '@/contexts/MapContext';
@@ -338,8 +339,11 @@ function LayerRow({
     >
       <div className="flex items-center gap-1 px-2 py-1.5">
         <Icon className="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-200" />
-        <span className="flex-1 truncate text-[13px] text-day-text dark:text-night-text">
-          {label}
+        <span className="flex-1 min-w-0">
+          <TruncateLabel
+            text={label}
+            className="text-[13px] text-day-text dark:text-night-text"
+          />
         </span>
         {canRemove && (
           <button

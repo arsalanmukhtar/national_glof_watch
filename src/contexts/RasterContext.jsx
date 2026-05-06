@@ -185,12 +185,65 @@ export function RasterProvider({ children }) {
           visible: true,
           activeIndex: 0,
           layers: ordered,
+          // Symbology — picked up by RasterMapRenderer + LayerStyleConfigPanel.
+          // colormap: ID into COLORMAPS in rasterRender.js
+          // opacity: 0..1 (applied as Mapbox raster-opacity)
+          // autoStretch: true → use the data's own min/max; false → user-set
+          style: {
+            colormap: 'viridis',
+            opacity: 1,
+            autoStretch: true,
+            min: null,
+            max: null,
+          },
+          // Filled in by the renderer once the active frame decodes —
+          // surfaced to the styling panel so the user sees what the auto
+          // stretch is using.
+          dataStats: null,
         },
       ];
     });
     setActiveGroupId(id);
     return id;
   }, [available]);
+
+  // Convenience for the styling panel — partial-merges `style` so callers
+  // can pass `{ colormap: 'terrain' }` without re-stating the rest.
+  const setGroupStyle = useCallback((id, partial) => {
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id === id ? { ...g, style: { ...g.style, ...partial } } : g,
+      ),
+    );
+  }, []);
+
+  // Renderer reports the decoded raster's actual min/max so the panel
+  // can pre-fill the manual inputs.
+  const setGroupDataStats = useCallback((id, stats) => {
+    setGroups((prev) =>
+      prev.map((g) => (g.id === id ? { ...g, dataStats: stats } : g)),
+    );
+  }, []);
+
+  // Bounds get cached on the individual layer so the zoom-to-extent
+  // button can fly straight there without re-fetching. The renderer
+  // pushes these after each decode; the panel can also push directly
+  // via the bounds-only fetch when the user clicks zoom on a never-
+  // rendered raster.
+  const setLayerBounds = useCallback((groupId, layerName, bounds) => {
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.id !== groupId
+          ? g
+          : {
+              ...g,
+              layers: g.layers.map((l) =>
+                l.name === layerName ? { ...l, bounds } : l,
+              ),
+            },
+      ),
+    );
+  }, []);
 
   const removeGroup = useCallback((id) => {
     setGroups((prev) => prev.filter((g) => g.id !== id));
@@ -243,6 +296,9 @@ export function RasterProvider({ children }) {
       addGroup,
       removeGroup,
       updateGroup,
+      setGroupStyle,
+      setGroupDataStats,
+      setLayerBounds,
       toggleVisible,
       setActiveFrame,
       usedNames,
@@ -258,6 +314,9 @@ export function RasterProvider({ children }) {
       addGroup,
       removeGroup,
       updateGroup,
+      setGroupStyle,
+      setGroupDataStats,
+      setLayerBounds,
       toggleVisible,
       setActiveFrame,
       usedNames,

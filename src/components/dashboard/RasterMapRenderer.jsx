@@ -7,36 +7,68 @@ import { fetchAndDecodeRaster } from '@/utils/rasterRender';
 // RasterMapRenderer — bridges `RasterContext.groups` and Mapbox.
 //
 // One Mapbox `image` source + `raster` layer per visible group. The
-// active frame's filename governs which raster ends up in the source;
-// switching frames triggers a fresh decode + `setCoordinates` /
-// `updateImage`. Hidden groups have their layer's `visibility` flipped
-// to `none` (cheaper than tearing down + re-adding when the user toggles
-// quickly).
+// active frame's filename + symbology hash governs which decoded image
+// ends up in the source; switching frames or changing the colormap /
+// stretch triggers a fresh decode + `updateImage`. Hidden groups have
+// their layer's `visibility` flipped to `none` (cheaper than tearing
+// down + re-adding when the user toggles quickly).
 //
-// Decode cache is keyed by filename so toggling between two recently
-// rendered frames is instant (no re-fetch, no re-decode).
+// Decode cache key includes the symbology so toggling between two
+// colormaps re-uses an earlier render rather than re-decoding the TIFF.
+// Opacity is applied as `raster-opacity` paint — no decode needed.
 // ---------------------------------------------------------------------------
 
 const SOURCE_PREFIX = 'raster-group-src-';
 const LAYER_PREFIX  = 'raster-group-lyr-';
 
+// What goes into the cache key. Anything that affects decoded pixels
+// must be here; anything we can update via paint properties must NOT.
+function symbologyKey(style) {
+  if (!style) return '|';
+  const auto = style.autoStretch !== false;
+  const min = auto ? 'auto' : style.min ?? 'auto';
+  const max = auto ? 'auto' : style.max ?? 'auto';
+  return `${style.colormap || 'viridis'}|${min}|${max}`;
+}
+
+function frameKey(name, style) {
+  return `${name}|${symbologyKey(style)}`;
+}
+
+// Cheap deep-equal for the 4-corner bounds shape. Avoids repeatedly
+// firing setLayerBounds with the same value (which would otherwise
+// retrigger the reconcile effect).
+function sameBounds(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const av = a[i];
+    const bv = b[i];
+    if (!av || !bv) return false;
+    if (av[0] !== bv[0] || av[1] !== bv[1]) return false;
+  }
+  return true;
+}
+
 export default function RasterMapRenderer() {
   const { map } = useMapView();
-  const { groups } = useRasters();
+  const { groups, setGroupDataStats, setLayerBounds } = useRasters();
 
   // Per-group reconciliation state. Lives in a ref so it survives
   // re-renders without leaking into the React render cycle.
   //
   // shape: Map<groupId, {
-  //   currentFrame:  string | null,   // filename currently on the map
-  //   inFlightFrame: string | null,   // one we're decoding right now
-  //   visible:       boolean,
+  //   currentKey:   string | null,  // frameKey on the map right now
+  //   inFlightKey:  string | null,  // one we're decoding
+  //   visible:      boolean,
+  //   opacity:      number,         // last applied opacity
   // }>
   const groupStateRef = useRef(new Map());
 
-  // filename → decoded payload cache. LRU-ish: bounded by
+  // frameKey → decoded payload cache. LRU-ish: bounded by
   // CACHE_LIMIT to keep memory under control if a user scrubs through a
-  // long temporal series.
+  // long temporal series or toggles between several colormaps.
   const decodeCacheRef = useRef(new Map());
   const CACHE_LIMIT = 12;
 
@@ -44,31 +76,29 @@ export default function RasterMapRenderer() {
     if (!map) return;
     let cancelled = false;
 
-    const cacheGet = (name) => {
+    const cacheGet = (key) => {
       const cache = decodeCacheRef.current;
-      if (!cache.has(name)) return null;
-      // Move to end → most recently used
-      const v = cache.get(name);
-      cache.delete(name);
-      cache.set(name, v);
+      if (!cache.has(key)) return null;
+      // Move to end → most recently used.
+      const v = cache.get(key);
+      cache.delete(key);
+      cache.set(key, v);
       return v;
     };
-    const cacheSet = (name, value) => {
+    const cacheSet = (key, value) => {
       const cache = decodeCacheRef.current;
-      cache.set(name, value);
+      cache.set(key, value);
       while (cache.size > CACHE_LIMIT) {
         const firstKey = cache.keys().next().value;
         cache.delete(firstKey);
       }
     };
 
-    const ensureSourceLayer = (groupId, payload) => {
+    const ensureSourceLayer = (groupId, payload, opacity) => {
       const sourceId = SOURCE_PREFIX + groupId;
       const layerId  = LAYER_PREFIX  + groupId;
       const exists = map.getSource(sourceId);
       if (exists) {
-        // updateImage may not exist on older versions of mapbox-gl; fall
-        // back to a remove + re-add cycle.
         if (typeof exists.updateImage === 'function') {
           exists.updateImage({
             url: payload.dataUrl,
@@ -89,8 +119,12 @@ export default function RasterMapRenderer() {
             paint: {
               'raster-resampling': 'nearest',
               'raster-fade-duration': 0,
+              'raster-opacity': opacity,
             },
           });
+        }
+        if (map.getLayer(layerId)) {
+          map.setPaintProperty(layerId, 'raster-opacity', opacity);
         }
         return;
       }
@@ -106,6 +140,7 @@ export default function RasterMapRenderer() {
         paint: {
           'raster-resampling': 'nearest',
           'raster-fade-duration': 0,
+          'raster-opacity': opacity,
         },
       });
     };
@@ -128,6 +163,12 @@ export default function RasterMapRenderer() {
       );
     };
 
+    const setOpacity = (groupId, opacity) => {
+      const layerId = LAYER_PREFIX + groupId;
+      if (!map.getLayer(layerId)) return;
+      map.setPaintProperty(layerId, 'raster-opacity', opacity);
+    };
+
     const reconcile = async () => {
       // 1. Drop renderer-side state for groups that no longer exist.
       const liveIds = new Set(groups.map((g) => g.id));
@@ -135,74 +176,82 @@ export default function RasterMapRenderer() {
         if (!liveIds.has(id)) removeGroup(id);
       }
 
-      // 2. For each group, ensure the right frame is on the map.
+      // 2. For each group, ensure the right frame + symbology is on the map.
       for (const g of groups) {
         const layer = g.layers[g.activeIndex] ?? g.layers[0];
         if (!layer) continue;
-        const desired = layer.name;
+        const desiredKey = frameKey(layer.name, g.style);
+        const opacity = g.style?.opacity ?? 1;
+        const auto = g.style?.autoStretch !== false;
 
         const state =
           groupStateRef.current.get(g.id) ?? {
-            currentFrame: null,
-            inFlightFrame: null,
+            currentKey: null,
+            inFlightKey: null,
             visible: g.visible,
+            opacity,
           };
 
-        // Toggle visibility cheaply — no decode needed.
-        if (state.visible !== g.visible && state.currentFrame === desired) {
-          setVisible(g.id, g.visible);
-          state.visible = g.visible;
-          groupStateRef.current.set(g.id, state);
-          continue;
-        }
-        if (!g.visible && state.currentFrame === desired) {
-          setVisible(g.id, false);
-          state.visible = false;
-          groupStateRef.current.set(g.id, state);
-          continue;
-        }
-
-        // Already showing the right frame? Just ensure visibility is right.
-        if (state.currentFrame === desired) {
-          setVisible(g.id, g.visible);
-          state.visible = g.visible;
+        // Cheap path — same frame + symbology, just visibility / opacity changed.
+        if (state.currentKey === desiredKey) {
+          if (state.visible !== g.visible) {
+            setVisible(g.id, g.visible);
+            state.visible = g.visible;
+          }
+          if (state.opacity !== opacity) {
+            setOpacity(g.id, opacity);
+            state.opacity = opacity;
+          }
           groupStateRef.current.set(g.id, state);
           continue;
         }
 
-        // Already loading this frame? Skip — the in-flight request will
-        // finish and reconcile then.
-        if (state.inFlightFrame === desired) {
-          continue;
-        }
+        // Already loading this exact key? Let the in-flight settle.
+        if (state.inFlightKey === desiredKey) continue;
 
-        state.inFlightFrame = desired;
+        state.inFlightKey = desiredKey;
         groupStateRef.current.set(g.id, state);
 
         try {
-          let payload = cacheGet(desired);
+          let payload = cacheGet(desiredKey);
           if (!payload) {
-            payload = await fetchAndDecodeRaster(desired);
-            cacheSet(desired, payload);
+            payload = await fetchAndDecodeRaster(layer.name, {
+              colormap: g.style?.colormap,
+              styleMin: auto ? null : g.style?.min,
+              styleMax: auto ? null : g.style?.max,
+            });
+            cacheSet(desiredKey, payload);
           }
           if (cancelled) return;
-          // Group might've been removed mid-decode.
-          if (!groupStateRef.current.has(g.id) && state.currentFrame == null) {
-            // recreate state record
-          }
-          ensureSourceLayer(g.id, payload);
+          ensureSourceLayer(g.id, payload, opacity);
           setVisible(g.id, g.visible);
-          state.currentFrame = desired;
-          state.inFlightFrame = null;
+          state.currentKey = desiredKey;
+          state.inFlightKey = null;
           state.visible = g.visible;
+          state.opacity = opacity;
           groupStateRef.current.set(g.id, state);
+          // Surface the actual data range to the styling panel so the
+          // manual min/max inputs can pre-fill with sensible numbers.
+          if (
+            payload.stats &&
+            (g.dataStats?.dataMin !== payload.stats.dataMin ||
+              g.dataStats?.dataMax !== payload.stats.dataMax)
+          ) {
+            setGroupDataStats(g.id, {
+              dataMin: payload.stats.dataMin,
+              dataMax: payload.stats.dataMax,
+            });
+          }
+          // Cache the layer's bounds so the zoom-to-extent button can
+          // fly straight there without re-fetching the TIFF.
+          if (payload.bounds && !sameBounds(layer.bounds, payload.bounds)) {
+            setLayerBounds(g.id, layer.name, payload.bounds);
+          }
         } catch (err) {
-          // Surface the error so the user can see WHY it didn't render.
-          // Don't tear down state — let them retry by toggling.
           console.warn(
-            `Raster render failed for "${desired}": ${err.message}`,
+            `Raster render failed for "${layer.name}": ${err.message}`,
           );
-          state.inFlightFrame = null;
+          state.inFlightKey = null;
           groupStateRef.current.set(g.id, state);
         }
       }
@@ -212,14 +261,12 @@ export default function RasterMapRenderer() {
     return () => {
       cancelled = true;
     };
-  }, [map, groups]);
+  }, [map, groups, setGroupDataStats, setLayerBounds]);
 
   // Tear everything down on unmount (e.g. navigating away from the
   // dashboard) so we don't leave orphaned sources behind.
   useEffect(() => {
     if (!map) return undefined;
-    // Snapshot the ref so the cleanup closure doesn't read a possibly-
-    // stale `current` (the lint rule's concern).
     const stateMap = groupStateRef.current;
     return () => {
       for (const id of [...stateMap.keys()]) {
