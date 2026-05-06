@@ -390,27 +390,29 @@ function ColorButton({ value, onChange, ariaLabel, allowNone = false }) {
 }
 
 function FullColorPicker({ value, onChange, allowNone, onClear }) {
-  const rgb = hexToRgb(value);
+  // Strip any hex8 alpha down to hex6 — opacity is owned by the layer's
+  // dedicated Opacity field, not by the color picker.
+  const value6 = (value || '').slice(0, 7);
+  const rgb = hexToRgb(value6);
   const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
   const [h, setH] = useState(hsv.h);
   const [s, setS] = useState(hsv.s);
   const [v, setV] = useState(hsv.v);
-  const [a, setA] = useState(rgb.a);
-  const [hex, setHex] = useState(value);
+  const [hex, setHex] = useState(value6);
 
   // Re-sync when external value changes (e.g. preset click via grid).
   useEffect(() => {
-    if (value && value.toLowerCase() !== hex.toLowerCase()) {
-      const r = hexToRgb(value);
+    if (value6 && value6.toLowerCase() !== hex.toLowerCase()) {
+      const r = hexToRgb(value6);
       const o = rgbToHsv(r.r, r.g, r.b);
-      setH(o.h); setS(o.s); setV(o.v); setA(r.a);
-      setHex(value);
+      setH(o.h); setS(o.s); setV(o.v);
+      setHex(value6);
     }
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [value6]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const emit = (h_, s_, v_, a_) => {
+  const emit = (h_, s_, v_) => {
     const { r, g, b } = hsvToRgb(h_, s_, v_);
-    const next = rgbToHex(r, g, b, a_);
+    const next = rgbToHex(r, g, b);
     setHex(next);
     onChange(next);
   };
@@ -425,7 +427,7 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
     const ns = x;
     const nv = 1 - y;
     setS(ns); setV(nv);
-    emit(h, ns, nv, a);
+    emit(h, ns, nv);
   };
   const onSvMouseDown = (e) => {
     draggingSv.current = true;
@@ -445,26 +447,13 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
     try {
       const ed = new window.EyeDropper();
       const res = await ed.open();
-      // Eyedropper returns 6-char hex; preserve the user's current alpha.
-      const r = hexToRgb(res.sRGBHex);
-      const next = rgbToHex(r.r, r.g, r.b, a);
-      onChange(next);
+      onChange(res.sRGBHex);
     } catch { /* canceled */ }
   };
 
-  // When clicking a preset, re-paint it with the current alpha so the user
-  // doesn't lose their opacity choice every time they pick a new hue.
   const pickPreset = (c) => {
-    const r = hexToRgb(c);
-    const next = rgbToHex(r.r, r.g, r.b, a);
-    onChange(next);
+    onChange(c);
   };
-
-  // SV square gets a hue-tinted background. The preview swatch + opacity
-  // slider thumb need a checkerboard so transparency reads visually.
-  const checker = `
-    repeating-conic-gradient(#cbd5e1 0% 25%, #ffffff 0% 50%) 0 0 / 8px 8px
-  `;
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -489,7 +478,7 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
                 aria-label={c}
                 className={cn(
                   'h-5 w-5 rounded-sm border transition-transform hover:scale-110',
-                  (value || '').slice(0, 7).toLowerCase() === c.toLowerCase()
+                  value6.toLowerCase() === c.toLowerCase()
                     ? 'border-[#16a085] ring-2 ring-[#16a085]/30'
                     : 'border-black/10 dark:border-white/10',
                 )}
@@ -508,11 +497,7 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
           onChange={(e) => {
             const v_ = e.target.value;
             setHex(v_);
-            if (isHex(v_)) {
-              const r = hexToRgb(v_);
-              setA(r.a);
-              onChange(v_);
-            }
+            if (isHex(v_)) onChange(v_.slice(0, 7));
           }}
           spellCheck={false}
           className={cn(
@@ -524,39 +509,6 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
           )}
         />
         <span className="text-[11px] text-day-muted dark:text-night-muted">Hex</span>
-      </div>
-
-      {/* Opacity slider — controls per-color alpha. Stored as hex8 when < 100%. */}
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] text-day-muted dark:text-night-muted w-12">Opacity</span>
-        <div className="relative flex-1 h-4">
-          <span
-            className="absolute inset-y-1.5 inset-x-0 rounded-full"
-            style={{ background: checker }}
-          />
-          <span
-            className="absolute inset-y-1.5 inset-x-0 rounded-full"
-            style={{
-              background: `linear-gradient(to right, ${rgbToHex(rgb.r, rgb.g, rgb.b, 0).slice(0, 7)}00, ${rgbToHex(rgb.r, rgb.g, rgb.b)})`,
-            }}
-          />
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={a}
-            onChange={(e) => {
-              const na = Number(e.target.value);
-              setA(na);
-              emit(h, s, v, na);
-            }}
-            className="absolute inset-0 w-full h-full appearance-none bg-transparent accent-[#16a085] cursor-pointer"
-          />
-        </div>
-        <span className="w-10 text-right tabular-nums text-[11px] text-day-text dark:text-night-text">
-          {Math.round(a * 100)}%
-        </span>
       </div>
 
       {/* SV square */}
@@ -592,7 +544,7 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
           onChange={(e) => {
             const nh = Number(e.target.value);
             setH(nh);
-            emit(nh, s, v, a);
+            emit(nh, s, v);
           }}
           className="flex-1 h-2 rounded-full appearance-none cursor-pointer"
           style={{
