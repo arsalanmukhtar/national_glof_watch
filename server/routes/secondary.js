@@ -8,7 +8,6 @@ import { pool } from '../lib/db.js';
 const ALLOWED_LAYERS = new Set([
   'national_boundary',
   'provincial_boundary',
-  'district_boundary',
   'akah_infrastructure',
   'akah_hazard_exposure',
   'all_stations',

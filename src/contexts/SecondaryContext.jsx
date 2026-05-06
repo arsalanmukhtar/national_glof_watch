@@ -13,7 +13,12 @@ import {
 export const SECONDARY_LAYERS = [
   { id: 'national_boundary',     label: 'National Boundary',     geometry: 'polygon', table: 'secondary.national_boundary' },
   { id: 'provincial_boundary',   label: 'Provincial Boundary',   geometry: 'polygon', table: 'secondary.provincial_boundary' },
-  { id: 'district_boundary',     label: 'Northern Districts',    geometry: 'polygon', table: 'secondary.district_boundary' },
+  // GLOF reference layers — fetched live from PMD's GIS host via the
+  // /api/gis proxy. No local table backing them.
+  { id: 'glof_districts',        label: 'GLOF Districts',        geometry: 'polygon', table: null },
+  { id: 'glof_basins',           label: 'GLOF Basins',           geometry: 'polygon', table: null },
+  { id: 'glof_lakes',            label: 'GLOF Lakes',            geometry: 'polygon', table: null },
+  { id: 'glof_valley',           label: 'GLOF Valley',           geometry: 'polygon', table: null },
   { id: 'akah_infrastructure',   label: 'AKAH Infrastructure',   geometry: 'point',   table: 'secondary.akah_infrastructure' },
   { id: 'akah_hazard_exposure',  label: 'AKAH Hazard Exposure',  geometry: 'polygon', table: 'secondary.akah_hazard_exposure' },
   { id: 'all_stations',          label: 'All Stations',          geometry: 'point',   table: 'secondary.all_stations' },

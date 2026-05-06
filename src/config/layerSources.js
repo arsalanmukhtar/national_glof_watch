@@ -4,9 +4,9 @@
 // gives us URL strings at build time without inlining the JSON contents.
 //
 // The district-boundary file is excluded from this glob: at 642 MB it
-// blows past Vite's dev-server streaming limits, and the client now
-// loads that layer from `/api/secondary/district_boundary` (PostGIS-
-// backed) — see SECONDARY_API_LAYERS below.
+// blows past Vite's dev-server streaming limits, and Northern Districts
+// has been replaced by the GLOF Districts layer fetched live from PMD
+// (see SECONDARY_GIS_LAYERS below).
 const GEOJSON_URLS = import.meta.glob(
   [
     '../../data/geojsons/**/*.geojson',
@@ -15,10 +15,20 @@ const GEOJSON_URLS = import.meta.glob(
   { query: '?url', import: 'default', eager: true },
 );
 
-// Layer ids that are served by the Express backend instead of being
-// bundled as static assets. Keep this set tight — files we can ship as
-// static assets remain faster (no DB hop, browser-cacheable, hashed).
-const SECONDARY_API_LAYERS = new Set(['district_boundary']);
+// Layer ids served by the Express PostGIS-backed `/api/secondary/...`
+// route instead of bundled static assets. Currently empty — Northern
+// Districts moved to the live GIS proxy below.
+const SECONDARY_API_LAYERS = new Set();
+
+// Layer ids served by the Express PMD GIS proxy `/api/gis/:layer`
+// (see server/routes/gis.js). These are fetched live from PMD on first
+// toggle and cached server-side.
+const SECONDARY_GIS_LAYERS = new Set([
+  'glof_districts',
+  'glof_basins',
+  'glof_lakes',
+  'glof_valley',
+]);
 
 // Resolve a relative path (e.g. "badswat/badswat_lake.geojson") to the
 // Vite-hashed URL emitted into the build output. Returns null when the
@@ -140,7 +150,6 @@ const REGION_FILES = {
 const SECONDARY_FILES = {
   national_boundary:    'administrative_boundaries/pak_boundaries_national_boundary.geojson',
   provincial_boundary:  'administrative_boundaries/pak_boundaries_provincial_boundary.geojson',
-  district_boundary:    'administrative_boundaries/pak_boundaries_district_boundary_updated.geojson',
   akah_infrastructure:  'akah/glof_akahp_infrastructure_data_final.geojson',
   akah_hazard_exposure: 'akah/glof_akahp_hazardexposure_final.geojson',
   all_stations:         'all_stations/glof_stations.geojson',
@@ -161,6 +170,9 @@ export function regionLayerUrl(regionId, layerKey) {
 }
 
 export function secondaryLayerUrl(layerId) {
+  if (SECONDARY_GIS_LAYERS.has(layerId)) {
+    return `/api/gis/${layerId}`;
+  }
   if (SECONDARY_API_LAYERS.has(layerId)) {
     return `/api/secondary/${layerId}`;
   }
