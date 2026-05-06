@@ -118,14 +118,14 @@ export function MapProvider({ children }) {
     [zoomToGeoJson, trackPromise],
   );
 
-  // The "extent" control flies the map to the Northern Districts footprint
+  // The "extent" control flies the map to the GLOF Districts footprint
   // straight from above (pitch + bearing pinned to 0). Falls back to the
   // dashboard's default Pakistan view if the districts layer isn't
   // reachable (e.g. backend down) so the button never feels broken.
   const resetView = useCallback(async () => {
     const m = mapRef.current;
     if (!m) return;
-    const url = secondaryLayerUrl('district_boundary');
+    const url = secondaryLayerUrl('glof_districts');
     if (url) {
       try {
         const data = await trackPromise(fetchGeoJson(url));
