@@ -1,4 +1,4 @@
-import { ChevronDown, Layers, MapPin, Shrink } from 'lucide-react';
+import { ChevronDown, Layers, MapPin, Shrink, TableProperties } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Accordion, { AccordionItem } from '@/components/ui/Accordion';
 import EyeToggle from '@/components/ui/EyeToggle';
@@ -8,6 +8,7 @@ import { cn } from '@/utils/cn';
 import { useMemo, useState } from 'react';
 import { useRegionLayers } from '@/contexts/RegionLayersContext';
 import { useMapView } from '@/contexts/MapContext';
+import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 
 // Mirrors the per-region tables loaded into PostGIS via
 // scripts/shell/geojson2postgis.sh — each layer string maps to one or
@@ -83,9 +84,35 @@ function ShrinkButton({ onClick, label }) {
   );
 }
 
+// Sibling to ShrinkButton — opens this layer's attribute table in the
+// chart panel's "Attributes Table" tab. Stays highlighted (#16a085 bg)
+// while its table is open so the user can see at a glance which rows
+// have an attribute view active.
+function AttrTableButton({ open, onClick, label }) {
+  return (
+    <motion.button
+      type="button"
+      whileTap={{ scale: 0.92 }}
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      aria-pressed={open}
+      className={cn(
+        'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
+        open
+          ? 'bg-[#16a085]/15 text-[#16a085]'
+          : 'text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10',
+      )}
+    >
+      <TableProperties className="h-3.5 w-3.5" aria-hidden />
+    </motion.button>
+  );
+}
+
 function LayerToggle({ regionId, name }) {
   const { isLayerVisible, toggleLayer } = useRegionLayers();
   const { zoomToRegionLayer } = useMapView();
+  const { toggleTable, isOpen } = useAttributeTables();
   const layerKey = labelToLayerKey(name);
   const on = isLayerVisible(regionId, layerKey);
   const { outline } = layerStyle(name);
@@ -99,6 +126,20 @@ function LayerToggle({ regionId, name }) {
     zoomToRegionLayer(regionId, layerKey);
   };
 
+  const tableId = `region:${regionId}:${layerKey}`;
+  const tableOpen = isOpen(tableId);
+  const regionLabel =
+    REGIONS.find((r) => r.id === regionId)?.label ?? regionId;
+  const handleTableToggle = () => {
+    toggleTable({
+      id: tableId,
+      kind: 'region',
+      regionId,
+      layerKey,
+      label: `${regionLabel} · ${name}`,
+    });
+  };
+
   return (
     <div
       className={cn(
@@ -107,6 +148,11 @@ function LayerToggle({ regionId, name }) {
       )}
     >
       <span className="text-[13px] flex-1 truncate">{name}</span>
+      <AttrTableButton
+        open={tableOpen}
+        onClick={handleTableToggle}
+        label={tableOpen ? `Close ${name} attributes` : `Open ${name} attributes`}
+      />
       <ShrinkButton
         onClick={() => zoomToRegionLayer(regionId, layerKey)}
         label={`Zoom to ${name}`}
@@ -148,6 +194,7 @@ const RISK_LEVELS = [
 function RiskZonesRow({ regionId }) {
   const { isLayerVisible, toggleLayer } = useRegionLayers();
   const { zoomToRegionLayer, zoomToRegionRiskZones } = useMapView();
+  const { toggleTable, isOpen } = useAttributeTables();
   const [open, setOpen] = useState(false);
 
   const isOn = (level) => isLayerVisible(regionId, `risk:${level}`);
@@ -156,6 +203,19 @@ function RiskZonesRow({ regionId }) {
     0,
   );
   const anyOn = activeCount > 0;
+
+  const tableId = `region:${regionId}:risk`;
+  const tableOpen = isOpen(tableId);
+  const regionLabel =
+    REGIONS.find((r) => r.id === regionId)?.label ?? regionId;
+  const handleTableToggle = () => {
+    toggleTable({
+      id: tableId,
+      kind: 'risk',
+      regionId,
+      label: `${regionLabel} · Risk Zones`,
+    });
+  };
 
   // Each level pill toggles + zooms to its own file, mirroring the
   // LayerToggle behavior so risk pills feel consistent with regular layers.
@@ -191,6 +251,11 @@ function RiskZonesRow({ regionId }) {
             </span>
           ) : null}
         </button>
+        <AttrTableButton
+          open={tableOpen}
+          onClick={handleTableToggle}
+          label={tableOpen ? 'Close risk-zone attributes' : 'Open risk-zone attributes'}
+        />
         <ShrinkButton
           onClick={() => zoomToRegionRiskZones(regionId)}
           label="Zoom to risk zones"

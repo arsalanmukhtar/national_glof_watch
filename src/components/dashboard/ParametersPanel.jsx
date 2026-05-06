@@ -5,10 +5,12 @@ import {
   CloudRain,
   Gauge,
   RefreshCw,
+  TableProperties,
   Thermometer,
   Waves,
 } from 'lucide-react';
 import { useParameter } from '@/contexts/ParameterContext';
+import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import { timeAgo } from '@/utils/timeAgo';
 import { cn } from '@/utils/cn';
 
@@ -62,6 +64,7 @@ function useTick(intervalMs = 30_000) {
 
 export default function ParametersPanel() {
   const { selected, select, statuses, refresh, refreshAll, busy } = useParameter();
+  const { toggleTable, isOpen } = useAttributeTables();
   useTick(); // re-render every 30s so the time-ago label stays fresh
 
   const targetElement = selected;
@@ -96,27 +99,62 @@ export default function ParametersPanel() {
     <div className="flex flex-col gap-1">
       {PARAMETERS.map(({ id, label, icon: Icon, on, off }) => {
         const active = selected === id;
+        const tableId = `param:${id}`;
+        const tableOpen = isOpen(tableId);
         return (
-          <motion.button
+          <div
             key={id}
-            type="button"
-            whileTap={{ scale: 0.98 }}
-            onClick={() => select(id)}
-            aria-pressed={active}
             className={cn(
-              'group flex items-center gap-2 px-2.5 py-1.5 rounded-md border text-left text-[13px] font-medium transition-colors',
+              'group flex items-stretch rounded-md border text-[13px] font-medium overflow-hidden transition-colors',
               active ? on : off,
             )}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{label}</span>
-            {active && (
-              <span
-                aria-hidden
-                className="ml-auto h-2 w-2 rounded-full bg-white shadow-sm ring-1 ring-white/40"
-              />
-            )}
-          </motion.button>
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.98 }}
+              onClick={() => select(id)}
+              aria-pressed={active}
+              className="flex-1 inline-flex items-center gap-2 px-2.5 py-1.5 text-left min-w-0"
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{label}</span>
+              {active && (
+                <span
+                  aria-hidden
+                  className="ml-auto h-2 w-2 rounded-full bg-white shadow-sm ring-1 ring-white/40"
+                />
+              )}
+            </motion.button>
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.92 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleTable({
+                  id: tableId,
+                  kind: 'parameter',
+                  element: id,
+                  label,
+                });
+              }}
+              aria-pressed={tableOpen}
+              aria-label={
+                tableOpen ? `Close ${label} attributes` : `Open ${label} attributes`
+              }
+              title={
+                tableOpen ? `Close ${label} attributes` : `Open ${label} attributes`
+              }
+              className={cn(
+                'inline-flex shrink-0 items-center justify-center px-2 transition-colors',
+                'border-l border-current/30',
+                tableOpen
+                  ? 'bg-white/30 dark:bg-white/15'
+                  : 'hover:bg-white/15 dark:hover:bg-white/10',
+              )}
+            >
+              <TableProperties className="h-3.5 w-3.5" />
+            </motion.button>
+          </div>
         );
       })}
 

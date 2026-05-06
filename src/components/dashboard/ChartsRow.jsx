@@ -15,8 +15,10 @@ import {
 import { Line } from 'react-chartjs-2';
 import Panel from '@/components/ui/Panel';
 import Select from '@/components/ui/Select';
+import LayerAttributesPanel from '@/components/dashboard/LayerAttributesPanel';
 import { useTheme } from '@/hooks/useTheme';
 import { useParameter } from '@/contexts/ParameterContext';
+import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import { colorFor } from '@/config/parameterColors';
 import {
   PARAMETER_LEGENDS,
@@ -333,21 +335,42 @@ function buildPlaceholder(label, palette) {
 
 export default function ChartsRow() {
   const { theme } = useTheme();
-  const [tab, setTab] = useState('pmd'); // 'pmd' | 'lakes'
+  // Tab state lives in AttributeTablesContext so the Dashboard can also
+  // react — collapsing the map when the user is in attributes mode and
+  // restoring it on switch back.
+  const { chartTab: tab, setChartTab: setTab } = useAttributeTables();
+  const expanded = tab === 'attributes';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.1 }}
-      className="card-base flex flex-col shrink-0"
+      className={cn(
+        'card-base flex flex-col',
+        expanded ? 'flex-1 min-h-0' : 'shrink-0',
+      )}
     >
       <Tabs tab={tab} onChange={setTab} />
-      {/* Reserve a consistent body height so the card doesn't reflow on
-          tab swap. Tracks the larger of the two natural heights (Lakes,
-          which has wrapped Panels). */}
-      <div className="min-h-[220px] sm:min-h-[236px] lg:min-h-[252px] flex flex-col">
-        {tab === 'pmd' ? <PmdTrendPanel theme={theme} /> : <LakesPanel theme={theme} />}
+      {/* In normal mode the body is fixed-height so map layout doesn't
+          flicker during sub-tab switches. In attributes mode the body
+          fills the rest of the column (the Dashboard collapses the
+          map), giving the table room to breathe. */}
+      <div
+        className={cn(
+          'flex flex-col',
+          expanded
+            ? 'flex-1 min-h-0'
+            : 'h-[220px] sm:h-[236px] lg:h-[252px]',
+        )}
+      >
+        {tab === 'attributes' ? (
+          <LayerAttributesPanel />
+        ) : tab === 'pmd' ? (
+          <PmdTrendPanel theme={theme} />
+        ) : (
+          <LakesPanel theme={theme} />
+        )}
       </div>
     </motion.div>
   );
@@ -355,8 +378,9 @@ export default function ChartsRow() {
 
 function Tabs({ tab, onChange }) {
   const items = [
-    { id: 'pmd',   label: 'PMD Data Trend' },
-    { id: 'lakes', label: 'Lakes Trend' },
+    { id: 'attributes', label: 'Attributes Table' },
+    { id: 'pmd',        label: 'PMD Data Trend' },
+    { id: 'lakes',      label: 'Lakes Trend' },
   ];
   return (
     <div

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import LeftSidebar from '@/components/layout/LeftSidebar';
 import RightSidebar from '@/components/layout/RightSidebar';
 import { GLACIER_LAYER_ID } from '@/config/glacierLayer';
+import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import MapPanel from './MapPanel';
 import ChartsRow from './ChartsRow';
 import QuickToggles from './QuickToggles';
@@ -11,6 +12,13 @@ const TERRAIN_SPEC = { source: 'mapbox-dem', exaggeration: 1.5 };
 export default function Dashboard() {
   const [map, setMap] = useState(null);
   const [quickLayers, setQuickLayers] = useState(() => new Set(['terrain']));
+  const { chartTab } = useAttributeTables();
+  // When the chart card's "Attributes Table" tab is active, fold the
+  // map away (h-0) so the table can take the entire column. The map
+  // stays mounted; MapPanel's internal ResizeObserver handles the
+  // canvas redraw when it returns. Switching back to PMD Data Trend or
+  // Lakes Trend restores the original layout.
+  const tableMode = chartTab === 'attributes';
 
   const toggleQuickLayer = useCallback((id) => {
     setQuickLayers((prev) => {
@@ -66,7 +74,10 @@ export default function Dashboard() {
 
       <div className="flex flex-col flex-1 min-w-0 min-h-0 gap-3 overflow-hidden">
         <QuickToggles active={quickLayers} onToggle={toggleQuickLayer} />
-        <MapPanel className="flex-1 min-h-0" onMapReady={setMap} />
+        <MapPanel
+          className={tableMode ? 'h-0 overflow-hidden' : 'flex-1 min-h-0'}
+          onMapReady={setMap}
+        />
         <ChartsRow />
       </div>
 
