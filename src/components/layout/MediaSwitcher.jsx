@@ -1,15 +1,22 @@
 import { useState } from 'react';
-import { AlertTriangle, Film, Sheet } from 'lucide-react';
+import { AlertTriangle, Film, Palette, Sheet } from 'lucide-react';
 import { motion } from 'framer-motion';
 import VideosPanel from '@/components/dashboard/VideoPanels';
 import AlertsPanel from '@/components/dashboard/AlertsPanel';
 import AttributeTablePanel from '@/components/dashboard/AttributeTablePanel';
+import LayerStyleConfigPanel from '@/components/dashboard/LayerStyleConfigPanel';
 import { useSecondary } from '@/contexts/SecondaryContext';
 import { cn } from '@/utils/cn';
 
 // `requiresUploads: true` hides the section in containers (RightSidebar /
 // MediaSwitcher) until the user has uploaded at least one secondary file.
 export const MEDIA_SECTIONS = [
+  {
+    id: 'style',
+    label: 'Layer Style',
+    icon: Palette,
+    render: () => <LayerStyleConfigPanel />,
+  },
   { id: 'videos', label: 'Videos', icon: Film, render: () => <VideosPanel compact /> },
   {
     id: 'alerts',

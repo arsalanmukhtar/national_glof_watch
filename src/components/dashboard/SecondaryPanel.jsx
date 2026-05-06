@@ -4,8 +4,6 @@ import shp from 'shpjs';
 import {
   AlertTriangle,
   Building2,
-  ChevronDown,
-  CircleDot,
   FileArchive,
   FileJson,
   FileUp,
@@ -13,11 +11,8 @@ import {
   MapPin,
   Mountain,
   Radio,
-  RotateCcw,
   Server,
   Shrink,
-  Slash,
-  Square,
   Triangle,
   Trash2,
   Waves,
@@ -26,7 +21,7 @@ import EyeToggle from '@/components/ui/EyeToggle';
 import Badge from '@/components/ui/Badge';
 import ConnectDatabaseModal from '@/components/dashboard/ConnectDatabaseModal';
 import { cn } from '@/utils/cn';
-import { DEFAULT_STYLES, useSecondary } from '@/contexts/SecondaryContext';
+import { useSecondary } from '@/contexts/SecondaryContext';
 import { useMapView } from '@/contexts/MapContext';
 
 const MAX_UPLOADS = 5;
@@ -46,333 +41,16 @@ const LAYER_ICONS = {
 const ACCEPTED_TYPES = '.geojson,.json,application/geo+json,application/json,.zip,application/zip';
 
 // ---------------------------------------------------------------------------
-// Style controls — primitives
+// Layer row — toggle + zoom + (uploads only) trash. Per-layer style editing
+// lives in the right-sidebar Palette panel; that's why there's no chevron
+// expand here anymore.
 // ---------------------------------------------------------------------------
 
-function ColorSwatch({ value, onChange, ariaLabel }) {
-  // HTML5 color input wrapped so we can render a tidy rounded swatch.
-  return (
-    <label
-      className="relative inline-flex h-6 w-6 shrink-0 cursor-pointer rounded-md border border-day-border dark:border-night-border overflow-hidden ring-offset-1 ring-offset-day-bg dark:ring-offset-night-bg focus-within:ring-2 focus-within:ring-[#16a085]"
-      style={{ backgroundColor: value }}
-      aria-label={ariaLabel}
-    >
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
-        aria-label={ariaLabel}
-      />
-    </label>
-  );
-}
-
-function Slider({ value, onChange, min, max, step = 1, format = (v) => v }) {
-  return (
-    <div className="flex items-center gap-2 flex-1 min-w-0">
-      <input
-        type="range"
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full h-1.5 rounded-full appearance-none bg-slate-200 dark:bg-slate-700 accent-[#16a085] cursor-pointer"
-      />
-      <span className="w-10 text-right tabular-nums text-[11px] text-day-muted dark:text-night-muted">
-        {format(value)}
-      </span>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Style editor primitives — sectioned, label/control grid
-// ---------------------------------------------------------------------------
-
-// Section header inside the style editor. Tiny uppercase label, hairline
-// rule on the right keeps the section visually distinct without heavy
-// dividers.
-function StyleSection({ label, children }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
-          {label}
-        </span>
-        <span className="flex-1 h-px bg-day-border/60 dark:bg-night-border/60" />
-      </div>
-      <div className="flex flex-col gap-1.5 pl-0.5">{children}</div>
-    </div>
-  );
-}
-
-// Field row inside a section — fixed-width label, control(s) on the right.
-function StyleField({ label, children }) {
-  return (
-    <div className="grid grid-cols-[60px_1fr] items-center gap-2">
-      <span className="text-[11px] text-day-muted dark:text-night-muted capitalize">
-        {label}
-      </span>
-      <div className="flex items-center gap-2 min-w-0">{children}</div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Geometry-specific style sections
-// ---------------------------------------------------------------------------
-
-function PointStyle({ style, onChange }) {
-  return (
-    <>
-      <StyleSection label="Marker">
-        <StyleField label="Radius">
-          <Slider
-            value={style.radius}
-            onChange={(v) => onChange({ radius: v })}
-            min={1}
-            max={24}
-            step={0.5}
-            format={(v) => `${v}px`}
-          />
-        </StyleField>
-      </StyleSection>
-      <StyleSection label="Fill">
-        <StyleField label="Color">
-          <ColorSwatch
-            value={style.fillColor}
-            onChange={(v) => onChange({ fillColor: v })}
-            ariaLabel="Fill color"
-          />
-        </StyleField>
-        <StyleField label="Opacity">
-          <Slider
-            value={style.fillOpacity}
-            onChange={(v) => onChange({ fillOpacity: v })}
-            min={0}
-            max={1}
-            step={0.05}
-            format={(v) => `${Math.round(v * 100)}%`}
-          />
-        </StyleField>
-      </StyleSection>
-      <StyleSection label="Stroke">
-        <StyleField label="Color">
-          <ColorSwatch
-            value={style.strokeColor}
-            onChange={(v) => onChange({ strokeColor: v })}
-            ariaLabel="Stroke color"
-          />
-        </StyleField>
-        <StyleField label="Width">
-          <Slider
-            value={style.strokeWidth}
-            onChange={(v) => onChange({ strokeWidth: v })}
-            min={0}
-            max={6}
-            step={0.25}
-            format={(v) => `${v}px`}
-          />
-        </StyleField>
-        <StyleField label="Opacity">
-          <Slider
-            value={style.strokeOpacity}
-            onChange={(v) => onChange({ strokeOpacity: v })}
-            min={0}
-            max={1}
-            step={0.05}
-            format={(v) => `${Math.round(v * 100)}%`}
-          />
-        </StyleField>
-      </StyleSection>
-    </>
-  );
-}
-
-function LineStyle({ style, onChange }) {
-  return (
-    <>
-      <StyleSection label="Stroke">
-        <StyleField label="Color">
-          <ColorSwatch
-            value={style.color}
-            onChange={(v) => onChange({ color: v })}
-            ariaLabel="Line color"
-          />
-        </StyleField>
-        <StyleField label="Width">
-          <Slider
-            value={style.width}
-            onChange={(v) => onChange({ width: v })}
-            min={0.25}
-            max={10}
-            step={0.25}
-            format={(v) => `${v}px`}
-          />
-        </StyleField>
-        <StyleField label="Opacity">
-          <Slider
-            value={style.opacity}
-            onChange={(v) => onChange({ opacity: v })}
-            min={0}
-            max={1}
-            step={0.05}
-            format={(v) => `${Math.round(v * 100)}%`}
-          />
-        </StyleField>
-      </StyleSection>
-      <StyleSection label="Pattern">
-        <StyleField label="Style">
-          <button
-            type="button"
-            onClick={() => onChange({ dashed: false })}
-            className={cn(
-              'flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors',
-              !style.dashed
-                ? 'bg-[#16a085] text-white border-[#16a085]'
-                : 'border-day-border dark:border-night-border text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-border',
-            )}
-          >
-            <Slash className="h-3 w-3" />
-            Solid
-          </button>
-          <button
-            type="button"
-            onClick={() => onChange({ dashed: true })}
-            className={cn(
-              'flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors',
-              style.dashed
-                ? 'bg-[#16a085] text-white border-[#16a085]'
-                : 'border-day-border dark:border-night-border text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-border',
-            )}
-          >
-            <span className="font-mono tracking-tight">- - -</span>
-            Dashed
-          </button>
-        </StyleField>
-      </StyleSection>
-    </>
-  );
-}
-
-function PolygonStyle({ style, onChange }) {
-  return (
-    <>
-      <StyleSection label="Fill">
-        <StyleField label="Color">
-          <ColorSwatch
-            value={style.fillColor}
-            onChange={(v) => onChange({ fillColor: v })}
-            ariaLabel="Fill color"
-          />
-        </StyleField>
-        <StyleField label="Opacity">
-          <Slider
-            value={style.fillOpacity}
-            onChange={(v) => onChange({ fillOpacity: v })}
-            min={0}
-            max={1}
-            step={0.05}
-            format={(v) => `${Math.round(v * 100)}%`}
-          />
-        </StyleField>
-      </StyleSection>
-      <StyleSection label="Stroke">
-        <StyleField label="Color">
-          <ColorSwatch
-            value={style.strokeColor}
-            onChange={(v) => onChange({ strokeColor: v })}
-            ariaLabel="Stroke color"
-          />
-        </StyleField>
-        <StyleField label="Width">
-          <Slider
-            value={style.strokeWidth}
-            onChange={(v) => onChange({ strokeWidth: v })}
-            min={0}
-            max={6}
-            step={0.25}
-            format={(v) => `${v}px`}
-          />
-        </StyleField>
-        <StyleField label="Opacity">
-          <Slider
-            value={style.strokeOpacity}
-            onChange={(v) => onChange({ strokeOpacity: v })}
-            min={0}
-            max={1}
-            step={0.05}
-            format={(v) => `${Math.round(v * 100)}%`}
-          />
-        </StyleField>
-      </StyleSection>
-    </>
-  );
-}
-
-function GeometryIcon({ geometry, className }) {
-  const Icon =
-    geometry === 'point' ? CircleDot
-    : geometry === 'line'  ? Slash
-    : Square;
-  return <Icon className={className} aria-hidden />;
-}
-
-function StyleEditor({ geometry, style, onChange, onReset }) {
-  return (
-    <motion.div
-      initial={{ height: 0, opacity: 0 }}
-      animate={{ height: 'auto', opacity: 1 }}
-      exit={{ height: 0, opacity: 0 }}
-      transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-      className="overflow-hidden"
-    >
-      <div className="px-2.5 py-2.5 mt-1 rounded-md border border-day-border dark:border-night-border bg-day-bg/60 dark:bg-night-bg/40">
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <GeometryIcon geometry={geometry} className="h-3 w-3 text-[#16a085]" />
-          <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-text dark:text-night-text">
-            {geometry} style
-          </span>
-          <button
-            type="button"
-            onClick={onReset}
-            className="ml-auto inline-flex items-center gap-1 text-[10px] text-day-muted dark:text-night-muted hover:text-[#16a085] transition-colors"
-          >
-            <RotateCcw className="h-2.5 w-2.5" />
-            Reset
-          </button>
-        </div>
-        <div className="flex flex-col gap-2.5">
-          {geometry === 'point'   && <PointStyle   style={style} onChange={onChange} />}
-          {geometry === 'line'    && <LineStyle    style={style} onChange={onChange} />}
-          {geometry === 'polygon' && <PolygonStyle style={style} onChange={onChange} />}
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Layer row — toggle + expandable style controls
-// ---------------------------------------------------------------------------
-
-function LayerRow({ id, label, geometry, icon: Icon, isUpload, uploadData, onRemove }) {
-  const {
-    visibleLayers,
-    toggleLayer,
-    styles,
-    setLayerStyle,
-    resetLayerStyle,
-    expandedLayer,
-    setExpandedLayer,
-  } = useSecondary();
+function LayerRow({ id, label, icon: Icon, isUpload, uploadData, onRemove }) {
+  const { visibleLayers, toggleLayer } = useSecondary();
   const { zoomToSecondaryLayer, zoomToGeoJson } = useMapView();
 
   const on = visibleLayers.has(id);
-  const expanded = expandedLayer === id;
-  const style = styles[id] ?? { ...DEFAULT_STYLES[geometry] };
 
   const handleZoom = () => {
     if (isUpload) zoomToGeoJson(uploadData);
@@ -387,22 +65,15 @@ function LayerRow({ id, label, geometry, icon: Icon, isUpload, uploadData, onRem
   };
 
   return (
-    <div className="rounded-md border border-day-border dark:border-night-border">
+    <div
+      className={cn(
+        'rounded-md border transition-colors',
+        on
+          ? 'border-[#16a085]/40 bg-[#16a085]/15 dark:bg-[#16a085]/25'
+          : 'border-day-border dark:border-night-border',
+      )}
+    >
       <div className="flex items-center gap-1 px-2 py-1.5">
-        <button
-          type="button"
-          onClick={() => setExpandedLayer(expanded ? null : id)}
-          aria-expanded={expanded}
-          aria-label={`Style ${label}`}
-          className="btn-icon btn-ghost h-6 w-6 shrink-0"
-        >
-          <ChevronDown
-            className={cn(
-              'h-3.5 w-3.5 transition-transform duration-200',
-              expanded && 'rotate-180',
-            )}
-          />
-        </button>
         <Icon className="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-200" />
         <span className="flex-1 truncate text-[13px] text-day-text dark:text-night-text">
           {label}
@@ -432,18 +103,6 @@ function LayerRow({ id, label, geometry, icon: Icon, isUpload, uploadData, onRem
           label={`Toggle ${label}`}
         />
       </div>
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <div className="px-2 pb-2">
-            <StyleEditor
-              geometry={geometry}
-              style={style}
-              onChange={(partial) => setLayerStyle(id, partial)}
-              onReset={() => resetLayerStyle(id, geometry)}
-            />
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -690,7 +349,6 @@ function UploadZone() {
                 key={u.id}
                 id={u.id}
                 label={u.label}
-                geometry={u.geometry || 'polygon'}
                 icon={u.kind === 'shapefile' ? FileArchive : FileJson}
                 isUpload
                 uploadData={u.data}
@@ -745,7 +403,6 @@ export default function SecondaryPanel({ compact = false }) {
               key={l.id}
               id={l.id}
               label={l.label}
-              geometry={l.geometry}
               icon={LAYER_ICONS[l.id] ?? Mountain}
             />
           ))}

@@ -47,25 +47,19 @@ export const DEFAULT_STYLES = {
   },
 };
 
-function defaultStyleFor(geometry) {
-  return { ...DEFAULT_STYLES[geometry] };
-}
-
 const SecondaryContext = createContext(null);
 
 export function SecondaryProvider({ children }) {
   // visible layers (server-side secondary schema)
   const [visibleLayers, setVisibleLayers] = useState(() => new Set());
-  // per-layer style overrides — keyed by layer id (or upload id)
-  const [styles, setStyles] = useState(() => {
-    const seed = {};
-    for (const l of SECONDARY_LAYERS) seed[l.id] = defaultStyleFor(l.geometry);
-    return seed;
-  });
+  // per-layer style overrides — keyed by layer id (region composite, secondary
+  // id, or upload id). Empty by default; entries appear lazily once the user
+  // tweaks something. Readers should compose with `effectiveStyle()` so they
+  // get the right defaults (including region-tint seeding) when no override
+  // exists yet.
+  const [styles, setStyles] = useState(() => ({}));
   // user-uploaded layers (client-side, kept in memory)
   const [uploads, setUploads] = useState([]);
-  // which layer's style controls are expanded (single open at a time)
-  const [expandedLayer, setExpandedLayer] = useState(null);
 
   const toggleLayer = useCallback((id) => {
     setVisibleLayers((prev) => {
@@ -83,19 +77,19 @@ export function SecondaryProvider({ children }) {
     }));
   }, []);
 
-  const resetLayerStyle = useCallback((id, geometry) => {
-    setStyles((prev) => ({
-      ...prev,
-      [id]: defaultStyleFor(geometry),
-    }));
+  const resetLayerStyle = useCallback((id) => {
+    setStyles((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }, []);
 
   const addUpload = useCallback((upload) => {
     setUploads((prev) => [...prev, upload]);
-    setStyles((prev) => ({
-      ...prev,
-      [upload.id]: defaultStyleFor(upload.geometry || 'polygon'),
-    }));
+    // Style entry is created lazily on first edit; readers compose defaults
+    // with `effectiveStyle()`.
     setVisibleLayers((prev) => {
       const next = new Set(prev);
       next.add(upload.id);
@@ -117,7 +111,6 @@ export function SecondaryProvider({ children }) {
       delete next[id];
       return next;
     });
-    setExpandedLayer((cur) => (cur === id ? null : cur));
   }, []);
 
   const value = useMemo(
@@ -131,14 +124,11 @@ export function SecondaryProvider({ children }) {
       uploads,
       addUpload,
       removeUpload,
-      expandedLayer,
-      setExpandedLayer,
     }),
     [
       visibleLayers,
       styles,
       uploads,
-      expandedLayer,
       toggleLayer,
       setLayerStyle,
       resetLayerStyle,

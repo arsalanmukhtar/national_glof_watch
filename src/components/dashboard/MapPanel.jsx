@@ -11,7 +11,6 @@ import { colorForReading, STALE_COLOR } from '@/config/parameterLegends';
 import {
   detectGeometry,
   fetchGeoJson,
-  regionLayerColor,
   regionLayerGeometry,
   regionLayerUrl,
   secondaryLayerUrl,
@@ -21,10 +20,12 @@ import {
   parseRegionLayerId,
   useRegionLayers,
 } from '@/contexts/RegionLayersContext';
+import { useSecondary } from '@/contexts/SecondaryContext';
 import {
-  DEFAULT_STYLES as SECONDARY_DEFAULT_STYLES,
-  useSecondary,
-} from '@/contexts/SecondaryContext';
+  effectiveStyle,
+  labelLayoutAndPaint,
+  paintExprsFor,
+} from '@/utils/layerStyle';
 import { useMapView } from '@/contexts/MapContext';
 import BasemapSwitcher from './BasemapSwitcher';
 import MapControls from './MapControls';
@@ -123,24 +124,13 @@ export default function MapPanel({ className, onMapReady }) {
       const { regionId, layerKey } = parseRegionLayerId(id);
       const url = regionLayerUrl(regionId, layerKey);
       if (!url) continue;
-      const color = regionLayerColor(layerKey);
+      const geometry = regionLayerGeometry(layerKey);
       list.push({
         key: `region:${id}`,
         url,
         data: null,
-        geometry: regionLayerGeometry(layerKey),
-        paint: {
-          color,
-          width: 2,
-          opacity: 1,
-          dashed: layerKey === 'faultline',
-          fillColor: color,
-          fillOpacity: 0.3,
-          strokeColor: color,
-          strokeWidth: 1.5,
-          strokeOpacity: 1,
-          radius: 5,
-        },
+        geometry,
+        style: effectiveStyle(id, geometry, secondaryStyles[id]),
       });
     }
 
@@ -149,28 +139,24 @@ export default function MapPanel({ className, onMapReady }) {
       if (!layer) continue; // uploads handled separately below
       const url = secondaryLayerUrl(id);
       if (!url) continue;
-      const style =
-        secondaryStyles[id] ?? SECONDARY_DEFAULT_STYLES[layer.geometry];
       list.push({
         key: `secondary:${id}`,
         url,
         data: null,
         geometry: layer.geometry,
-        paint: style,
+        style: effectiveStyle(id, layer.geometry, secondaryStyles[id]),
       });
     }
 
     for (const upload of uploads) {
       if (!secondaryVisible.has(upload.id)) continue;
       const geometry = upload.geometry || 'polygon';
-      const style =
-        secondaryStyles[upload.id] ?? SECONDARY_DEFAULT_STYLES[geometry];
       list.push({
         key: `upload:${upload.id}`,
         url: null,
         data: upload.data,
         geometry,
-        paint: style,
+        style: effectiveStyle(upload.id, geometry, secondaryStyles[upload.id]),
       });
     }
 
@@ -455,7 +441,7 @@ export default function MapPanel({ className, onMapReady }) {
       for (const entry of resolved) {
         if (!entry) continue;
         const geometry = detectGeometry(entry.data) || entry.o.geometry;
-        ensureOverlay(map, entry.o.key, geometry, entry.data, entry.o.paint);
+        ensureOverlay(map, entry.o.key, geometry, entry.data, entry.o.style);
         tracked.add(entry.o.key);
       }
     };
@@ -494,7 +480,7 @@ export default function MapPanel({ className, onMapReady }) {
       for (const entry of resolved) {
         if (!entry) continue;
         const geometry = detectGeometry(entry.data) || entry.o.geometry;
-        ensureOverlay(map, entry.o.key, geometry, entry.data, entry.o.paint);
+        ensureOverlay(map, entry.o.key, geometry, entry.data, entry.o.style);
         map._renderedOverlays.add(entry.o.key);
       }
     };
@@ -741,8 +727,48 @@ function overlayBeforeId(map) {
   return map.getLayer(STATIONS_HALO_LAYER) ? STATIONS_HALO_LAYER : undefined;
 }
 
-function ensureOverlay(map, key, geometry, data, paint) {
+function overlayLabelId(key) {
+  return `overlay:${key}:label`;
+}
+
+function overlayHeatmapId(key) {
+  return `overlay:${key}:heatmap`;
+}
+
+// Drop one or more layer ids if present. Mapbox's removeLayer throws when
+// the id doesn't exist, so callers can pass freely.
+function dropLayers(map, ...layerIds) {
+  for (const id of layerIds) {
+    if (map.getLayer(id)) map.removeLayer(id);
+  }
+}
+
+// Replace a layer entirely (used when layer type changes — e.g. circle ↔
+// heatmap, or when a paint expression's structure changes meaningfully).
+// Mapbox can hot-swap most paint properties via setPaintProperty, but a
+// type change isn't one of them.
+function setLayer(map, spec, beforeId) {
+  if (map.getLayer(spec.id)) map.removeLayer(spec.id);
+  map.addLayer(spec, beforeId);
+}
+
+function applyPaintProps(map, layerId, paint) {
+  for (const [k, v] of Object.entries(paint)) {
+    try {
+      // line-dasharray rejects null on some Mapbox versions — skip when
+      // we explicitly don't want a dash.
+      if (k === 'line-dasharray' && v == null) continue;
+      map.setPaintProperty(layerId, k, v);
+    } catch (err) {
+      console.warn(`setPaintProperty failed for ${layerId} / ${k}:`, err);
+    }
+  }
+}
+
+function ensureOverlay(map, key, geometry, data, style) {
   const ids = overlayIds(key);
+  const labelId = overlayLabelId(key);
+  const heatId = overlayHeatmapId(key);
 
   // Source: create or update with new data.
   const source = map.getSource(ids.source);
@@ -753,105 +779,83 @@ function ensureOverlay(map, key, geometry, data, paint) {
   }
 
   const beforeId = overlayBeforeId(map);
+  const exprs = paintExprsFor(style, geometry);
 
-  if (geometry === 'polygon') {
-    if (!map.getLayer(ids.fill)) {
-      map.addLayer(
-        {
-          id: ids.fill,
-          type: 'fill',
-          source: ids.source,
-          paint: {
-            'fill-color': paint.fillColor ?? '#16a085',
-            'fill-opacity': paint.fillOpacity ?? 0.3,
-          },
-        },
-        beforeId,
-      );
-    } else {
-      map.setPaintProperty(ids.fill, 'fill-color', paint.fillColor ?? '#16a085');
-      map.setPaintProperty(ids.fill, 'fill-opacity', paint.fillOpacity ?? 0.3);
-    }
-    if (!map.getLayer(ids.line)) {
-      map.addLayer(
-        {
-          id: ids.line,
-          type: 'line',
-          source: ids.source,
-          paint: {
-            'line-color': paint.strokeColor ?? '#0f7560',
-            'line-width': paint.strokeWidth ?? 1.5,
-            'line-opacity': paint.strokeOpacity ?? 1,
-          },
-        },
-        beforeId,
-      );
-    } else {
-      map.setPaintProperty(ids.line, 'line-color', paint.strokeColor ?? '#0f7560');
-      map.setPaintProperty(ids.line, 'line-width', paint.strokeWidth ?? 1.5);
-      map.setPaintProperty(ids.line, 'line-opacity', paint.strokeOpacity ?? 1);
-    }
-  } else if (geometry === 'line') {
-    const dasharray = paint.dashed ? [2, 2] : null;
-    if (!map.getLayer(ids.line)) {
-      map.addLayer(
-        {
-          id: ids.line,
-          type: 'line',
-          source: ids.source,
-          paint: {
-            'line-color': paint.color ?? '#16a085',
-            'line-width': paint.width ?? 2,
-            'line-opacity': paint.opacity ?? 1,
-            ...(dasharray ? { 'line-dasharray': dasharray } : {}),
-          },
-        },
-        beforeId,
-      );
-    } else {
-      map.setPaintProperty(ids.line, 'line-color', paint.color ?? '#16a085');
-      map.setPaintProperty(ids.line, 'line-width', paint.width ?? 2);
-      map.setPaintProperty(ids.line, 'line-opacity', paint.opacity ?? 1);
-      try {
-        map.setPaintProperty(ids.line, 'line-dasharray', dasharray ?? null);
-      } catch {
-        /* some Mapbox versions reject null — ignore */
-      }
-    }
+  // Heatmap path — only valid for points; replaces the circle layer.
+  if (exprs.kind === 'heatmap') {
+    dropLayers(map, ids.fill, ids.line, ids.circle);
+    setLayer(
+      map,
+      { id: heatId, type: 'heatmap', source: ids.source, paint: exprs.paint },
+      beforeId,
+    );
   } else if (geometry === 'point') {
+    dropLayers(map, ids.fill, heatId);
     if (!map.getLayer(ids.circle)) {
       map.addLayer(
-        {
-          id: ids.circle,
-          type: 'circle',
-          source: ids.source,
-          paint: {
-            'circle-radius': paint.radius ?? 6,
-            'circle-color': paint.fillColor ?? '#16a085',
-            'circle-opacity': paint.fillOpacity ?? 0.85,
-            'circle-stroke-color': paint.strokeColor ?? '#0f7560',
-            'circle-stroke-width': paint.strokeWidth ?? 1.5,
-            'circle-stroke-opacity': paint.strokeOpacity ?? 1,
-          },
-        },
+        { id: ids.circle, type: 'circle', source: ids.source, paint: exprs.paint },
         beforeId,
       );
     } else {
-      map.setPaintProperty(ids.circle, 'circle-radius', paint.radius ?? 6);
-      map.setPaintProperty(ids.circle, 'circle-color', paint.fillColor ?? '#16a085');
-      map.setPaintProperty(ids.circle, 'circle-opacity', paint.fillOpacity ?? 0.85);
-      map.setPaintProperty(ids.circle, 'circle-stroke-color', paint.strokeColor ?? '#0f7560');
-      map.setPaintProperty(ids.circle, 'circle-stroke-width', paint.strokeWidth ?? 1.5);
-      map.setPaintProperty(ids.circle, 'circle-stroke-opacity', paint.strokeOpacity ?? 1);
+      applyPaintProps(map, ids.circle, exprs.paint);
     }
+  } else if (geometry === 'line') {
+    dropLayers(map, ids.fill, ids.circle, heatId);
+    if (!map.getLayer(ids.line)) {
+      map.addLayer(
+        { id: ids.line, type: 'line', source: ids.source, paint: exprs.paint },
+        beforeId,
+      );
+    } else {
+      applyPaintProps(map, ids.line, exprs.paint);
+    }
+  } else {
+    // polygon — fill + stroke
+    dropLayers(map, ids.circle, heatId);
+    if (!map.getLayer(ids.fill)) {
+      map.addLayer(
+        { id: ids.fill, type: 'fill', source: ids.source, paint: exprs.paint },
+        beforeId,
+      );
+    } else {
+      applyPaintProps(map, ids.fill, exprs.paint);
+    }
+    if (!map.getLayer(ids.line)) {
+      map.addLayer(
+        { id: ids.line, type: 'line', source: ids.source, paint: exprs.strokePaint },
+        beforeId,
+      );
+    } else {
+      applyPaintProps(map, ids.line, exprs.strokePaint);
+    }
+  }
+
+  // Optional label/symbol layer — added on top, removed when disabled.
+  const lab = labelLayoutAndPaint(style);
+  if (lab) {
+    if (map.getLayer(labelId)) map.removeLayer(labelId);
+    map.addLayer({
+      id: labelId,
+      type: 'symbol',
+      source: ids.source,
+      layout: lab.layout,
+      paint: lab.paint,
+    });
+  } else if (map.getLayer(labelId)) {
+    map.removeLayer(labelId);
   }
 }
 
 function removeOverlay(map, key) {
   const ids = overlayIds(key);
-  for (const layerId of [ids.fill, ids.line, ids.circle]) {
-    if (map.getLayer(layerId)) map.removeLayer(layerId);
-  }
+  dropLayers(
+    map,
+    ids.fill,
+    ids.line,
+    ids.circle,
+    overlayLabelId(key),
+    overlayHeatmapId(key),
+  );
   if (map.getSource(ids.source)) map.removeSource(ids.source);
 }
 
