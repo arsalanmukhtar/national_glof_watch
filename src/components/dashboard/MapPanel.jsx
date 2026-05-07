@@ -26,6 +26,13 @@ import {
   labelLayoutAndPaint,
   paintExprsFor,
 } from '@/utils/layerStyle';
+import {
+  LAYER_DEFAULT_SYMBOLOGY,
+} from '@/config/layerDefaultSymbology';
+import {
+  paletteById,
+  summarizeFeaturesAttribute,
+} from '@/utils/stylePalettes';
 import { useMapView } from '@/contexts/MapContext';
 import BasemapSwitcher from './BasemapSwitcher';
 import MapControls from './MapControls';
@@ -60,6 +67,44 @@ const RIPPLE_PERIOD_MS = 1800;
 const RIPPLE_MIN_R = 6;
 const RIPPLE_MAX_R = 22;
 
+// Cap on auto-seeded categories. Many polygon attributes (e.g. unique
+// elevations on glof_lakes) have hundreds of distinct values; we keep
+// the top-N most frequent so the legend stays scannable.
+const DEFAULT_CATEGORY_LIMIT = 12;
+
+// Compute a `setLayerStyle(...)` partial that seeds `categories` (for
+// categories-mode defaults) or `rangeMin`/`rangeMax` (for colorRange
+// defaults) from a freshly fetched FeatureCollection. Returns null when
+// the user override already carries the seeded fields, when the
+// configured attribute isn't present, or when the layer's default
+// symbology doesn't need data to render.
+function computeDefaultSymbologySeed(def, data, override) {
+  if (def.type === 'categories') {
+    if (!def.colorBy) return null;
+    if (Array.isArray(override?.categories) && override.categories.length > 0) {
+      return null; // already seeded (or user-curated)
+    }
+    const summary = summarizeFeaturesAttribute(data, def.colorBy);
+    if (!summary.distinct.length) return null;
+    const palette = paletteById(def.catPaletteId).colors;
+    const top = summary.distinct.slice(0, DEFAULT_CATEGORY_LIMIT);
+    return {
+      categories: top.map((d, i) => ({
+        value: d.value,
+        color: palette[i % palette.length],
+      })),
+    };
+  }
+  if (def.type === 'colorRange') {
+    if (!def.rangeBy) return null;
+    if (override?.rangeMin != null && override?.rangeMax != null) return null;
+    const s = summarizeFeaturesAttribute(data, def.rangeBy);
+    if (s.min == null || s.max == null) return null;
+    return { rangeMin: s.min, rangeMax: s.max };
+  }
+  return null;
+}
+
 export default function MapPanel({ className, onMapReady }) {
   const containerRef = useRef(null);
   // Wraps the map canvas + every overlay (geocoder, legend, table, controls);
@@ -82,6 +127,7 @@ export default function MapPanel({ className, onMapReady }) {
     layers: secondaryLayers,
     visibleLayers: secondaryVisible,
     styles: secondaryStyles,
+    setLayerStyle,
     uploads,
     dbLayers,
   } = useSecondary();
@@ -458,13 +504,35 @@ export default function MapPanel({ className, onMapReady }) {
         ensureOverlay(map, entry.o.key, geometry, entry.data, entry.o.style);
         tracked.add(entry.o.key);
       }
+
+      // Data-driven seed for layers with default symbology configured
+      // (currently the four GLOF reference layers). Once data lands we
+      // can compute the right `categories` / `rangeMin`/`rangeMax` and
+      // push them onto the user's style override so the layer paints
+      // distinct colors immediately. Idempotent — skips when the
+      // override already has the seeded fields, so a user reset will
+      // naturally re-seed on the next reconcile.
+      for (const entry of resolved) {
+        if (!entry) continue;
+        const key = entry.o.key;
+        if (!key.startsWith('secondary:')) continue;
+        const layerId = key.slice('secondary:'.length);
+        const def = LAYER_DEFAULT_SYMBOLOGY[layerId];
+        if (!def) continue;
+        const partial = computeDefaultSymbologySeed(
+          def,
+          entry.data,
+          secondaryStyles[layerId],
+        );
+        if (partial) setLayerStyle(layerId, partial);
+      }
     };
 
     apply();
     return () => {
       cancelled = true;
     };
-  }, [desiredOverlays, trackPromise]);
+  }, [desiredOverlays, trackPromise, secondaryStyles, setLayerStyle]);
 
   // Re-apply every overlay after a basemap swap (Mapbox wipes user layers
   // on setStyle). The cached fetches make this near-instant.

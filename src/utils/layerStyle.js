@@ -1,6 +1,7 @@
 import { parseRegionLayerId } from '@/contexts/RegionLayersContext';
 import { DEFAULT_STYLES } from '@/contexts/SecondaryContext';
 import { regionLayerColor } from '@/config/layerSources';
+import { LAYER_DEFAULT_SYMBOLOGY } from '@/config/layerDefaultSymbology';
 import {
   equalIntervalBreaks,
   rampById,
@@ -68,6 +69,13 @@ export function effectiveStyle(id, geometry, override) {
       base.strokeColor = tint;
     }
     if (layerKey === 'faultline') base.dashed = true;
+  }
+  // Layer-id-keyed default symbology — applied AFTER the region tint
+  // but BEFORE the user override, so e.g. GLOF Districts ship with a
+  // colorRange + Area_km2 + slate stroke unless the user has changed
+  // any of those manually.
+  if (typeof id === 'string' && LAYER_DEFAULT_SYMBOLOGY[id]) {
+    Object.assign(base, LAYER_DEFAULT_SYMBOLOGY[id]);
   }
   // Deep-merge label so user-set partials don't wipe defaults.
   const merged = { ...base, ...(override ?? {}) };

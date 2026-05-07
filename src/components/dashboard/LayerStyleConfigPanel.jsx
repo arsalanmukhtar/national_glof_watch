@@ -1045,12 +1045,12 @@ function CategoricalPaletteSwatch({ paletteId, onChange }) {
             <Popover.Panel
               anchor={{ to: 'bottom end', gap: 6 }}
               className={cn(
-                'z-[100] w-[260px] rounded-lg p-2',
+                'z-[100] w-[320px] max-h-[420px] overflow-y-auto rounded-lg p-2',
                 'bg-white dark:bg-night-surface',
                 'border border-day-border dark:border-night-border shadow-xl',
               )}
             >
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1">
                 {CATEGORICAL_PALETTES.map((p) => (
                   <button
                     key={p.id}
@@ -1061,12 +1061,16 @@ function CategoricalPaletteSwatch({ paletteId, onChange }) {
                       p.id === paletteId ? 'bg-[#16a085]/10' : 'hover:bg-day-bg dark:hover:bg-night-bg',
                     )}
                   >
-                    <div className="flex h-4 w-32 overflow-hidden rounded-sm">
+                    {/* Bar widened, label forced single-line — same fix
+                        as the ramp swatch so neither popover wraps. */}
+                    <div className="flex h-4 w-28 shrink-0 overflow-hidden rounded-sm">
                       {p.colors.map((c) => (
                         <span key={c} className="flex-1" style={{ backgroundColor: c }} />
                       ))}
                     </div>
-                    <span className="text-[12px]">{p.label}</span>
+                    <span className="text-[13px] whitespace-nowrap min-w-0 truncate">
+                      {p.label}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -1173,33 +1177,63 @@ function RampSwatch({ rampId, reversed, classCount, onChangeRamp, onToggleRevers
             <Popover.Panel
               anchor={{ to: 'bottom end', gap: 6 }}
               className={cn(
-                'z-[100] w-[260px] rounded-lg p-2',
+                'z-[100] w-[320px] max-h-[420px] overflow-y-auto rounded-lg p-2',
                 'bg-white dark:bg-night-surface',
                 'border border-day-border dark:border-night-border shadow-xl',
               )}
             >
               <div className="flex flex-col gap-1">
-                {COLOR_RAMPS.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => onChangeRamp(r.id)}
-                    className={cn(
-                      'flex items-center gap-2 rounded p-1 text-left transition-colors',
-                      r.id === rampId ? 'bg-[#16a085]/10' : 'hover:bg-day-bg dark:hover:bg-night-bg',
-                    )}
-                  >
-                    <div
-                      className="h-4 w-32 rounded-sm"
-                      style={{ background: `linear-gradient(to right, ${r.stops.join(', ')})` }}
-                    />
-                    <span className="text-[12px]">{r.label}</span>
-                  </button>
-                ))}
+                {(() => {
+                  // Group by `category` (Sequential / Single hue / Multi-hue
+                  // / Diverging) so a long ramp list stays scannable. Falls
+                  // through to a single "Other" group for entries without
+                  // an explicit category.
+                  const groups = [];
+                  const idx = new Map();
+                  for (const r of COLOR_RAMPS) {
+                    const cat = r.category || 'Other';
+                    if (!idx.has(cat)) {
+                      idx.set(cat, groups.length);
+                      groups.push({ category: cat, items: [] });
+                    }
+                    groups[idx.get(cat)].items.push(r);
+                  }
+                  return groups.map((g) => (
+                    <div key={g.category} className="flex flex-col">
+                      <div className="px-1 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+                        {g.category}
+                      </div>
+                      {g.items.map((r) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => onChangeRamp(r.id)}
+                          className={cn(
+                            'flex items-center gap-2 rounded p-1 text-left transition-colors',
+                            r.id === rampId ? 'bg-[#16a085]/10' : 'hover:bg-day-bg dark:hover:bg-night-bg',
+                          )}
+                        >
+                          {/* Bar widened + label single-line — earlier
+                              "Red → Yellow → Green" wrapped because the
+                              row was too narrow. `whitespace-nowrap` is
+                              the alignment fix; min-w-0 + truncate keeps
+                              future long labels from overflowing. */}
+                          <div
+                            className="h-4 w-28 shrink-0 rounded-sm"
+                            style={{ background: `linear-gradient(to right, ${r.stops.join(', ')})` }}
+                          />
+                          <span className="text-[13px] whitespace-nowrap min-w-0 truncate">
+                            {r.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ));
+                })()}
                 <button
                   type="button"
                   onClick={onToggleReverse}
-                  className="mt-1 inline-flex items-center justify-center gap-1.5 rounded border border-day-border dark:border-night-border px-2 py-1 text-[12px] text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg"
+                  className="mt-1 inline-flex items-center justify-center gap-1.5 rounded border border-day-border dark:border-night-border px-2 py-1 text-[13px] text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg"
                 >
                   <ArrowLeftRight className="h-3 w-3" /> Reverse colors
                 </button>
