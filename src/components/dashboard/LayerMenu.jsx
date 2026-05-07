@@ -149,7 +149,7 @@ function LayerToggle({ regionId, name }) {
       )}
     >
       <span className="flex-1 min-w-0">
-        <TruncateLabel text={name} className="text-[13px]" />
+        <TruncateLabel text={name} className="text-[14px]" />
       </span>
       <AttrTableButton
         open={tableOpen}
@@ -247,9 +247,9 @@ function RiskZonesRow({ regionId }) {
           aria-expanded={open}
           className="flex-1 inline-flex items-center min-w-0 gap-1.5 text-left"
         >
-          <span className="text-[13px] flex-1 truncate">Risk Zones</span>
+          <span className="text-[14px] flex-1 truncate">Risk Zones</span>
           {anyOn ? (
-            <span className="text-[10px] font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+            <span className="text-[11px] font-semibold tabular-nums text-rose-600 dark:text-rose-400">
               {activeCount}/3
             </span>
           ) : null}
@@ -302,7 +302,7 @@ function RiskZonesRow({ regionId }) {
                     aria-pressed={active}
                     aria-label={`${label} risk`}
                     className={cn(
-                      'flex-1 inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wide border transition-colors',
+                      'flex-1 inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[12px] font-semibold uppercase tracking-wide border transition-colors',
                       active ? on : off,
                     )}
                   >

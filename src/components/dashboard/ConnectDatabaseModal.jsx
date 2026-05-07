@@ -257,7 +257,7 @@ export default function ConnectDatabaseModal({ open, onClose }) {
       title="Connect to Database"
       size="lg"
     >
-      <div className="flex items-center gap-2 mb-3 text-[12px] text-day-muted dark:text-night-muted">
+      <div className="flex items-center gap-2 mb-3 text-[13px] text-day-muted dark:text-night-muted">
         <Server className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200" />
         <span>
           Connect to any reachable PostgreSQL/PostGIS server. You can
@@ -269,7 +269,7 @@ export default function ConnectDatabaseModal({ open, onClose }) {
       {/* Mode toggle — Import vs Visualize. Disabled mid-run so we
           don't switch payload shape while the request is in flight. */}
       <div className="mb-4">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1.5">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1.5">
           Action
         </div>
         <div
@@ -313,12 +313,12 @@ export default function ConnectDatabaseModal({ open, onClose }) {
               >
                 <Icon className="h-4 w-4 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-[12px] font-semibold leading-tight">
+                  <div className="text-[13px] font-semibold leading-tight">
                     {label}
                   </div>
                   <div
                     className={cn(
-                      'text-[10.5px] leading-tight mt-0.5',
+                      'text-[11.5px] leading-tight mt-0.5',
                       active ? 'text-white/80' : 'text-day-muted dark:text-night-muted',
                     )}
                   >
@@ -408,7 +408,7 @@ export default function ConnectDatabaseModal({ open, onClose }) {
             </div>
           </Field>
         </div>
-        <label className="mt-2 inline-flex items-center gap-2 text-[12px] text-day-text dark:text-night-text">
+        <label className="mt-2 inline-flex items-center gap-2 text-[13px] text-day-text dark:text-night-text">
           <input
             type="checkbox"
             checked={form.ssl}
@@ -478,7 +478,7 @@ export default function ConnectDatabaseModal({ open, onClose }) {
       {/* Progress */}
       {phase !== 'idle' ? (
         <div className="mb-4">
-          <div className="flex items-start justify-between gap-3 text-[11px] mb-1">
+          <div className="flex items-start justify-between gap-3 text-[12px] mb-1">
             <div
               className={cn(
                 'flex items-start gap-1.5 font-medium min-w-0 flex-1',
@@ -576,7 +576,7 @@ function Section({ title, children }) {
   return (
     <div className="mb-4">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
           {title}
         </span>
         <span className="flex-1 h-px bg-day-border/60 dark:bg-night-border/60" />
@@ -589,7 +589,7 @@ function Section({ title, children }) {
 function Field({ label, children, className }) {
   return (
     <label className={cn('flex flex-col gap-1', className)}>
-      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
         {label}
       </span>
       {children}

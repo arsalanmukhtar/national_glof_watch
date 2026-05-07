@@ -31,6 +31,13 @@ function VideoItem({ src, label }) {
       <div className="relative aspect-video bg-slate-900">
         <video
           src={src}
+          // Autoplay on the right-sidebar thumbnails. `muted` is the
+          // browser-mandated price of autoplay; `playsInline` keeps it
+          // inline on iOS Safari instead of forcing fullscreen.
+          autoPlay
+          loop
+          muted
+          playsInline
           controls
           preload="metadata"
           className="absolute inset-0 h-full w-full object-cover"

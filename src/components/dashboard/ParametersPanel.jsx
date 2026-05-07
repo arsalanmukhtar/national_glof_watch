@@ -105,7 +105,7 @@ export default function ParametersPanel() {
           <div
             key={id}
             className={cn(
-              'group flex items-stretch rounded-md border text-[13px] font-medium overflow-hidden transition-colors',
+              'group flex items-stretch rounded-md border text-[14px] font-medium overflow-hidden transition-colors',
               active ? on : off,
             )}
           >
@@ -182,7 +182,7 @@ export default function ParametersPanel() {
                 : 'Refresh all'}
           </span>
         </motion.button>
-        <span className="text-[10px] text-day-muted dark:text-night-muted text-center">
+        <span className="text-[11px] text-day-muted dark:text-night-muted text-center">
           Last updated {timeAgo(displayLastFetched)}
           {targetElement && targetStatus?.stationCount
             ? ` · ${targetStatus.stationCount} stations`

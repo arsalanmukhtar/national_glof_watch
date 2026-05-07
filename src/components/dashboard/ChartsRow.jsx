@@ -141,7 +141,7 @@ const dayMarkerPlugin = {
         month: 'short',
         day: 'numeric',
       });
-      ctx.font = '600 10px Inter, system-ui, sans-serif';
+      ctx.font = '600 11px Inter, system-ui, sans-serif';
       const labelW = ctx.measureText(label).width;
       const padX = 6;
       const pillW = labelW + padX * 2;
@@ -234,7 +234,7 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
           // Bumped from 10 / regular → 12 / semibold so the axis title
           // ("Air Temperature (°C)" etc.) reads as a heading rather
           // than an afterthought.
-          font: { size: 12, weight: '600' },
+          font: { size: 13, weight: '600' },
           usePointStyle: true,
         },
       },
@@ -277,7 +277,7 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
         // boundaries via the callback below) communicate the time scale.
         ticks: {
           color: t.text,
-          font: { size: 11, weight: '600' },
+          font: { size: 12, weight: '600' },
           callback: xLabelFormatter
             ? function (value, index) {
                 const lbl = this.getLabelForValue(value);
@@ -294,7 +294,7 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
       y: {
         beginAtZero: false,
         grid: { color: t.grid },
-        ticks: { color: t.text, font: { size: 11, weight: '600' } },
+        ticks: { color: t.text, font: { size: 12, weight: '600' } },
         border: { color: t.axis },
       },
     },
@@ -348,7 +348,7 @@ function Tabs({ tab, onChange }) {
   const items = [
     { id: 'attributes', label: 'Attributes Table' },
     { id: 'pmd',        label: 'PMD Data Trend' },
-    { id: 'lakes',      label: 'Lakes Trend' },
+    { id: 'lakes',      label: 'CSV Trend' },
   ];
   return (
     <div
@@ -365,7 +365,7 @@ function Tabs({ tab, onChange }) {
             aria-selected={active}
             onClick={() => onChange(it.id)}
             className={cn(
-              'relative px-3 py-1.5 text-[12px] font-medium transition-colors',
+              'relative px-3 py-1.5 text-[13px] font-medium transition-colors',
               active
                 ? 'text-[#16a085]'
                 : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
@@ -608,7 +608,7 @@ function PmdTrendPanel({ theme }) {
             : `${stationName || `Station ${stationId}`}${selected ? ` · ${selected}` : ''}`}
         </h3>
         {!empty && dateRangeLabel && (
-          <span className="text-[11px] tabular-nums text-day-muted dark:text-night-muted px-1.5 py-0.5 rounded bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border">
+          <span className="text-[12px] tabular-nums text-day-muted dark:text-night-muted px-1.5 py-0.5 rounded bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border">
             {dateRangeLabel}
           </span>
         )}
@@ -643,7 +643,7 @@ function PmdTrendPanel({ theme }) {
           <Line data={data} options={options} plugins={[dayMarkerPlugin]} />
         )}
         {error && (
-          <p className="mt-1 text-[10.5px] text-red-600 dark:text-red-400">
+          <p className="mt-1 text-[11.5px] text-red-600 dark:text-red-400">
             {error}
           </p>
         )}
@@ -679,7 +679,7 @@ function BucketToggle({ value, onChange, disabled }) {
             aria-checked={active}
             onClick={() => onChange(it.id)}
             className={cn(
-              'relative px-2.5 py-1 text-[11px] font-medium rounded transition-colors',
+              'relative px-2.5 py-1 text-[12px] font-medium rounded transition-colors',
               active
                 ? 'text-white'
                 : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
@@ -737,7 +737,7 @@ function CustomDaysInput({ value, onChange, disabled }) {
     >
       <span
         className={cn(
-          'inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium',
+          'inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-medium',
           'text-day-muted dark:text-night-muted',
         )}
       >
@@ -773,7 +773,7 @@ function CustomDaysInput({ value, onChange, disabled }) {
 function EmptyState({ children }) {
   return (
     <div className="h-full flex items-center justify-center text-center px-3">
-      <p className="text-[11.5px] text-day-muted dark:text-night-muted">
+      <p className="text-[12.5px] text-day-muted dark:text-night-muted">
         {children}
       </p>
     </div>
@@ -854,7 +854,7 @@ function LakesPanel({ theme }) {
             boxHeight: 10,
             padding: 10,
             color: t.text,
-            font: { size: 12, weight: '600' },
+            font: { size: 13, weight: '600' },
             usePointStyle: true,
           },
         },
@@ -878,7 +878,7 @@ function LakesPanel({ theme }) {
           grid: { display: false },
           ticks: {
             color: t.text,
-            font: { size: 11, weight: '600' },
+            font: { size: 12, weight: '600' },
             maxRotation: 0,
             autoSkip: true,
             maxTicksLimit: 12,
@@ -888,7 +888,7 @@ function LakesPanel({ theme }) {
                 display: true,
                 text: xLabel,
                 color: t.text,
-                font: { size: 11, weight: '600' },
+                font: { size: 12, weight: '600' },
               }
             : undefined,
           border: { color: t.axis },
@@ -896,13 +896,13 @@ function LakesPanel({ theme }) {
         y: {
           beginAtZero: false,
           grid: { color: t.grid },
-          ticks: { color: t.text, font: { size: 11, weight: '600' } },
+          ticks: { color: t.text, font: { size: 12, weight: '600' } },
           title: yLabel
             ? {
                 display: true,
                 text: yLabel,
                 color: t.text,
-                font: { size: 11, weight: '600' },
+                font: { size: 12, weight: '600' },
               }
             : undefined,
           border: { color: t.axis },
@@ -947,10 +947,10 @@ function LakesPanel({ theme }) {
         <h3 className="text-sm font-semibold text-day-text dark:text-night-text truncate">
           {activeDataset.name}
         </h3>
-        <span className="text-[11px] tabular-nums text-day-muted dark:text-night-muted px-1.5 py-0.5 rounded bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border">
+        <span className="text-[12px] tabular-nums text-day-muted dark:text-night-muted px-1.5 py-0.5 rounded bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border">
           {values.length.toLocaleString()} pts
         </span>
-        <span className="text-[11px] text-day-muted dark:text-night-muted">
+        <span className="text-[12px] text-day-muted dark:text-night-muted">
           {xLabel} → {yLabel}
         </span>
       </div>

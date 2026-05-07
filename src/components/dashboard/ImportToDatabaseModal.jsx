@@ -222,7 +222,7 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
       size="xl"
     >
       {/* File summary */}
-      <div className="flex items-center gap-2 mb-3 text-[12px] text-day-muted dark:text-night-muted">
+      <div className="flex items-center gap-2 mb-3 text-[13px] text-day-muted dark:text-night-muted">
         <Database className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200" />
         <span className="truncate">
           <span className="font-medium text-day-text dark:text-night-text">
@@ -272,17 +272,17 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
 
       {/* Attribute mapping */}
       <div className="mb-1 flex items-center gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
           Attributes
         </span>
-        <span className="text-[10px] text-day-muted dark:text-night-muted">
+        <span className="text-[11px] text-day-muted dark:text-night-muted">
           {includedCount} of {columns.length} included
         </span>
       </div>
       <div className="rounded-md border border-day-border dark:border-night-border max-h-[260px] overflow-auto mb-4">
-        <table className="w-full text-[12px]">
+        <table className="w-full text-[13px]">
           <thead className="sticky top-0 z-10 bg-day-surface dark:bg-night-surface">
-            <tr className="text-left text-[10px] uppercase tracking-wide text-day-muted dark:text-night-muted">
+            <tr className="text-left text-[11px] uppercase tracking-wide text-day-muted dark:text-night-muted">
               <th className="w-8 px-2 py-1.5 text-center">On</th>
               <th className="px-2 py-1.5">Source</th>
               <th className="px-2 py-1.5">Target</th>
@@ -315,7 +315,7 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
                       className="h-3.5 w-3.5 accent-[#16a085] cursor-pointer"
                     />
                   </td>
-                  <td className="px-2 py-1 font-mono text-[11px] text-day-text dark:text-night-text truncate max-w-[160px]" title={col.source}>
+                  <td className="px-2 py-1 font-mono text-[12px] text-day-text dark:text-night-text truncate max-w-[160px]" title={col.source}>
                     {col.source}
                   </td>
                   <td className="px-2 py-1">
@@ -324,7 +324,7 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
                       value={col.target}
                       onChange={(e) => updateColumn(idx, { target: e.target.value })}
                       disabled={!col.include || phase === 'running'}
-                      className="input-base w-full text-[12px] py-1 font-mono"
+                      className="input-base w-full text-[13px] py-1 font-mono"
                     />
                   </td>
                   <td className="px-2 py-1">
@@ -332,7 +332,7 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
                       value={col.type}
                       onChange={(e) => updateColumn(idx, { type: e.target.value })}
                       disabled={!col.include || phase === 'running'}
-                      className="select-base w-full text-[12px] py-1"
+                      className="select-base w-full text-[13px] py-1"
                     >
                       {COLUMN_TYPES.map(({ value, label }) => (
                         <option key={value} value={value}>{label}</option>
@@ -349,7 +349,7 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
       {/* Progress / status */}
       {phase !== 'idle' ? (
         <div className="mb-4">
-          <div className="flex items-start justify-between gap-3 text-[11px] mb-1">
+          <div className="flex items-start justify-between gap-3 text-[12px] mb-1">
             <div
               className={cn(
                 'flex items-start gap-1.5 font-medium min-w-0 flex-1',
@@ -421,7 +421,7 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
 function Field({ label, children }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
         {label}
       </span>
       {children}

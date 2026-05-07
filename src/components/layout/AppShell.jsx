@@ -17,7 +17,7 @@ function MobileSection({ icon: Icon, title, children, last }) {
         <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-[#16a085]/15 text-[#16a085]">
           <Icon className="h-4 w-4" aria-hidden />
         </span>
-        <h3 className="text-[14px] font-semibold tracking-tight text-day-text dark:text-night-text">
+        <h3 className="text-[15px] font-semibold tracking-tight text-day-text dark:text-night-text">
           {title}
         </h3>
       </header>

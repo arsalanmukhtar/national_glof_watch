@@ -49,7 +49,7 @@ function LegendCard({ title, bins, disabledBinColors, onToggleBin }) {
       )}
     >
       <div className="px-2.5 py-1.5 border-b border-day-border dark:border-night-border">
-        <h4 className="text-[11px] font-semibold text-day-text dark:text-night-text">
+        <h4 className="text-[12px] font-semibold text-day-text dark:text-night-text">
           {title}
         </h4>
       </div>
@@ -64,7 +64,7 @@ function LegendCard({ title, bins, disabledBinColors, onToggleBin }) {
                 aria-pressed={!off}
                 title={off ? `Show ${b.label}` : `Hide ${b.label}`}
                 className={cn(
-                  'w-full flex items-center gap-2 px-1.5 py-1 rounded text-[11px] transition-colors',
+                  'w-full flex items-center gap-2 px-1.5 py-1 rounded text-[12px] transition-colors',
                   'text-day-text dark:text-night-text',
                   'hover:bg-day-bg dark:hover:bg-night-bg',
                   off && 'opacity-40',

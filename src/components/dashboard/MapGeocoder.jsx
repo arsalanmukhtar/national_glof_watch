@@ -126,7 +126,7 @@ export default function MapGeocoder({ map }) {
           placeholder="Search a place…"
           aria-label="Search a place"
           className={cn(
-            'flex-1 bg-transparent outline-none text-[12px] min-w-0',
+            'flex-1 bg-transparent outline-none text-[13px] min-w-0',
             'text-day-text dark:text-night-text',
             'placeholder:text-day-muted dark:placeholder:text-night-muted',
           )}
@@ -166,7 +166,7 @@ export default function MapGeocoder({ map }) {
                 key={f.id}
                 onClick={() => handleSelect(f)}
                 className={cn(
-                  'flex items-start gap-2 px-2.5 py-1.5 text-[12px] cursor-pointer',
+                  'flex items-start gap-2 px-2.5 py-1.5 text-[13px] cursor-pointer',
                   'hover:bg-brand-100 dark:hover:bg-[#16a085]/20',
                   'text-day-text dark:text-night-text',
                   'border-b border-day-border/60 dark:border-night-border/60 last:border-b-0',
@@ -181,7 +181,7 @@ export default function MapGeocoder({ map }) {
                     {f.text ?? f.place_name}
                   </div>
                   {f.place_name && f.place_name !== f.text && (
-                    <div className="text-[10.5px] text-day-muted dark:text-night-muted truncate">
+                    <div className="text-[11.5px] text-day-muted dark:text-night-muted truncate">
                       {f.place_name}
                     </div>
                   )}

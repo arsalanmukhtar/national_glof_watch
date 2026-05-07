@@ -70,7 +70,7 @@ export default function RasterLayersPanel() {
         aria-expanded={intakeOpen}
         className={cn(
           'inline-flex items-center justify-center gap-2 rounded-md px-3 py-2',
-          'text-[12px] font-semibold transition-colors',
+          'text-[13px] font-semibold transition-colors',
           intakeOpen
             ? 'bg-[#138b72] text-white'
             : 'bg-[#16a085] text-white hover:bg-[#138b72]',
@@ -301,7 +301,7 @@ function RasterIntake({
           mode === 'temporal' ? 'Series name (optional)' : 'Layer name (optional)'
         }
         className={cn(
-          'w-full rounded-md border px-2 py-1.5 text-[11px]',
+          'w-full rounded-md border px-2 py-1.5 text-[12px]',
           'bg-day-bg dark:bg-night-bg',
           'border-day-border dark:border-night-border',
           'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
@@ -328,7 +328,7 @@ function RasterIntake({
       </button>
 
       {error ? (
-        <div className="inline-flex items-start gap-1.5 text-[10.5px] text-red-600 dark:text-red-400">
+        <div className="inline-flex items-start gap-1.5 text-[11.5px] text-red-600 dark:text-red-400">
           <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -423,18 +423,18 @@ function UploadZone({ uploadFile, onComplete }) {
         )}
       >
         <Upload className="h-4 w-4 text-day-muted dark:text-night-muted" />
-        <span className="text-[11px] text-day-text dark:text-night-text">
+        <span className="text-[12px] text-day-text dark:text-night-text">
           Drop .tif files or{' '}
           <span className="font-semibold text-[#16a085]">
             {busy ? 'uploading…' : 'click to browse'}
           </span>
         </span>
         {!busy ? (
-          <span className="text-[9.5px] text-day-muted dark:text-night-muted">
-            Files land in <code className="text-[9px]">data/rasters/</code>
+          <span className="text-[10.5px] text-day-muted dark:text-night-muted">
+            Files land in <code className="text-[10px]">data/rasters/</code>
           </span>
         ) : (
-          <span className="text-[9.5px] tabular-nums text-day-muted dark:text-night-muted truncate max-w-full">
+          <span className="text-[10.5px] tabular-nums text-day-muted dark:text-night-muted truncate max-w-full">
             {progress.current}/{progress.total} · {progress.fileName} · {pct}%
           </span>
         )}
@@ -448,7 +448,7 @@ function UploadZone({ uploadFile, onComplete }) {
         </div>
       ) : null}
       {error ? (
-        <div className="inline-flex items-start gap-1.5 text-[10.5px] text-red-600 dark:text-red-400">
+        <div className="inline-flex items-start gap-1.5 text-[11.5px] text-red-600 dark:text-red-400">
           <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
@@ -499,11 +499,11 @@ function ModePicker({ mode, onChange }) {
           >
             <span className="inline-flex items-center gap-1.5">
               <Icon className="h-3.5 w-3.5" />
-              <span className="text-[11px] font-semibold leading-none">
+              <span className="text-[12px] font-semibold leading-none">
                 {label}
               </span>
             </span>
-            <span className="text-[9.5px] leading-tight opacity-80">{hint}</span>
+            <span className="text-[10.5px] leading-tight opacity-80">{hint}</span>
           </button>
         );
       })}
@@ -521,7 +521,7 @@ function SearchInput({ value, onChange }) {
         onChange={(e) => onChange(e.target.value)}
         placeholder="Filter files…"
         className={cn(
-          'w-full pl-7 pr-2 py-1 rounded-md text-[11px]',
+          'w-full pl-7 pr-2 py-1 rounded-md text-[12px]',
           'bg-day-bg dark:bg-night-bg',
           'border border-day-border dark:border-night-border',
           'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
@@ -535,7 +535,7 @@ function SearchInput({ value, onChange }) {
 function FileList({ files, catalogStatus, usedNames, selected, onToggle, onDelete }) {
   if (catalogStatus.loading && files.length === 0) {
     return (
-      <div className="rounded-md border border-day-border dark:border-night-border bg-day-bg/50 dark:bg-night-bg/50 px-2 py-4 text-center text-[11px] text-day-muted dark:text-night-muted inline-flex items-center justify-center gap-1.5">
+      <div className="rounded-md border border-day-border dark:border-night-border bg-day-bg/50 dark:bg-night-bg/50 px-2 py-4 text-center text-[12px] text-day-muted dark:text-night-muted inline-flex items-center justify-center gap-1.5">
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
         Reading catalog…
       </div>
@@ -543,7 +543,7 @@ function FileList({ files, catalogStatus, usedNames, selected, onToggle, onDelet
   }
   if (catalogStatus.error) {
     return (
-      <div className="rounded-md border border-red-300 dark:border-red-900/40 bg-red-50 dark:bg-red-950/30 px-2 py-2 text-[10.5px] text-red-700 dark:text-red-300">
+      <div className="rounded-md border border-red-300 dark:border-red-900/40 bg-red-50 dark:bg-red-950/30 px-2 py-2 text-[11.5px] text-red-700 dark:text-red-300">
         {catalogStatus.error}
       </div>
     );
@@ -552,12 +552,12 @@ function FileList({ files, catalogStatus, usedNames, selected, onToggle, onDelet
     return (
       <div className="rounded-md border border-dashed border-day-border dark:border-night-border px-2 py-4 text-center">
         <FolderOpen className="h-4 w-4 mx-auto mb-1 text-day-muted dark:text-night-muted" />
-        <p className="text-[10.5px] text-day-muted dark:text-night-muted">
+        <p className="text-[11.5px] text-day-muted dark:text-night-muted">
           Catalog is empty.
         </p>
-        <p className="text-[10px] text-day-muted dark:text-night-muted mt-1">
+        <p className="text-[11px] text-day-muted dark:text-night-muted mt-1">
           Upload above, or drop GeoTIFFs into{' '}
-          <code className="text-[9.5px]">data/rasters/</code> on the
+          <code className="text-[10.5px]">data/rasters/</code> on the
           server.
         </p>
       </div>
@@ -597,9 +597,9 @@ function FileList({ files, catalogStatus, usedNames, selected, onToggle, onDelet
                 <span className="flex-1 min-w-0">
                   <TruncateLabel
                     text={f.name}
-                    className="text-[11px] text-day-text dark:text-night-text"
+                    className="text-[12px] text-day-text dark:text-night-text"
                   />
-                  <span className="block text-[9.5px] text-day-muted dark:text-night-muted">
+                  <span className="block text-[10.5px] text-day-muted dark:text-night-muted">
                     {f.parsedDate ? `${f.parsedDate} · ` : ''}
                     {formatBytes(f.size)}
                     {used ? ' · in another group' : ''}
@@ -721,9 +721,9 @@ function GroupRow({ group, onRemove, onToggleVisible, onSetFrame, onZoom }) {
         <div className="flex-1 min-w-0">
           <TruncateLabel
             text={group.name}
-            className="text-[12px] text-day-text dark:text-night-text"
+            className="text-[13px] text-day-text dark:text-night-text"
           />
-          <div className="text-[9.5px] text-day-muted dark:text-night-muted truncate">
+          <div className="text-[10.5px] text-day-muted dark:text-night-muted truncate">
             {isTemporal
               ? `${group.layers.length} frames · ${formatBytes(
                   group.layers.reduce((acc, l) => acc + (l.size || 0), 0),
@@ -794,20 +794,20 @@ function GroupRow({ group, onRemove, onToggleVisible, onSetFrame, onZoom }) {
                         : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text hover:bg-day-bg dark:hover:bg-night-bg',
                     )}
                   >
-                    <span className="text-[9.5px] tabular-nums w-5 shrink-0 text-right">
+                    <span className="text-[10.5px] tabular-nums w-5 shrink-0 text-right">
                       {i + 1}
                     </span>
                     <span className="flex-1 min-w-0">
                       <TruncateLabel
                         text={l.parsedDate ?? l.name}
-                        className="text-[11px]"
+                        className="text-[12px]"
                       />
                     </span>
                     {l.parsedDate && l.parsedDate !== l.name ? (
                       <span className="hidden sm:block max-w-[40%] min-w-0 shrink-0 opacity-70">
                         <TruncateLabel
                           text={l.name}
-                          className="text-[9.5px]"
+                          className="text-[10.5px]"
                         />
                       </span>
                     ) : null}
@@ -890,7 +890,7 @@ function RasterLegend({
 
   return (
     <div className="px-2 py-1.5 flex flex-col gap-1">
-      <div className="flex items-center justify-between text-[9.5px]">
+      <div className="flex items-center justify-between text-[10.5px]">
         <span className="text-day-muted dark:text-night-muted">
           {colormapLabel}
         </span>
@@ -930,7 +930,7 @@ function RasterLegend({
             title={`Playback speed: ${formatSpeed(speed)}`}
             className={cn(
               'inline-flex h-5 min-w-[26px] px-1 shrink-0 items-center justify-center rounded',
-              'text-[10px] font-semibold tabular-nums leading-none transition-colors',
+              'text-[11px] font-semibold tabular-nums leading-none transition-colors',
               'border border-day-border dark:border-night-border',
               'text-day-muted dark:text-night-muted',
               'hover:text-[#16a085] hover:border-[#16a085]/60 hover:bg-[#16a085]/10',
@@ -947,7 +947,7 @@ function RasterLegend({
         />
       )}
 
-      <div className="flex items-center justify-between gap-2 text-[10px] tabular-nums text-day-text dark:text-night-text">
+      <div className="flex items-center justify-between gap-2 text-[11px] tabular-nums text-day-text dark:text-night-text">
         <span>{niceLegendNumber(lowVal)}</span>
         {isTemporal ? (
           <span
@@ -1089,11 +1089,11 @@ function Section({ title, count, children }) {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5 mt-1">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
           {title}
         </span>
         {typeof count === 'number' ? (
-          <span className="ml-auto text-[10px] tabular-nums text-day-muted dark:text-night-muted">
+          <span className="ml-auto text-[11px] tabular-nums text-day-muted dark:text-night-muted">
             {count}
           </span>
         ) : null}
@@ -1106,7 +1106,7 @@ function Section({ title, count, children }) {
 
 function EmptyHint({ children }) {
   return (
-    <p className="text-[10.5px] text-day-muted dark:text-night-muted text-center px-2 py-3 rounded-md border border-dashed border-day-border dark:border-night-border">
+    <p className="text-[11.5px] text-day-muted dark:text-night-muted text-center px-2 py-3 rounded-md border border-dashed border-day-border dark:border-night-border">
       {children}
     </p>
   );

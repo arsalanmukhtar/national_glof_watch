@@ -107,7 +107,7 @@ export default function StationStatusBadge() {
           />
         </div>
         <div className="flex items-center justify-between gap-2 leading-none">
-          <span className="text-[9px] text-white/60">
+          <span className="text-[10px] text-white/60">
             Last updated{' '}
             <span className="text-white/85 tabular-nums">
               {fetchedAt ? timeAgo(fetchedAt) : '—'}
@@ -140,20 +140,20 @@ export default function StationStatusBadge() {
 function Metric({ label, value, subtitle, accent = false }) {
   return (
     <div className="flex flex-col items-start leading-none gap-0.5">
-      <span className="text-[9px] uppercase tracking-[0.08em] text-white/70 whitespace-nowrap">
+      <span className="text-[10px] uppercase tracking-[0.08em] text-white/70 whitespace-nowrap">
         {label}
       </span>
       <div className="flex items-baseline gap-1.5">
         <span
           className={cn(
-            'text-[14px] font-semibold tabular-nums leading-none',
+            'text-[15px] font-semibold tabular-nums leading-none',
             accent ? 'text-emerald-300' : 'text-white',
           )}
         >
           {value ?? '—'}
         </span>
         {subtitle && (
-          <span className="text-[9px] text-white/55 whitespace-nowrap">
+          <span className="text-[10px] text-white/55 whitespace-nowrap">
             {subtitle}
           </span>
         )}

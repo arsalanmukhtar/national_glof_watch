@@ -45,7 +45,7 @@ export default function AlertsPanel({ compact = false }) {
                 loading="lazy"
                 className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
-              <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-900/80 to-transparent p-2 text-[10px] text-white text-left capitalize">
+              <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-900/80 to-transparent p-2 text-[11px] text-white text-left capitalize">
                 {alert.label}
               </span>
             </button>

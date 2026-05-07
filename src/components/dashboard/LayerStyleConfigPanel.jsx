@@ -349,7 +349,7 @@ function ColorButton({ value, onChange, ariaLabel, allowNone = false }) {
               'group flex items-center gap-1.5 rounded-md',
               'border border-day-border dark:border-night-border',
               'bg-white dark:bg-night-bg',
-              'pl-1 pr-1.5 py-1 text-[11px] tabular-nums',
+              'pl-1 pr-1.5 py-1 text-[12px] tabular-nums',
               'hover:border-[#16a085]/60 transition-colors',
               'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
             )}
@@ -483,7 +483,7 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
               <button
                 type="button"
                 onClick={onClear}
-                className="h-5 w-7 rounded-sm border border-day-border dark:border-night-border text-[9px] font-medium text-day-muted dark:text-night-muted hover:border-[#16a085]"
+                className="h-5 w-7 rounded-sm border border-day-border dark:border-night-border text-[10px] font-medium text-day-muted dark:text-night-muted hover:border-[#16a085]"
               >
                 None
               </button>
@@ -519,14 +519,14 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
           }}
           spellCheck={false}
           className={cn(
-            'flex-1 rounded-md px-2 py-1 text-[11px] tabular-nums uppercase',
+            'flex-1 rounded-md px-2 py-1 text-[12px] tabular-nums uppercase',
             'bg-day-bg dark:bg-night-bg',
             'border border-day-border dark:border-night-border',
             'text-day-text dark:text-night-text',
             'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
           )}
         />
-        <span className="text-[11px] text-day-muted dark:text-night-muted">Hex</span>
+        <span className="text-[12px] text-day-muted dark:text-night-muted">Hex</span>
       </div>
 
       {/* SV square */}
@@ -591,7 +591,7 @@ function NumberSlider({ value, onChange, min, max, step = 1, format = (v) => v }
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full h-1 rounded-full appearance-none bg-day-border dark:bg-night-border accent-[#16a085] cursor-pointer"
       />
-      <span className="w-12 text-right tabular-nums text-[11px] text-day-text dark:text-night-text">
+      <span className="w-12 text-right tabular-nums text-[12px] text-day-text dark:text-night-text">
         {format(value)}
       </span>
     </div>
@@ -614,7 +614,7 @@ function Section({ title, children, action }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <span className="text-[12px] font-semibold text-day-text dark:text-night-text">{title}</span>
+        <span className="text-[13px] font-semibold text-day-text dark:text-night-text">{title}</span>
         {action ? <div className="ml-auto">{action}</div> : null}
       </div>
       <div className="flex flex-col gap-1.5">{children}</div>
@@ -625,7 +625,7 @@ function Section({ title, children, action }) {
 function Field({ label, children, action }) {
   return (
     <div className="grid grid-cols-[68px_1fr_auto] items-center gap-2">
-      <span className="text-[11px] text-day-muted dark:text-night-muted capitalize">{label}</span>
+      <span className="text-[12px] text-day-muted dark:text-night-muted capitalize">{label}</span>
       <div className="flex items-center gap-2 min-w-0">{children}</div>
       <div>{action ?? null}</div>
     </div>
@@ -642,7 +642,7 @@ function Dropdown({ value, onChange, options, renderOption, renderTrigger, width
             'group flex w-full items-center gap-1.5 rounded-md',
             'border border-day-border dark:border-night-border',
             'bg-white dark:bg-night-bg',
-            'px-2 py-1 text-left text-[11px]',
+            'px-2 py-1 text-left text-[12px]',
             'hover:border-[#16a085]/60 transition-colors',
             'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
           )}
@@ -656,7 +656,7 @@ function Dropdown({ value, onChange, options, renderOption, renderTrigger, width
             className={cn(
               'z-[100] max-h-64 w-[var(--button-width)] overflow-y-auto rounded-md py-1',
               'bg-white dark:bg-night-surface',
-              'border border-day-border dark:border-night-border shadow-lg text-[11px] focus:outline-none',
+              'border border-day-border dark:border-night-border shadow-lg text-[12px] focus:outline-none',
             )}
           >
             {options.map((opt) => (
@@ -839,11 +839,11 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center">
-        <span className="text-[11px] font-semibold">Zoom-driven</span>
+        <span className="text-[12px] font-semibold">Zoom-driven</span>
         <button
           type="button"
           onClick={onDeactivate}
-          className="ml-auto text-[10px] text-day-muted dark:text-night-muted hover:text-red-500"
+          className="ml-auto text-[11px] text-day-muted dark:text-night-muted hover:text-red-500"
         >
           Remove
         </button>
@@ -856,7 +856,7 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
             className="rounded-full bg-[#16a085]"
             style={{ width: sizeAt(value.v1), height: sizeAt(value.v1) }}
           />
-          <span className="text-[10px] tabular-nums text-day-muted dark:text-night-muted">
+          <span className="text-[11px] tabular-nums text-day-muted dark:text-night-muted">
             {format(value.v1)}
           </span>
         </div>
@@ -866,7 +866,7 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
             className="rounded-full bg-[#16a085]"
             style={{ width: sizeAt(value.v2), height: sizeAt(value.v2) }}
           />
-          <span className="text-[10px] tabular-nums text-day-muted dark:text-night-muted">
+          <span className="text-[11px] tabular-nums text-day-muted dark:text-night-muted">
             {format(value.v2)}
           </span>
         </div>
@@ -874,7 +874,7 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
 
       {/* Zoom range track — click or drag to re-position the active anchor */}
       <div>
-        <div className="flex items-center justify-between mb-1 text-[10px] text-day-muted dark:text-night-muted">
+        <div className="flex items-center justify-between mb-1 text-[11px] text-day-muted dark:text-night-muted">
           <span>z {ZOOM_MIN}</span>
           <span>Zoom range</span>
           <span>z {ZOOM_MAX}</span>
@@ -904,7 +904,7 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
         <div className="relative h-3 mt-0.5">
           <span
             className={cn(
-              'absolute -translate-x-1/2 text-[9px] tabular-nums',
+              'absolute -translate-x-1/2 text-[10px] tabular-nums',
               active === 1 ? 'text-[#16a085] font-semibold' : 'text-day-muted dark:text-night-muted',
             )}
             style={{ left: pos(value.z1) }}
@@ -913,7 +913,7 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
           </span>
           <span
             className={cn(
-              'absolute -translate-x-1/2 text-[9px] tabular-nums',
+              'absolute -translate-x-1/2 text-[10px] tabular-nums',
               active === 2 ? 'text-[#16a085] font-semibold' : 'text-day-muted dark:text-night-muted',
             )}
             style={{ left: pos(value.z2) }}
@@ -926,15 +926,15 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
       {/* Selected anchor config */}
       <div className="rounded-md bg-day-bg/60 dark:bg-night-bg/60 px-2.5 py-2">
         <div className="mb-1.5 flex items-center gap-1">
-          <span className="text-[10px] font-semibold text-[#16a085]">
+          <span className="text-[11px] font-semibold text-[#16a085]">
             Styling zoom {z}
           </span>
-          <span className="ml-auto text-[10px] text-day-muted dark:text-night-muted">
+          <span className="ml-auto text-[11px] text-day-muted dark:text-night-muted">
             anchor {active === 1 ? 'A' : 'B'}
           </span>
         </div>
         <label className="flex items-center gap-2">
-          <span className="w-10 text-[10px] text-day-muted dark:text-night-muted">Zoom</span>
+          <span className="w-10 text-[11px] text-day-muted dark:text-night-muted">Zoom</span>
           <input
             type="range"
             min={active === 1 ? ZOOM_MIN : value.z1}
@@ -944,10 +944,10 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
             onChange={(e) => setZ(Number(e.target.value))}
             className="flex-1 h-1 rounded-full appearance-none bg-day-border dark:bg-night-border accent-[#16a085] cursor-pointer"
           />
-          <span className="w-8 text-right tabular-nums text-[11px]">{z}</span>
+          <span className="w-8 text-right tabular-nums text-[12px]">{z}</span>
         </label>
         <label className="mt-1.5 flex items-center gap-2">
-          <span className="w-10 text-[10px] text-day-muted dark:text-night-muted">Value</span>
+          <span className="w-10 text-[11px] text-day-muted dark:text-night-muted">Value</span>
           <input
             type="range"
             min={valueMin}
@@ -957,7 +957,7 @@ function ZoomConfigBody({ value, onChange, onDeactivate, min, max, step, format 
             onChange={(e) => setV(Number(e.target.value))}
             className="flex-1 h-1 rounded-full appearance-none bg-day-border dark:bg-night-border accent-[#16a085] cursor-pointer"
           />
-          <span className="w-12 text-right tabular-nums text-[11px]">{format(v)}</span>
+          <span className="w-12 text-right tabular-nums text-[12px]">{format(v)}</span>
         </label>
       </div>
     </div>
@@ -1028,7 +1028,7 @@ function CategoricalPaletteSwatch({ paletteId, onChange }) {
               'flex w-full items-center gap-1 rounded-md',
               'border border-day-border dark:border-night-border',
               'bg-white dark:bg-night-bg',
-              'px-1 py-1 text-[11px]',
+              'px-1 py-1 text-[12px]',
               'hover:border-[#16a085]/60 transition-colors',
               'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
             )}
@@ -1066,7 +1066,7 @@ function CategoricalPaletteSwatch({ paletteId, onChange }) {
                         <span key={c} className="flex-1" style={{ backgroundColor: c }} />
                       ))}
                     </div>
-                    <span className="text-[11px]">{p.label}</span>
+                    <span className="text-[12px]">{p.label}</span>
                   </button>
                 ))}
               </div>
@@ -1082,8 +1082,8 @@ function CategoryList({ categories, otherColor, showOther, onChange }) {
   return (
     <div className="rounded-md border border-day-border dark:border-night-border bg-day-bg/40 dark:bg-night-bg/40 p-2">
       <div className="flex items-center gap-2 pb-1.5 mb-1.5 border-b border-day-border/60 dark:border-night-border/60">
-        <span className="text-[11px] font-semibold">Set categories</span>
-        <label className="ml-auto inline-flex items-center gap-1 text-[10px] text-day-muted dark:text-night-muted cursor-pointer">
+        <span className="text-[12px] font-semibold">Set categories</span>
+        <label className="ml-auto inline-flex items-center gap-1 text-[11px] text-day-muted dark:text-night-muted cursor-pointer">
           <span>Show other</span>
           <Switch
             checked={showOther}
@@ -1113,7 +1113,7 @@ function CategoryList({ categories, otherColor, showOther, onChange }) {
               }}
               ariaLabel={`Color for ${c.value}`}
             />
-            <span className="flex-1 truncate text-[11px]">{c.value}</span>
+            <span className="flex-1 truncate text-[12px]">{c.value}</span>
           </div>
         ))}
         {showOther && (
@@ -1123,7 +1123,7 @@ function CategoryList({ categories, otherColor, showOther, onChange }) {
               onChange={(nc) => onChange({ otherColor: nc })}
               ariaLabel="Other color"
             />
-            <span className="flex-1 text-[11px] text-day-muted dark:text-night-muted">Other</span>
+            <span className="flex-1 text-[12px] text-day-muted dark:text-night-muted">Other</span>
           </div>
         )}
       </div>
@@ -1149,7 +1149,7 @@ function RampSwatch({ rampId, reversed, classCount, onChangeRamp, onToggleRevers
               'flex w-full items-center gap-1 rounded-md',
               'border border-day-border dark:border-night-border',
               'bg-white dark:bg-night-bg',
-              'px-1 py-1 text-[11px]',
+              'px-1 py-1 text-[12px]',
               'hover:border-[#16a085]/60 transition-colors',
               'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
             )}
@@ -1193,13 +1193,13 @@ function RampSwatch({ rampId, reversed, classCount, onChangeRamp, onToggleRevers
                       className="h-4 w-32 rounded-sm"
                       style={{ background: `linear-gradient(to right, ${r.stops.join(', ')})` }}
                     />
-                    <span className="text-[11px]">{r.label}</span>
+                    <span className="text-[12px]">{r.label}</span>
                   </button>
                 ))}
                 <button
                   type="button"
                   onClick={onToggleReverse}
-                  className="mt-1 inline-flex items-center justify-center gap-1.5 rounded border border-day-border dark:border-night-border px-2 py-1 text-[11px] text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg"
+                  className="mt-1 inline-flex items-center justify-center gap-1.5 rounded border border-day-border dark:border-night-border px-2 py-1 text-[12px] text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg"
                 >
                   <ArrowLeftRight className="h-3 w-3" /> Reverse colors
                 </button>
@@ -1229,9 +1229,9 @@ function AttributePicker({ attrs, value, onChange, filter = 'any' }) {
       renderTrigger={(opt) => <span className="truncate">{opt?.name || 'Select attribute'}</span>}
       renderOption={(opt) => (
         <span className="flex flex-col">
-          <span className="text-[11px]">{opt.name}</span>
+          <span className="text-[12px]">{opt.name}</span>
           {opt.sample?.length ? (
-            <span className="text-[9px] text-day-muted dark:text-night-muted truncate">
+            <span className="text-[10px] text-day-muted dark:text-night-muted truncate">
               {opt.sample.slice(0, 4).join(', ')}
             </span>
           ) : null}
@@ -1256,7 +1256,7 @@ function LayerSelector({ groups, selectedId, onSelect }) {
             'group flex w-full items-center gap-2 rounded-md',
             'border border-day-border dark:border-night-border',
             'bg-white dark:bg-night-bg',
-            'px-2.5 py-1.5 text-left text-[12px]',
+            'px-2.5 py-1.5 text-left text-[13px]',
             'hover:border-[#16a085]/60 transition-colors',
             'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
           )}
@@ -1290,7 +1290,7 @@ function LayerSelector({ groups, selectedId, onSelect }) {
             className={cn(
               'z-[100] max-h-72 w-[var(--button-width)] overflow-y-auto rounded-md py-1',
               'bg-white dark:bg-night-surface',
-              'border border-day-border dark:border-night-border shadow-lg focus:outline-none text-[12px]',
+              'border border-day-border dark:border-night-border shadow-lg focus:outline-none text-[13px]',
             )}
           >
             {groups.length === 0 ? (
@@ -1299,7 +1299,7 @@ function LayerSelector({ groups, selectedId, onSelect }) {
               </div>
             ) : groups.map((g) => (
               <div key={g.name}>
-                <div className="px-2.5 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+                <div className="px-2.5 pt-1.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
                   {g.name}
                 </div>
                 {g.items.map((item) => (
@@ -1328,7 +1328,7 @@ function LayerSelector({ groups, selectedId, onSelect }) {
                           />
                         </span>
                         {!item.visible && (
-                          <span className="text-[9px] uppercase tracking-wider text-day-muted/70 dark:text-night-muted/70">hidden</span>
+                          <span className="text-[10px] uppercase tracking-wider text-day-muted/70 dark:text-night-muted/70">hidden</span>
                         )}
                         {isSel && <Check className="h-3 w-3 text-[#16a085]" />}
                       </>
@@ -1396,7 +1396,7 @@ function RasterStyleForm({ groups, selectedId, onSelect }) {
                 type="button"
                 onClick={() => setStyle({ autoStretch: true })}
                 className={cn(
-                  'flex-1 px-2 py-1 text-[11px] transition-colors',
+                  'flex-1 px-2 py-1 text-[12px] transition-colors',
                   auto
                     ? 'bg-[#16a085] text-white'
                     : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
@@ -1414,7 +1414,7 @@ function RasterStyleForm({ groups, selectedId, onSelect }) {
                   })
                 }
                 className={cn(
-                  'flex-1 px-2 py-1 text-[11px] transition-colors border-l border-day-border dark:border-night-border',
+                  'flex-1 px-2 py-1 text-[12px] transition-colors border-l border-day-border dark:border-night-border',
                   !auto
                     ? 'bg-[#16a085] text-white'
                     : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
@@ -1434,7 +1434,7 @@ function RasterStyleForm({ groups, selectedId, onSelect }) {
                 const n = Number(e.target.value);
                 setStyle({ min: Number.isFinite(n) ? n : null });
               }}
-              className="w-full rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[11px] px-2 py-1 text-day-text dark:text-night-text disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+              className="w-full rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[12px] px-2 py-1 text-day-text dark:text-night-text disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
             />
           </Field>
           <Field label="Max">
@@ -1447,11 +1447,11 @@ function RasterStyleForm({ groups, selectedId, onSelect }) {
                 const n = Number(e.target.value);
                 setStyle({ max: Number.isFinite(n) ? n : null });
               }}
-              className="w-full rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[11px] px-2 py-1 text-day-text dark:text-night-text disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+              className="w-full rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[12px] px-2 py-1 text-day-text dark:text-night-text disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
             />
           </Field>
           {auto && (Number.isFinite(dataMin) || Number.isFinite(dataMax)) ? (
-            <p className="text-[10px] text-day-muted dark:text-night-muted px-1">
+            <p className="text-[11px] text-day-muted dark:text-night-muted px-1">
               Auto stretch ·{' '}
               <span className="tabular-nums text-day-text dark:text-night-text">
                 {Number.isFinite(dataMin) ? niceNumber(dataMin) : '—'}
@@ -1479,7 +1479,7 @@ function RasterStyleForm({ groups, selectedId, onSelect }) {
       </div>
 
       <div className="shrink-0 flex items-center justify-between border-t border-day-border dark:border-night-border bg-white dark:bg-night-surface px-3 py-2.5">
-        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+        <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
           <GeometryGlyph geometry="raster" className="h-3 w-3 text-[#16a085]" />
           raster {group.kind === 'temporal' ? 'series' : 'layer'}
         </span>
@@ -1494,7 +1494,7 @@ function RasterStyleForm({ groups, selectedId, onSelect }) {
               max: null,
             })
           }
-          className="inline-flex items-center gap-1 text-[11px] text-day-muted dark:text-night-muted hover:text-[#16a085] transition-colors"
+          className="inline-flex items-center gap-1 text-[12px] text-day-muted dark:text-night-muted hover:text-[#16a085] transition-colors"
         >
           <RotateCcw className="h-3 w-3" />
           Reset
@@ -1523,7 +1523,7 @@ function ColormapDropdown({ options, value, onChange }) {
   return (
     <Listbox value={value} onChange={onChange}>
       <div className="relative w-full">
-        <Listbox.Button className="w-full inline-flex items-center gap-2 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-2 py-1 text-[11px] text-day-text dark:text-night-text hover:border-[#16a085]/60 transition-colors">
+        <Listbox.Button className="w-full inline-flex items-center gap-2 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-2 py-1 text-[12px] text-day-text dark:text-night-text hover:border-[#16a085]/60 transition-colors">
           <ColormapPreview id={current.id} className="h-3 w-12 shrink-0 rounded" />
           <span className="flex-1 text-left truncate">{current.label}</span>
           <ChevronDown className="h-3 w-3 text-day-muted dark:text-night-muted" />
@@ -1537,7 +1537,7 @@ function ColormapDropdown({ options, value, onChange }) {
           <Listbox.Options className="absolute z-30 mt-1 w-full rounded-md border border-day-border dark:border-night-border bg-white dark:bg-night-surface shadow-lg max-h-72 overflow-y-auto">
             {grouped.map((g) => (
               <div key={g.category}>
-                <div className="px-2 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+                <div className="px-2 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
                   {g.category}
                 </div>
                 {g.items.map((o) => (
@@ -1546,7 +1546,7 @@ function ColormapDropdown({ options, value, onChange }) {
                     value={o.id}
                     className={({ active }) =>
                       cn(
-                        'flex items-center gap-2 px-2 py-1 text-[11px] cursor-pointer',
+                        'flex items-center gap-2 px-2 py-1 text-[12px] cursor-pointer',
                         active
                           ? 'bg-[#16a085]/10 text-[#16a085]'
                           : 'text-day-text dark:text-night-text',
@@ -1672,7 +1672,7 @@ export default function LayerStyleConfigPanel() {
       <div className="flex flex-col h-full -mx-3 -my-3">
         <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-3 pb-3 flex flex-col gap-2.5">
           <LayerSelector groups={groups} selectedId={selectedId} onSelect={setSelectedId} />
-          <div className="rounded-md border border-dashed border-day-border dark:border-night-border px-3 py-6 text-center text-[12px] text-day-muted dark:text-night-muted">
+          <div className="rounded-md border border-dashed border-day-border dark:border-night-border px-3 py-6 text-center text-[13px] text-day-muted dark:text-night-muted">
             Toggle a layer on (Primary or Secondary) to start styling.
           </div>
         </div>
@@ -1797,7 +1797,7 @@ export default function LayerStyleConfigPanel() {
                   type="button"
                   onClick={() => setStyle({ classMode: 'continuous' })}
                   className={cn(
-                    'flex-1 px-2 py-1 text-[11px] transition-colors',
+                    'flex-1 px-2 py-1 text-[12px] transition-colors',
                     (style.classMode || 'continuous') === 'continuous'
                       ? 'bg-[#16a085] text-white'
                       : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
@@ -1809,7 +1809,7 @@ export default function LayerStyleConfigPanel() {
                   type="button"
                   onClick={() => setStyle({ classMode: 'classified' })}
                   className={cn(
-                    'flex-1 px-2 py-1 text-[11px] transition-colors border-l border-day-border dark:border-night-border',
+                    'flex-1 px-2 py-1 text-[12px] transition-colors border-l border-day-border dark:border-night-border',
                     style.classMode === 'classified'
                       ? 'bg-[#16a085] text-white'
                       : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
@@ -1908,17 +1908,17 @@ export default function LayerStyleConfigPanel() {
               >
                 {style.type === 'sizeRange' ? (
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-[10px] text-day-muted dark:text-night-muted">min</span>
+                    <span className="text-[11px] text-day-muted dark:text-night-muted">min</span>
                     <input type="number" value={style.sizeMin} min={1} max={48} step={0.5}
                       onChange={(e) => setStyle({ sizeMin: Number(e.target.value) })}
-                      className="w-12 rounded border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-1 py-0.5 text-[11px] tabular-nums" />
-                    <span className="text-[10px] text-day-muted dark:text-night-muted">max</span>
+                      className="w-12 rounded border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-1 py-0.5 text-[12px] tabular-nums" />
+                    <span className="text-[11px] text-day-muted dark:text-night-muted">max</span>
                     <input type="number" value={style.sizeMax} min={1} max={48} step={0.5}
                       onChange={(e) => setStyle({ sizeMax: Number(e.target.value) })}
-                      className="w-12 rounded border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-1 py-0.5 text-[11px] tabular-nums" />
+                      className="w-12 rounded border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-1 py-0.5 text-[12px] tabular-nums" />
                   </div>
                 ) : zoomFor('radius') ? (
-                  <span className="text-[11px] tabular-nums text-day-text dark:text-night-text">
+                  <span className="text-[12px] tabular-nums text-day-text dark:text-night-text">
                     {zoomFor('radius').v1}px → {zoomFor('radius').v2}px
                   </span>
                 ) : (
@@ -1993,17 +1993,17 @@ export default function LayerStyleConfigPanel() {
               >
                 {style.type === 'sizeRange' ? (
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-[10px] text-day-muted dark:text-night-muted">min</span>
+                    <span className="text-[11px] text-day-muted dark:text-night-muted">min</span>
                     <input type="number" value={style.sizeMin} min={0.25} max={20} step={0.25}
                       onChange={(e) => setStyle({ sizeMin: Number(e.target.value) })}
-                      className="w-12 rounded border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-1 py-0.5 text-[11px] tabular-nums" />
-                    <span className="text-[10px] text-day-muted dark:text-night-muted">max</span>
+                      className="w-12 rounded border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-1 py-0.5 text-[12px] tabular-nums" />
+                    <span className="text-[11px] text-day-muted dark:text-night-muted">max</span>
                     <input type="number" value={style.sizeMax} min={0.25} max={20} step={0.25}
                       onChange={(e) => setStyle({ sizeMax: Number(e.target.value) })}
-                      className="w-12 rounded border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-1 py-0.5 text-[11px] tabular-nums" />
+                      className="w-12 rounded border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-1 py-0.5 text-[12px] tabular-nums" />
                   </div>
                 ) : zoomFor('width') ? (
-                  <span className="text-[11px] tabular-nums text-day-text dark:text-night-text">
+                  <span className="text-[12px] tabular-nums text-day-text dark:text-night-text">
                     {zoomFor('width').v1}px → {zoomFor('width').v2}px
                   </span>
                 ) : (
@@ -2030,12 +2030,12 @@ export default function LayerStyleConfigPanel() {
               <Field label="Pattern">
                 <div className="inline-flex w-full rounded-md border border-day-border dark:border-night-border overflow-hidden">
                   <button type="button" onClick={() => setStyle({ dashed: false })}
-                    className={cn('flex-1 px-2 py-1 text-[11px] transition-colors',
+                    className={cn('flex-1 px-2 py-1 text-[12px] transition-colors',
                       !style.dashed ? 'bg-[#16a085] text-white' : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg')}>
                     Solid
                   </button>
                   <button type="button" onClick={() => setStyle({ dashed: true })}
-                    className={cn('flex-1 px-2 py-1 text-[11px] transition-colors border-l border-day-border dark:border-night-border',
+                    className={cn('flex-1 px-2 py-1 text-[12px] transition-colors border-l border-day-border dark:border-night-border',
                       style.dashed ? 'bg-[#16a085] text-white' : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg')}>
                     Dashed
                   </button>
@@ -2074,7 +2074,7 @@ export default function LayerStyleConfigPanel() {
                 }
               >
                 {zoomFor('strokeWidth') ? (
-                  <span className="text-[11px] tabular-nums text-day-text dark:text-night-text">
+                  <span className="text-[12px] tabular-nums text-day-text dark:text-night-text">
                     {zoomFor('strokeWidth').v1}px → {zoomFor('strokeWidth').v2}px
                   </span>
                 ) : (
@@ -2177,7 +2177,7 @@ export default function LayerStyleConfigPanel() {
                     type="button"
                     onClick={() => setStyle({ label: { style: s } })}
                     className={cn(
-                      'flex-1 px-2 py-1 text-[11px] capitalize transition-colors',
+                      'flex-1 px-2 py-1 text-[12px] capitalize transition-colors',
                       s !== 'medium' && 'border-l border-day-border dark:border-night-border',
                       style.label.style === s
                         ? 'bg-[#16a085] text-white'
@@ -2198,7 +2198,7 @@ export default function LayerStyleConfigPanel() {
       {/* Pinned footer — sits below the scroll region so it stays visible
           regardless of how much the body scrolls. */}
       <div className="shrink-0 flex items-center justify-between border-t border-day-border dark:border-night-border bg-white dark:bg-night-surface px-3 py-2.5">
-        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+        <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
           <GeometryGlyph geometry={selected.geometry} className="h-3 w-3 text-[#16a085]" />
           {selected.geometry} layer
           {loading && <span className="ml-1 text-[#16a085]/80">· loading…</span>}
@@ -2206,7 +2206,7 @@ export default function LayerStyleConfigPanel() {
         <button
           type="button"
           onClick={() => resetLayerStyle(selected.id)}
-          className="inline-flex items-center gap-1 text-[11px] text-day-muted dark:text-night-muted hover:text-[#16a085] transition-colors"
+          className="inline-flex items-center gap-1 text-[12px] text-day-muted dark:text-night-muted hover:text-[#16a085] transition-colors"
         >
           <RotateCcw className="h-3 w-3" />
           Reset

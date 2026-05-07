@@ -136,11 +136,11 @@ export default function ThresholdStationsCard() {
           style={{ color: tab.accent }}
           aria-hidden
         />
-        <h3 className="text-[12px] font-semibold tracking-wide uppercase text-day-text dark:text-night-text">
+        <h3 className="text-[13px] font-semibold tracking-wide uppercase text-day-text dark:text-night-text">
           Threshold Breaches
         </h3>
         <span
-          className="ml-auto text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md border"
+          className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md border"
           style={{
             color: tab.accent,
             borderColor: `${tab.accent}66`,
@@ -163,7 +163,7 @@ export default function ThresholdStationsCard() {
               onClick={() => setTabId(t.id)}
               aria-pressed={active}
               className={cn(
-                'relative flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11px] font-medium rounded-md transition-colors',
+                'relative flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[12px] font-medium rounded-md transition-colors',
                 active
                   ? 'text-day-text dark:text-night-text'
                   : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
@@ -191,7 +191,7 @@ export default function ThresholdStationsCard() {
         className="relative px-3 pt-2.5 pb-3 min-h-[68px]"
       >
         {breaches.length === 0 ? (
-          <div className="flex items-center justify-center h-[60px] text-[11px] text-day-muted dark:text-night-muted">
+          <div className="flex items-center justify-center h-[60px] text-[12px] text-day-muted dark:text-night-muted">
             No stations breaching {tab.thresholdLabel} right now.
           </div>
         ) : (
@@ -217,20 +217,20 @@ export default function ThresholdStationsCard() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
                   <span
-                    className="text-[15px] font-semibold tabular-nums"
+                    className="text-[16px] font-semibold tabular-nums"
                     style={{ color: tab.accent }}
                   >
                     {formatValue(current.value, tab.unit)}
                   </span>
-                  <span className="text-[10px] uppercase tracking-wide text-day-muted dark:text-night-muted">
+                  <span className="text-[11px] uppercase tracking-wide text-day-muted dark:text-night-muted">
                     {tab.operator} {tab.threshold} {tab.unit}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 mt-0.5 text-[12px] text-day-text dark:text-night-text truncate">
+                <div className="flex items-center gap-1.5 mt-0.5 text-[13px] text-day-text dark:text-night-text truncate">
                   <ArrowRight className="h-3 w-3 shrink-0 text-day-muted dark:text-night-muted" aria-hidden />
                   <span className="truncate font-medium">{current.name}</span>
                 </div>
-                <div className="flex items-center gap-1 mt-0.5 text-[10px] text-day-muted dark:text-night-muted">
+                <div className="flex items-center gap-1 mt-0.5 text-[11px] text-day-muted dark:text-night-muted">
                   <Clock className="h-2.5 w-2.5" aria-hidden />
                   <span>{current.ago}</span>
                 </div>

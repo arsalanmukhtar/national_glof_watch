@@ -103,7 +103,7 @@ function GradientBar({ stops, label, minLabel, maxLabel }) {
   return (
     <div className="flex flex-col gap-0.5">
       {label && (
-        <span className="text-[10px] text-day-muted dark:text-night-muted">
+        <span className="text-[11px] text-day-muted dark:text-night-muted">
           {label}
         </span>
       )}
@@ -111,7 +111,7 @@ function GradientBar({ stops, label, minLabel, maxLabel }) {
         className="h-2 rounded-sm"
         style={{ background: `linear-gradient(to right, ${stops.join(', ')})` }}
       />
-      <div className="flex items-center justify-between text-[9px] tabular-nums text-day-muted dark:text-night-muted">
+      <div className="flex items-center justify-between text-[10px] tabular-nums text-day-muted dark:text-night-muted">
         <span>{minLabel}</span>
         <span>{maxLabel}</span>
       </div>
@@ -134,7 +134,7 @@ function LayerLegend({ id, geometry }) {
   if (style.type === 'categories' && (style.categories?.length ?? 0) > 0) {
     return (
       <div className="flex flex-col gap-1 px-2.5 py-1.5">
-        <span className="text-[10px] text-day-muted dark:text-night-muted">
+        <span className="text-[11px] text-day-muted dark:text-night-muted">
           {style.colorBy}
         </span>
         {style.categories.slice(0, 8).map((c, i) => (
@@ -143,13 +143,13 @@ function LayerLegend({ id, geometry }) {
               className="h-2.5 w-2.5 shrink-0 rounded-sm border border-black/10 dark:border-white/10"
               style={{ backgroundColor: c.color }}
             />
-            <span className="text-[11px] truncate text-day-text dark:text-night-text">
+            <span className="text-[12px] truncate text-day-text dark:text-night-text">
               {String(c.value)}
             </span>
           </div>
         ))}
         {style.categories.length > 8 && (
-          <span className="text-[10px] italic text-day-muted dark:text-night-muted">
+          <span className="text-[11px] italic text-day-muted dark:text-night-muted">
             …{style.categories.length - 8} more
           </span>
         )}
@@ -159,7 +159,7 @@ function LayerLegend({ id, geometry }) {
               className="h-2.5 w-2.5 shrink-0 rounded-sm border border-black/10 dark:border-white/10"
               style={{ backgroundColor: style.otherColor }}
             />
-            <span className="text-[11px] italic text-day-muted dark:text-night-muted">
+            <span className="text-[12px] italic text-day-muted dark:text-night-muted">
               Other
             </span>
           </div>
@@ -186,7 +186,7 @@ function LayerLegend({ id, geometry }) {
       const upper = [...breaks, style.rangeMax];
       return (
         <div className="px-2.5 py-1.5 flex flex-col gap-1">
-          <span className="text-[10px] text-day-muted dark:text-night-muted">
+          <span className="text-[11px] text-day-muted dark:text-night-muted">
             {style.rangeBy}
           </span>
           {colors.map((c, i) => (
@@ -195,7 +195,7 @@ function LayerLegend({ id, geometry }) {
                 className="h-2.5 w-2.5 shrink-0 rounded-sm border border-black/10 dark:border-white/10"
                 style={{ backgroundColor: c }}
               />
-              <span className="text-[11px] tabular-nums text-day-text dark:text-night-text">
+              <span className="text-[12px] tabular-nums text-day-text dark:text-night-text">
                 {fmtNum(lower[i])} – {fmtNum(upper[i])}
               </span>
             </div>
@@ -220,7 +220,7 @@ function LayerLegend({ id, geometry }) {
     const cap = (n) => Math.max(2, Math.min(18, Number(n) || 0));
     return (
       <div className="px-2.5 py-1.5 flex flex-col gap-1">
-        <span className="text-[10px] text-day-muted dark:text-night-muted">
+        <span className="text-[11px] text-day-muted dark:text-night-muted">
           {style.sizeBy}
         </span>
         <div className="flex items-center justify-between gap-2">
@@ -229,7 +229,7 @@ function LayerLegend({ id, geometry }) {
               className="rounded-full bg-[#16a085]"
               style={{ width: cap(style.sizeMin), height: cap(style.sizeMin) }}
             />
-            <span className="text-[9px] tabular-nums text-day-muted dark:text-night-muted">
+            <span className="text-[10px] tabular-nums text-day-muted dark:text-night-muted">
               {fmtNum(style.rangeMin)}
             </span>
           </div>
@@ -239,7 +239,7 @@ function LayerLegend({ id, geometry }) {
               className="rounded-full bg-[#16a085]"
               style={{ width: cap(style.sizeMax), height: cap(style.sizeMax) }}
             />
-            <span className="text-[9px] tabular-nums text-day-muted dark:text-night-muted">
+            <span className="text-[10px] tabular-nums text-day-muted dark:text-night-muted">
               {fmtNum(style.rangeMax)}
             </span>
           </div>
@@ -262,7 +262,7 @@ function LayerLegend({ id, geometry }) {
   return (
     <div className="px-2.5 py-1.5 flex items-center gap-2">
       <SimpleSwatch style={style} geometry={geometry} />
-      <span className="text-[10px] capitalize text-day-muted dark:text-night-muted">
+      <span className="text-[11px] capitalize text-day-muted dark:text-night-muted">
         {geometry}
       </span>
     </div>
@@ -342,7 +342,7 @@ function LayerRow({
         <span className="flex-1 min-w-0">
           <TruncateLabel
             text={label}
-            className="text-[13px] text-day-text dark:text-night-text"
+            className="text-[14px] text-day-text dark:text-night-text"
           />
         </span>
         {canRemove && (
@@ -596,7 +596,7 @@ function UploadZone() {
         </div>
         <div
           className={cn(
-            'text-[11px]',
+            'text-[12px]',
             limitReached
               ? 'text-red-600/80 dark:text-red-400/80'
               : 'text-day-muted dark:text-night-muted',
@@ -632,7 +632,7 @@ function UploadZone() {
             className="flex items-start gap-2 rounded-md border border-amber-400/60 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1.5"
           >
             <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-600 dark:text-amber-300" />
-            <span className="text-[11px] leading-snug text-amber-800 dark:text-amber-200">
+            <span className="text-[12px] leading-snug text-amber-800 dark:text-amber-200">
               {error}
             </span>
           </motion.div>
@@ -642,10 +642,10 @@ function UploadZone() {
       {uploads.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center px-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
               Uploaded
             </span>
-            <span className="ml-auto text-[10px] tabular-nums text-day-muted dark:text-night-muted">
+            <span className="ml-auto text-[11px] tabular-nums text-day-muted dark:text-night-muted">
               {uploads.length} / {MAX_UPLOADS}
             </span>
           </div>
@@ -737,10 +737,10 @@ export default function SecondaryPanel({ compact = false }) {
             <>
               <div className="flex items-center gap-1.5 px-1 mt-2 mb-1">
                 <Database className="h-3 w-3 text-[#16a085]" />
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
                   From Database
                 </span>
-                <span className="ml-auto text-[10px] tabular-nums text-day-muted dark:text-night-muted">
+                <span className="ml-auto text-[11px] tabular-nums text-day-muted dark:text-night-muted">
                   {dbLayers.length}
                 </span>
               </div>
@@ -773,7 +773,7 @@ export default function SecondaryPanel({ compact = false }) {
         <div className="flex items-center gap-2 px-1">
           <FileUp className="h-4 w-4 text-brand-700 dark:text-brand-200 shrink-0" />
           <span className="label-base shrink-0">Upload</span>
-          <span className="text-[10px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted shrink-0">
+          <span className="text-[11px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted shrink-0">
             or
           </span>
           <button
@@ -782,7 +782,7 @@ export default function SecondaryPanel({ compact = false }) {
             className={cn(
               'group inline-flex flex-1 items-center justify-center gap-1.5',
               'rounded-md border border-[#16a085]/40 hover:border-[#16a085]',
-              'px-2.5 py-1 text-[11px] font-medium',
+              'px-2.5 py-1 text-[12px] font-medium',
               'text-[#16a085] hover:bg-[#16a085]/10 transition-colors',
             )}
           >

@@ -85,7 +85,7 @@ function FilePicker({ uploads, selectedId, onSelect }) {
   if (uploads.length <= 1) return null;
   return (
     <div className="shrink-0 mb-2">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1 px-0.5">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1 px-0.5">
         File
       </div>
       <div className="-mx-3 px-3 overflow-x-auto pb-1 snap-x snap-mandatory">
@@ -101,7 +101,7 @@ function FilePicker({ uploads, selectedId, onSelect }) {
                 aria-pressed={isSelected}
                 title={u.label}
                 className={cn(
-                  'shrink-0 w-[180px] snap-start inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium border transition-colors',
+                  'shrink-0 w-[180px] snap-start inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium border transition-colors',
                   isSelected
                     ? 'bg-[#16a085] text-white border-[#16a085] shadow-sm'
                     : 'bg-slate-100 dark:bg-night-bg text-day-text dark:text-night-text border-day-border dark:border-night-border hover:border-[#16a085]/60',
@@ -130,7 +130,7 @@ function EmptyState() {
       <div className="text-sm font-medium text-day-text dark:text-night-text">
         No uploads yet
       </div>
-      <div className="text-[12px] text-day-muted dark:text-night-muted">
+      <div className="text-[13px] text-day-muted dark:text-night-muted">
         Drop a GeoJSON or zipped shapefile in the Secondary panel.
         Its attributes will appear here.
       </div>
@@ -244,7 +244,7 @@ export default function AttributeTablePanel() {
       <div className="shrink-0 mb-2 flex items-center gap-2 px-0.5">
         <FileJson className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
         <span
-          className="text-[13px] font-medium text-day-text dark:text-night-text truncate"
+          className="text-[14px] font-medium text-day-text dark:text-night-text truncate"
           title={selected?.label}
         >
           {selected?.label ?? '—'}
@@ -269,13 +269,13 @@ export default function AttributeTablePanel() {
 
       {/* Table — borderless, zebra-striped, sortable headers */}
       {features.length === 0 || columns.length === 0 ? (
-        <div className="flex-1 min-h-0 flex items-center justify-center text-[12px] text-day-muted dark:text-night-muted px-6 text-center">
+        <div className="flex-1 min-h-0 flex items-center justify-center text-[13px] text-day-muted dark:text-night-muted px-6 text-center">
           {features.length === 0
             ? 'This file has no features.'
             : 'No attribute properties on these features.'}
         </div>
       ) : sorted.length === 0 ? (
-        <div className="flex-1 min-h-0 flex items-center justify-center text-[12px] text-day-muted dark:text-night-muted px-6 text-center">
+        <div className="flex-1 min-h-0 flex items-center justify-center text-[13px] text-day-muted dark:text-night-muted px-6 text-center">
           No rows match “{query}”.
         </div>
       ) : (
@@ -286,7 +286,7 @@ export default function AttributeTablePanel() {
           transition={{ duration: 0.18 }}
           className="flex-1 min-h-0 overflow-auto rounded-md bg-day-bg/60 dark:bg-night-bg/60"
         >
-          <table className="w-full text-[12px] tabular-nums">
+          <table className="w-full text-[13px] tabular-nums">
             <thead className="sticky top-0 z-10 bg-day-surface/95 dark:bg-night-surface/95 backdrop-blur supports-[backdrop-filter]:bg-day-surface/80 dark:supports-[backdrop-filter]:bg-night-surface/80">
               <tr>
                 {columns.map(({ key, numeric }) => {
@@ -307,7 +307,7 @@ export default function AttributeTablePanel() {
                           : 'none'
                       }
                       className={cn(
-                        'group p-0 font-semibold uppercase tracking-wide text-[10px] whitespace-nowrap',
+                        'group p-0 font-semibold uppercase tracking-wide text-[11px] whitespace-nowrap',
                         numeric ? 'text-right' : 'text-left',
                       )}
                     >
@@ -396,7 +396,7 @@ export default function AttributeTablePanel() {
       )}
 
       {sorted.length > MAX_ROWS && (
-        <div className="shrink-0 mt-1 px-0.5 text-[10px] text-day-muted dark:text-night-muted text-right">
+        <div className="shrink-0 mt-1 px-0.5 text-[11px] text-day-muted dark:text-night-muted text-right">
           Showing {MAX_ROWS.toLocaleString()} of {sorted.length.toLocaleString()} rows
         </div>
       )}

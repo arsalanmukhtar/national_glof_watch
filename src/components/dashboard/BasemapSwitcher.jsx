@@ -111,7 +111,7 @@ export default function BasemapSwitcher({
                     title={label}
                     onClick={() => onChange(id)}
                     className={cn(
-                      'inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] font-medium transition-colors whitespace-nowrap',
+                      'inline-flex items-center gap-1 h-6 px-2 rounded text-[12px] font-medium transition-colors whitespace-nowrap',
                       on
                         ? 'bg-[#16a085] text-white'
                         : 'text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg',
@@ -136,7 +136,7 @@ export default function BasemapSwitcher({
                 title={`Basemap opacity: ${Math.round((opacity ?? 1) * 100)}%`}
                 className="range-base flex-1"
               />
-              <span className="text-[10px] font-medium tabular-nums w-7 text-right shrink-0">
+              <span className="text-[11px] font-medium tabular-nums w-7 text-right shrink-0">
                 {Math.round((opacity ?? 1) * 100)}%
               </span>
             </div>

@@ -131,14 +131,14 @@ export default function StationsTable() {
       )}
     >
       <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-day-border dark:border-night-border">
-        <h3 className="text-[12px] font-semibold text-day-text dark:text-night-text">
+        <h3 className="text-[13px] font-semibold text-day-text dark:text-night-text">
           Stations
         </h3>
         <Listbox value={selected ?? ''} onChange={(v) => setSelected(v || null)}>
           <div className="relative ml-auto">
             <Listbox.Button
               className={cn(
-                'flex items-center gap-1.5 text-[11px] rounded px-2 py-1 cursor-pointer min-w-[120px]',
+                'flex items-center gap-1.5 text-[12px] rounded px-2 py-1 cursor-pointer min-w-[120px]',
                 'bg-day-bg dark:bg-night-bg text-day-text dark:text-night-text',
                 'border border-day-border dark:border-night-border',
                 'hover:bg-white dark:hover:bg-night-surface transition-colors',
@@ -173,7 +173,7 @@ export default function StationsTable() {
                   'absolute right-0 mt-1 w-[160px] rounded-md py-1 z-20',
                   'bg-white dark:bg-night-surface',
                   'border border-day-border dark:border-night-border',
-                  'shadow-lg focus:outline-none text-[11px]',
+                  'shadow-lg focus:outline-none text-[12px]',
                 )}
               >
                 {ELEMENT_OPTIONS.map((o) => (
@@ -243,16 +243,16 @@ export default function StationsTable() {
             className="overflow-hidden"
           >
             {!selected ? (
-              <p className="px-3 py-4 text-[11px] text-center text-day-muted dark:text-night-muted">
+              <p className="px-3 py-4 text-[12px] text-center text-day-muted dark:text-night-muted">
                 Select a parameter to view stations.
               </p>
             ) : stations.length === 0 ? (
-              <p className="px-3 py-4 text-[11px] text-center text-day-muted dark:text-night-muted">
+              <p className="px-3 py-4 text-[12px] text-center text-day-muted dark:text-night-muted">
                 No stations available.
               </p>
             ) : (
               <div className="max-h-[200px] overflow-y-auto">
-                <table className="w-full text-[11px] table-fixed">
+                <table className="w-full text-[12px] table-fixed">
                   <thead className="sticky top-0 bg-day-bg/95 dark:bg-night-bg/95 backdrop-blur-sm border-b border-day-border dark:border-night-border">
                     <tr className="text-day-muted dark:text-night-muted">
                       <SortableTh

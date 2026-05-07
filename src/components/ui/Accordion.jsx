@@ -9,7 +9,7 @@ export function AccordionItem({ title, defaultOpen = false, children, icon, clas
         <>
           <Disclosure.Button
             className={cn(
-              'flex w-full items-center justify-between gap-2 py-1.5 px-1.5 text-[13px] font-medium text-day-text dark:text-night-text hover:text-brand-700 dark:hover:text-brand-200 transition-colors',
+              'flex w-full items-center justify-between gap-2 py-1.5 px-1.5 text-[14px] font-medium text-day-text dark:text-night-text hover:text-brand-700 dark:hover:text-brand-200 transition-colors',
               open && 'bg-brand-50 dark:bg-night-border',
             )}
           >
@@ -33,7 +33,7 @@ export function AccordionItem({ title, defaultOpen = false, children, icon, clas
             leaveFrom="transform translate-y-0 opacity-100"
             leaveTo="transform -translate-y-1 opacity-0"
           >
-            <Disclosure.Panel className="pb-2 pt-0.5 px-1 text-[13px] text-day-muted dark:text-night-muted">
+            <Disclosure.Panel className="pb-2 pt-0.5 px-1 text-[14px] text-day-muted dark:text-night-muted">
               {children}
             </Disclosure.Panel>
           </Transition>

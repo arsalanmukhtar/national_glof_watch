@@ -175,7 +175,7 @@ export default function BrowseDatabaseModal({ open, onClose }) {
       size="xl"
     >
       <div className="flex flex-col gap-3">
-        <div className="flex items-start gap-2 text-[12px] text-day-muted dark:text-night-muted">
+        <div className="flex items-start gap-2 text-[13px] text-day-muted dark:text-night-muted">
           <Database className="h-4 w-4 shrink-0 mt-0.5 text-[#16a085]" />
           <span>
             Pick one or more spatial tables from the connected PostGIS
@@ -188,16 +188,16 @@ export default function BrowseDatabaseModal({ open, onClose }) {
         <div className="grid grid-cols-[180px_1fr] gap-2 min-h-[320px] max-h-[55vh]">
           {/* Schemas */}
           <div className="rounded-md border border-day-border dark:border-night-border bg-day-bg/40 dark:bg-night-bg/40 flex flex-col min-h-0">
-            <div className="px-2.5 py-1.5 border-b border-day-border/60 dark:border-night-border/60 text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+            <div className="px-2.5 py-1.5 border-b border-day-border/60 dark:border-night-border/60 text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
               Schemas
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto p-1">
               {loadingSchemas ? (
-                <div className="flex items-center gap-1.5 px-2 py-3 text-[11px] text-day-muted dark:text-night-muted">
+                <div className="flex items-center gap-1.5 px-2 py-3 text-[12px] text-day-muted dark:text-night-muted">
                   <Loader2 className="h-3 w-3 animate-spin" /> Loading…
                 </div>
               ) : schemas.length === 0 ? (
-                <div className="px-2 py-3 text-[11px] text-day-muted dark:text-night-muted">
+                <div className="px-2 py-3 text-[12px] text-day-muted dark:text-night-muted">
                   No spatial schemas found.
                 </div>
               ) : (
@@ -209,7 +209,7 @@ export default function BrowseDatabaseModal({ open, onClose }) {
                       type="button"
                       onClick={() => setActiveSchema(s.schema)}
                       className={cn(
-                        'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] transition-colors',
+                        'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] transition-colors',
                         on
                           ? 'bg-[#16a085]/15 text-day-text dark:text-night-text'
                           : 'hover:bg-day-bg dark:hover:bg-night-bg text-day-text dark:text-night-text',
@@ -224,7 +224,7 @@ export default function BrowseDatabaseModal({ open, onClose }) {
                         )}
                       />
                       <span className="flex-1 truncate">{s.schema}</span>
-                      <span className="text-[10px] tabular-nums text-day-muted dark:text-night-muted">
+                      <span className="text-[11px] tabular-nums text-day-muted dark:text-night-muted">
                         {s.table_count}
                       </span>
                     </button>
@@ -237,7 +237,7 @@ export default function BrowseDatabaseModal({ open, onClose }) {
           {/* Tables */}
           <div className="rounded-md border border-day-border dark:border-night-border bg-day-bg/40 dark:bg-night-bg/40 flex flex-col min-h-0">
             <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-day-border/60 dark:border-night-border/60">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
                 Tables in {activeSchema || '—'}
               </span>
               <div className="ml-auto flex items-center gap-1.5 rounded border border-day-border dark:border-night-border bg-white dark:bg-night-bg px-2 py-0.5">
@@ -247,17 +247,17 @@ export default function BrowseDatabaseModal({ open, onClose }) {
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder="Filter…"
-                  className="bg-transparent text-[11px] focus:outline-none w-24"
+                  className="bg-transparent text-[12px] focus:outline-none w-24"
                 />
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto p-1">
               {loadingTables ? (
-                <div className="flex items-center gap-1.5 px-2 py-3 text-[11px] text-day-muted dark:text-night-muted">
+                <div className="flex items-center gap-1.5 px-2 py-3 text-[12px] text-day-muted dark:text-night-muted">
                   <Loader2 className="h-3 w-3 animate-spin" /> Loading tables…
                 </div>
               ) : filteredTables.length === 0 ? (
-                <div className="px-2 py-3 text-[11px] text-day-muted dark:text-night-muted">
+                <div className="px-2 py-3 text-[12px] text-day-muted dark:text-night-muted">
                   {tables.length === 0
                     ? 'No spatial tables in this schema.'
                     : 'No tables match the filter.'}
@@ -296,18 +296,18 @@ export default function BrowseDatabaseModal({ open, onClose }) {
                           <CheckCircle2 className="h-3 w-3 text-white" strokeWidth={3} />
                         )}
                       </span>
-                      <span className="flex-1 min-w-0 truncate text-[12px] text-day-text dark:text-night-text">
+                      <span className="flex-1 min-w-0 truncate text-[13px] text-day-text dark:text-night-text">
                         {t.table}
                       </span>
-                      <span className="inline-flex items-center gap-1 text-[10px] capitalize text-day-muted dark:text-night-muted">
+                      <span className="inline-flex items-center gap-1 text-[11px] capitalize text-day-muted dark:text-night-muted">
                         <GeomGlyph bucket={t.bucket} />
                         {t.bucket}
                       </span>
-                      <span className="w-16 text-right text-[10px] tabular-nums text-day-muted dark:text-night-muted">
+                      <span className="w-16 text-right text-[11px] tabular-nums text-day-muted dark:text-night-muted">
                         {fmtCount(t.count)}
                       </span>
                       {isLoaded && (
-                        <span className="text-[9px] uppercase tracking-wider text-[#16a085]">
+                        <span className="text-[10px] uppercase tracking-wider text-[#16a085]">
                           loaded
                         </span>
                       )}
@@ -326,21 +326,21 @@ export default function BrowseDatabaseModal({ open, onClose }) {
             className="flex items-start gap-2 rounded-md border border-red-300/60 bg-red-50 dark:bg-red-900/20 px-2.5 py-1.5"
           >
             <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-red-600 dark:text-red-300" />
-            <span className="text-[11px] leading-snug text-red-800 dark:text-red-200">
+            <span className="text-[12px] leading-snug text-red-800 dark:text-red-200">
               {error}
             </span>
           </div>
         )}
 
         {busy && (
-          <div className="flex items-center gap-2 text-[11px] text-day-muted dark:text-night-muted">
+          <div className="flex items-center gap-2 text-[12px] text-day-muted dark:text-night-muted">
             <Loader2 className="h-3 w-3 animate-spin text-[#16a085]" />
             Loading {progress.done} / {progress.total}…
           </div>
         )}
 
         <div className="flex items-center gap-2 pt-1">
-          <span className="text-[11px] text-day-muted dark:text-night-muted">
+          <span className="text-[12px] text-day-muted dark:text-night-muted">
             {selectionCount === 0
               ? 'No tables selected'
               : `${selectionCount} table${selectionCount === 1 ? '' : 's'} selected`}

@@ -211,7 +211,7 @@ export default function LeftSidebar({ className }) {
                           : 'pb-1.5 border-b border-day-border dark:border-night-border',
                       )}
                     >
-                      <h2 className="text-[13px] font-semibold flex items-center gap-1.5">
+                      <h2 className="text-[14px] font-semibold flex items-center gap-1.5">
                         {HeaderIcon ? (
                           <HeaderIcon className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200" />
                         ) : null}

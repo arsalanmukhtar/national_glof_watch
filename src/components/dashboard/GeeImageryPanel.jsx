@@ -48,7 +48,7 @@ export default function GeeImageryPanel() {
       {/* GEE project */}
       <Section title="GEE project">
         <label className="flex flex-col gap-1">
-          <span className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+          <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
             Project ID
           </span>
           <input
@@ -57,7 +57,7 @@ export default function GeeImageryPanel() {
             onChange={(e) => setProjectId(e.target.value)}
             placeholder="your-gcp-project-id"
             className={cn(
-              'w-full px-2 py-1.5 rounded-md text-[11px]',
+              'w-full px-2 py-1.5 rounded-md text-[12px]',
               'bg-day-bg dark:bg-night-bg',
               'border border-day-border dark:border-night-border',
               'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
@@ -77,7 +77,7 @@ export default function GeeImageryPanel() {
           <CloudDownload className="h-3.5 w-3.5" />
           <span>Connect</span>
         </button>
-        <p className="text-[10px] text-day-muted dark:text-night-muted">
+        <p className="text-[11px] text-day-muted dark:text-night-muted">
           Wiring TODO — earthengine-api auth lives here.
         </p>
       </Section>
@@ -117,7 +117,7 @@ export default function GeeImageryPanel() {
         </div>
         <div
           className={cn(
-            'flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-[10.5px]',
+            'flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-[11.5px]',
             hasGeometry
               ? 'border-[#16a085]/40 bg-[#16a085]/10 text-[#16a085]'
               : 'border-day-border dark:border-night-border text-day-muted dark:text-night-muted',
@@ -136,7 +136,7 @@ export default function GeeImageryPanel() {
           <button
             type="button"
             onClick={() => setHasGeometry((v) => !v)}
-            className="ml-auto text-[9.5px] uppercase tracking-wider opacity-70 hover:opacity-100"
+            className="ml-auto text-[10.5px] uppercase tracking-wider opacity-70 hover:opacity-100"
           >
             {hasGeometry ? 'Clear' : 'Stub fill'}
           </button>
@@ -166,7 +166,7 @@ export default function GeeImageryPanel() {
 
         {mode === 'single' ? (
           <label className="flex flex-col gap-1 mt-2">
-            <span className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
               Acquisition date
             </span>
             <input
@@ -174,7 +174,7 @@ export default function GeeImageryPanel() {
               value={singleDate}
               onChange={(e) => setSingleDate(e.target.value)}
               className={cn(
-                'w-full px-2 py-1.5 rounded-md text-[11px]',
+                'w-full px-2 py-1.5 rounded-md text-[12px]',
                 'bg-day-bg dark:bg-night-bg',
                 'border border-day-border dark:border-night-border',
                 'text-day-text dark:text-night-text',
@@ -185,7 +185,7 @@ export default function GeeImageryPanel() {
         ) : (
           <div className="grid grid-cols-2 gap-2 mt-2">
             <label className="flex flex-col gap-1">
-              <span className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
                 Start
               </span>
               <input
@@ -194,11 +194,11 @@ export default function GeeImageryPanel() {
                 onChange={(e) =>
                   setRange((r) => ({ ...r, start: e.target.value }))
                 }
-                className="w-full px-2 py-1.5 rounded-md text-[11px] bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border text-day-text dark:text-night-text focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+                className="w-full px-2 py-1.5 rounded-md text-[12px] bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border text-day-text dark:text-night-text focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+              <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
                 End
               </span>
               <input
@@ -207,7 +207,7 @@ export default function GeeImageryPanel() {
                 onChange={(e) =>
                   setRange((r) => ({ ...r, end: e.target.value }))
                 }
-                className="w-full px-2 py-1.5 rounded-md text-[11px] bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border text-day-text dark:text-night-text focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+                className="w-full px-2 py-1.5 rounded-md text-[12px] bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border text-day-text dark:text-night-text focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
               />
             </label>
           </div>
@@ -215,10 +215,10 @@ export default function GeeImageryPanel() {
 
         <label className="flex flex-col gap-1 mt-2">
           <div className="flex items-center justify-between">
-            <span className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+            <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
               Max cloud cover
             </span>
-            <span className="text-[10px] tabular-nums text-day-text dark:text-night-text">
+            <span className="text-[11px] tabular-nums text-day-text dark:text-night-text">
               {cloudPct}%
             </span>
           </div>
@@ -251,10 +251,10 @@ export default function GeeImageryPanel() {
                     : 'border-day-border dark:border-night-border text-day-text dark:text-night-text hover:border-day-text/40 dark:hover:border-night-text/40',
                 )}
               >
-                <span className="text-[11px] font-semibold leading-tight">
+                <span className="text-[12px] font-semibold leading-tight">
                   {label}
                 </span>
-                <span className="text-[9.5px] leading-tight opacity-80">
+                <span className="text-[10.5px] leading-tight opacity-80">
                   {hint}
                 </span>
               </button>
@@ -276,7 +276,7 @@ export default function GeeImageryPanel() {
         <Telescope className="h-4 w-4" />
         <span>Fetch tiles</span>
       </button>
-      <p className="text-[10px] text-day-muted dark:text-night-muted text-center -mt-1">
+      <p className="text-[11px] text-day-muted dark:text-night-muted text-center -mt-1">
         Wiring TODO — GEE tile request + map overlay attach.
       </p>
     </div>
@@ -303,7 +303,7 @@ function DrawToolButton({ label, Icon, active, danger, onClick }) {
       )}
     >
       <Icon className="h-3.5 w-3.5" />
-      <span className="text-[10px] font-semibold">{label}</span>
+      <span className="text-[11px] font-semibold">{label}</span>
     </button>
   );
 }
@@ -322,8 +322,8 @@ function ModeButton({ label, hint, active, onClick }) {
           : 'border-day-border dark:border-night-border text-day-muted dark:text-night-muted hover:border-day-text/40 dark:hover:border-night-text/40',
       )}
     >
-      <span className="text-[11px] font-semibold leading-tight">{label}</span>
-      <span className="text-[9.5px] leading-tight opacity-80">{hint}</span>
+      <span className="text-[12px] font-semibold leading-tight">{label}</span>
+      <span className="text-[10.5px] leading-tight opacity-80">{hint}</span>
     </button>
   );
 }
@@ -335,7 +335,7 @@ function Section({ title, titleIcon: TitleIcon, children }) {
         {TitleIcon ? (
           <TitleIcon className="h-3 w-3 text-brand-700 dark:text-brand-200" />
         ) : null}
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
           {title}
         </span>
         <span className="flex-1 h-px bg-day-border/60 dark:bg-night-border/60" />

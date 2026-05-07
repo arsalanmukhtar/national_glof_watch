@@ -43,6 +43,23 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
+      // Preset scale bumped +1px from Tailwind defaults so semantic
+      // utilities (text-xs / text-sm / …) read alongside the +1px bump
+      // we did on every arbitrary `text-[Npx]`. Line-heights stay at
+      // their original absolute values so element heights (which often
+      // get implicit leading from these pairs) don't reflow.
+      fontSize: {
+        xs:   ['0.8125rem', { lineHeight: '1rem' }],     // 13px / 16
+        sm:   ['0.9375rem', { lineHeight: '1.25rem' }],  // 15px / 20
+        base: ['1.0625rem', { lineHeight: '1.5rem' }],   // 17px / 24
+        lg:   ['1.1875rem', { lineHeight: '1.75rem' }],  // 19px / 28
+        xl:   ['1.3125rem', { lineHeight: '1.75rem' }],  // 21px / 28
+        '2xl':['1.5625rem', { lineHeight: '2rem' }],     // 25px / 32
+        '3xl':['1.9375rem', { lineHeight: '2.25rem' }],  // 31px / 36
+        '4xl':['2.3125rem', { lineHeight: '2.5rem' }],   // 37px / 40
+        '5xl':['3.0625rem', { lineHeight: '1' }],        // 49px
+        '6xl':['3.8125rem', { lineHeight: '1' }],        // 61px
+      },
       boxShadow: {
         card: '0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04)',
         panel: '0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04)',

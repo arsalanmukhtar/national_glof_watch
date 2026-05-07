@@ -133,7 +133,7 @@ export default function CsvDataPanel() {
         aria-expanded={intakeOpen}
         className={cn(
           'inline-flex items-center justify-center gap-2 rounded-md px-3 py-2',
-          'text-[12px] font-semibold transition-colors',
+          'text-[13px] font-semibold transition-colors',
           intakeOpen
             ? 'bg-[#138b72] text-white'
             : 'bg-[#16a085] text-white hover:bg-[#138b72]',
@@ -172,7 +172,7 @@ export default function CsvDataPanel() {
               )}
             </div>
             {intakeError ? (
-              <div className="mt-1.5 inline-flex items-start gap-1.5 text-[10.5px] text-red-600 dark:text-red-400">
+              <div className="mt-1.5 inline-flex items-start gap-1.5 text-[11.5px] text-red-600 dark:text-red-400">
                 <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
                 <span>{intakeError}</span>
               </div>
@@ -254,10 +254,10 @@ function IntakeMethodPicker({ method, onChange }) {
             )}
           >
             <Icon className="h-3.5 w-3.5" />
-            <span className="text-[11px] font-semibold leading-tight">
+            <span className="text-[12px] font-semibold leading-tight">
               {label}
             </span>
-            <span className="text-[9.5px] leading-tight opacity-80">
+            <span className="text-[10.5px] leading-tight opacity-80">
               {hint}
             </span>
           </button>
@@ -311,7 +311,7 @@ function UploadDrop({ busy, onFile }) {
         )}
       >
         <Upload className="h-5 w-5 text-day-muted dark:text-night-muted" />
-        <span className="text-[11px] text-day-text dark:text-night-text">
+        <span className="text-[12px] text-day-text dark:text-night-text">
           Drop a .csv file or{' '}
           <span className="font-semibold text-[#16a085]">
             {busy ? 'reading…' : 'click to browse'}
@@ -348,7 +348,7 @@ function PasteEditor({ busy, onCommit }) {
         placeholder={'name,value\nA,12\nB,7\nC,21'}
         rows={5}
         className={cn(
-          'rounded-md border px-2 py-1.5 text-[11px] font-mono',
+          'rounded-md border px-2 py-1.5 text-[12px] font-mono',
           'bg-day-bg dark:bg-night-bg',
           'border-day-border dark:border-night-border',
           'text-day-text dark:text-night-text',
@@ -392,7 +392,7 @@ function UrlIntake({ busy, onCommit }) {
           }}
           placeholder="https://example.org/data.csv"
           className={cn(
-            'w-full pl-7 pr-2 py-1.5 rounded-md text-[11px]',
+            'w-full pl-7 pr-2 py-1.5 rounded-md text-[12px]',
             'bg-day-bg dark:bg-night-bg',
             'border border-day-border dark:border-night-border',
             'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
@@ -443,10 +443,10 @@ function DatasetRow({ dataset, active, onSelect, onRemove }) {
             active ? 'text-[#16a085]' : 'text-brand-700 dark:text-brand-200',
           )}
         />
-        <span className="truncate text-[12px] text-day-text dark:text-night-text">
+        <span className="truncate text-[13px] text-day-text dark:text-night-text">
           {dataset.name}
         </span>
-        <span className="text-[9.5px] text-day-muted dark:text-night-muted ml-auto">
+        <span className="text-[10.5px] text-day-muted dark:text-night-muted ml-auto">
           {dataset.rows.length || '—'} rows
         </span>
       </button>
@@ -476,7 +476,7 @@ function AttributeTablePreview({ dataset }) {
   const visibleRows = filtered.slice(0, 50);
   return (
     <div className="rounded-md border border-day-border dark:border-night-border overflow-auto max-h-48">
-      <table className="w-full text-[10.5px] tabular-nums border-collapse">
+      <table className="w-full text-[11.5px] tabular-nums border-collapse">
         <thead className="bg-day-bg/80 dark:bg-night-bg/80 sticky top-0">
           <tr>
             {visibleCols.map((c) => (
@@ -551,7 +551,7 @@ function ChartAxisConfig({ dataset, onChange }) {
 function AxisPicker({ label, value, onChange, options, types }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+      <span className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
         {label}
       </span>
       <div className="relative">
@@ -560,7 +560,7 @@ function AxisPicker({ label, value, onChange, options, types }) {
           onChange={(e) => onChange(e.target.value || null)}
           disabled={options.length === 0}
           className={cn(
-            'w-full appearance-none pl-2 pr-6 py-1 rounded-md text-[11px]',
+            'w-full appearance-none pl-2 pr-6 py-1 rounded-md text-[12px]',
             'bg-day-bg dark:bg-night-bg',
             'border border-day-border dark:border-night-border',
             'text-day-text dark:text-night-text',
@@ -645,7 +645,7 @@ function FiltersConfig({ dataset, onChange }) {
             <select
               value={f.op}
               onChange={(e) => update(f.id, { op: e.target.value })}
-              className="rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[10.5px] px-1 py-1 text-day-text dark:text-night-text"
+              className="rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[11.5px] px-1 py-1 text-day-text dark:text-night-text"
             >
               {FILTER_OPS.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -674,7 +674,7 @@ function FiltersConfig({ dataset, onChange }) {
         onClick={addFilter}
         disabled={dataset.columns.length === 0}
         className={cn(
-          'inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[11px]',
+          'inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[12px]',
           'border border-dashed border-day-border dark:border-night-border',
           'text-day-muted dark:text-night-muted',
           'hover:text-[#16a085] hover:border-[#16a085]/60 transition-colors',
@@ -707,7 +707,7 @@ function FilterValueField({ filter, uniques, onChange }) {
         value={value}
         disabled
         placeholder="pick a column"
-        className="w-full min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg/40 dark:bg-night-bg/40 text-[10.5px] px-1.5 py-1 text-day-muted dark:text-night-muted"
+        className="w-full min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg/40 dark:bg-night-bg/40 text-[11.5px] px-1.5 py-1 text-day-muted dark:text-night-muted"
       />
     );
   }
@@ -717,7 +717,7 @@ function FilterValueField({ filter, uniques, onChange }) {
       <select
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[10.5px] px-1 py-1 text-day-text dark:text-night-text truncate"
+        className="w-full min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[11.5px] px-1 py-1 text-day-text dark:text-night-text truncate"
       >
         <option value="">— select —</option>
         {uniques.map((u) => (
@@ -741,7 +741,7 @@ function FilterValueField({ filter, uniques, onChange }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={tooManyForSelect ? 'value (typeahead)' : 'value'}
-        className="w-full min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[10.5px] px-1.5 py-1 text-day-text dark:text-night-text"
+        className="w-full min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[11.5px] px-1.5 py-1 text-day-text dark:text-night-text"
       />
       {uniques?.length ? (
         <datalist id={listId}>
@@ -785,7 +785,7 @@ function ColumnSelect({ value, options, onChange }) {
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value || null)}
       disabled={options.length === 0}
-      className="w-full min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[10.5px] px-1 py-1 text-day-text dark:text-night-text truncate"
+      className="w-full min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[11.5px] px-1 py-1 text-day-text dark:text-night-text truncate"
     >
       <option value="">column</option>
       {options.map((c) => (
@@ -808,11 +808,11 @@ function Section({ title, titleIcon: TitleIcon, count, children }) {
         {TitleIcon ? (
           <TitleIcon className="h-3 w-3 text-brand-700 dark:text-brand-200" />
         ) : null}
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
           {title}
         </span>
         {typeof count === 'number' ? (
-          <span className="ml-auto text-[10px] tabular-nums text-day-muted dark:text-night-muted">
+          <span className="ml-auto text-[11px] tabular-nums text-day-muted dark:text-night-muted">
             {count}
           </span>
         ) : null}
@@ -825,7 +825,7 @@ function Section({ title, titleIcon: TitleIcon, count, children }) {
 
 function EmptyHint({ children }) {
   return (
-    <p className="text-[10.5px] text-day-muted dark:text-night-muted text-center px-2 py-3 rounded-md border border-dashed border-day-border dark:border-night-border">
+    <p className="text-[11.5px] text-day-muted dark:text-night-muted text-center px-2 py-3 rounded-md border border-dashed border-day-border dark:border-night-border">
       {children}
     </p>
   );

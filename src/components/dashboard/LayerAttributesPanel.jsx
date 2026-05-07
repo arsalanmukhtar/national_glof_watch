@@ -204,7 +204,7 @@ function Pagination({ page, pageCount, pageSize, total, onChange }) {
   );
   return (
     <div className="shrink-0 flex items-center justify-between gap-2 px-1">
-      <span className="text-[10.5px] text-day-muted dark:text-night-muted tabular-nums">
+      <span className="text-[11.5px] text-day-muted dark:text-night-muted tabular-nums">
         Showing {start.toLocaleString()}–{end.toLocaleString()} of{' '}
         {total.toLocaleString()}
       </span>
@@ -219,7 +219,7 @@ function Pagination({ page, pageCount, pageSize, total, onChange }) {
         >
           <ChevronLeft className="h-3 w-3" />
         </Btn>
-        <span className="text-[10.5px] text-day-text dark:text-night-text tabular-nums px-1.5">
+        <span className="text-[11.5px] text-day-text dark:text-night-text tabular-nums px-1.5">
           {page} / {pageCount}
         </span>
         <Btn
@@ -256,7 +256,7 @@ function SubTabs({ tables, activeId, onActivate, onClose }) {
           <div
             key={t.id}
             className={cn(
-              'group inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-md text-[11px] font-medium border transition-colors shrink-0',
+              'group inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-md text-[12px] font-medium border transition-colors shrink-0',
               isActive
                 ? 'bg-[#16a085]/10 border-[#16a085]/50 text-[#16a085]'
                 : 'border-day-border dark:border-night-border text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text hover:border-day-text/40 dark:hover:border-night-text/40',
@@ -328,10 +328,10 @@ function TableView({
       ) : !loading && totalRows === 0 ? (
         <EmptyState>No features found for this layer.</EmptyState>
       ) : (
-        <table className="w-full text-[11px] tabular-nums border-collapse">
+        <table className="w-full text-[12px] tabular-nums border-collapse">
           <thead>
             <tr className="bg-day-bg/80 dark:bg-night-bg/80 backdrop-blur-sm sticky top-0 z-[1] shadow-[inset_0_-1px_0_0] shadow-day-border dark:shadow-night-border">
-              <th className="px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider text-day-muted dark:text-night-muted w-10">
+              <th className="px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-day-muted dark:text-night-muted w-10">
                 #
               </th>
               {columns.map((c) => {
@@ -346,7 +346,7 @@ function TableView({
                     key={c}
                     onClick={() => onSort(c)}
                     className={cn(
-                      'px-2 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap select-none cursor-pointer hover:text-[#16a085]',
+                      'px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap select-none cursor-pointer hover:text-[#16a085]',
                       sorted
                         ? 'text-[#16a085]'
                         : 'text-day-muted dark:text-night-muted',
@@ -402,7 +402,7 @@ function SearchInput({ value, onChange }) {
         onChange={(e) => onChange(e.target.value)}
         placeholder="Search rows…"
         className={cn(
-          'w-full pl-7 pr-2 py-1 rounded-md text-[11px]',
+          'w-full pl-7 pr-2 py-1 rounded-md text-[12px]',
           'bg-day-bg dark:bg-night-bg',
           'border border-day-border dark:border-night-border',
           'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
@@ -415,7 +415,7 @@ function SearchInput({ value, onChange }) {
 
 function RowCount({ count, total, loading }) {
   return (
-    <span className="text-[10.5px] text-day-muted dark:text-night-muted shrink-0 whitespace-nowrap">
+    <span className="text-[11.5px] text-day-muted dark:text-night-muted shrink-0 whitespace-nowrap">
       {loading
         ? 'Loading…'
         : total === count
@@ -428,7 +428,7 @@ function RowCount({ count, total, loading }) {
 function EmptyState({ children }) {
   return (
     <div className="h-full flex items-center justify-center text-center px-3 py-8">
-      <p className="text-[11.5px] text-day-muted dark:text-night-muted">
+      <p className="text-[12.5px] text-day-muted dark:text-night-muted">
         {children}
       </p>
     </div>
