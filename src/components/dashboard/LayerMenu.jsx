@@ -243,6 +243,14 @@ function RiskZonesRow({ regionId }) {
     zoomToRegionLayer(regionId, `risk:${level}`);
   };
 
+  // Parent click: expand/collapse + frame the combined risk-zone extent
+  // so the parent toggle has the same zoom behavior as the per-level
+  // pills and ShrinkButton.
+  const handleParentToggle = () => {
+    setOpen((v) => !v);
+    zoomToRegionRiskZones(regionId);
+  };
+
   return (
     <div
       className={cn(
@@ -259,7 +267,7 @@ function RiskZonesRow({ regionId }) {
       <div className="flex items-center gap-1 pl-2.5 pr-1 py-0.5 text-day-text dark:text-night-text">
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={handleParentToggle}
           aria-expanded={open}
           className="flex-1 inline-flex items-center min-w-0 gap-1.5 text-left"
         >
@@ -282,7 +290,7 @@ function RiskZonesRow({ regionId }) {
         <motion.button
           type="button"
           whileTap={{ scale: 0.92 }}
-          onClick={() => setOpen((v) => !v)}
+          onClick={handleParentToggle}
           aria-expanded={open}
           aria-label={open ? 'Collapse risk levels' : 'Expand risk levels'}
           className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10 transition-colors"
