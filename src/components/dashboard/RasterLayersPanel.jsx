@@ -413,8 +413,8 @@ function UploadZone({ uploadFile, onComplete }) {
           accept(e.dataTransfer.files);
         }}
         className={cn(
-          'w-full flex flex-col items-center justify-center gap-1',
-          'rounded-md border-2 border-dashed px-3 py-3 text-center cursor-pointer',
+          'box-border w-full flex flex-col items-center justify-center gap-1',
+          'rounded-md border border-dashed px-3 py-3 text-center cursor-pointer',
           'transition-colors focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
           'disabled:cursor-not-allowed disabled:opacity-80',
           dragOver
