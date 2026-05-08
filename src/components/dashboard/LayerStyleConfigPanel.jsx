@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Circle,
   CircleDot,
+  Image as ImageIcon,
   Layers as LayersIcon,
   Pipette,
   Plus,
@@ -13,9 +14,14 @@ import {
   Slash,
   Square,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
-import { CATEGORIES as MARKER_CATEGORIES, findIcon as findMarkerIcon } from '@/config/markerIcons';
+import {
+  CATEGORIES as MARKER_CATEGORIES,
+  EMOJI_CATEGORIES,
+  resolveMarkerIcon,
+} from '@/config/markerIcons';
 import {
   parseRegionLayerId,
   useRegionLayers,
@@ -1951,7 +1957,7 @@ function MarkerPicker({
 }) {
   const shape = marker?.shape || 'none';
   const iconId = marker?.icon || null;
-  const iconEntry = findMarkerIcon(iconId);
+  const resolved = resolveMarkerIcon(iconId);
   const hasMarker = shape !== 'none' || !!iconId;
 
   return (
@@ -1969,7 +1975,7 @@ function MarkerPicker({
       >
         <MarkerPreview
           shape={shape}
-          iconEntry={iconEntry}
+          resolved={resolved}
           fillColor={fillColor}
           strokeColor={strokeColor}
           strokeWidth={strokeWidth}
@@ -1979,7 +1985,11 @@ function MarkerPicker({
           {hasMarker
             ? [
                 shape !== 'none' ? capitalize(shape) : null,
-                iconEntry?.label,
+                resolved?.kind === 'emoji'
+                  ? resolved.char
+                  : resolved?.kind === 'custom'
+                    ? 'Custom icon'
+                    : resolved?.label,
               ]
                 .filter(Boolean)
                 .join(' · ')
@@ -2064,7 +2074,10 @@ function MarkerPicker({
           </div>
 
           {/* Icon grid — categories rendered in order, each as its own
-              labelled subsection. No search or emoji yet (deferred). */}
+              labelled subsection. Three icon sources share this slot:
+              custom upload (top), emoji (curated, mid), then the
+              lucide catalogue. Selection is live-committing — the
+              popover stays open so users can audit between sources. */}
           <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-2 pb-3">
             {/* "No icon" tile — quick way back to a plain shape after
                 trying a few. */}
@@ -2082,6 +2095,57 @@ function MarkerPicker({
               <X className="h-3 w-3" />
               No icon
             </button>
+
+            {/* Custom upload — accepts a single SVG or PNG, stores as
+                a self-contained data URL in marker.icon. The renderer
+                in markerImage.js detects the `data:` prefix and
+                routes through SVG <image> instead of the lucide path. */}
+            <div className="mb-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1.5">
+                Custom upload
+              </div>
+              <CustomUploadRow
+                resolved={resolved}
+                onUpload={(dataUrl) => onChange({ icon: dataUrl })}
+                onClear={() => onChange({ icon: null })}
+              />
+            </div>
+
+            {/* Emoji grids — `emoji:<char>` ids are dispatched by the
+                renderer to an SVG <text> element, so colour emoji
+                fonts (Apple, Segoe UI, Noto) render natively. */}
+            {EMOJI_CATEGORIES.map((cat) => (
+              <div key={cat.id} className="mb-3">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1.5">
+                  {cat.label}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {cat.emojis.map((char) => {
+                    const id = `emoji:${char}`;
+                    const active = iconId === id;
+                    return (
+                      <button
+                        key={char}
+                        type="button"
+                        onClick={() => onChange({ icon: id })}
+                        title={char}
+                        aria-label={char}
+                        aria-pressed={active}
+                        className={cn(
+                          'aspect-square inline-flex items-center justify-center rounded-md text-[18px] leading-none transition-colors',
+                          'border',
+                          active
+                            ? 'bg-[#16a085]/15 border-[#16a085]/60'
+                            : 'border-transparent hover:bg-day-bg dark:hover:bg-night-bg',
+                        )}
+                      >
+                        <span aria-hidden>{char}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
 
             {MARKER_CATEGORIES.map((cat) => (
               <div key={cat.id} className="mb-3 last:mb-0">
@@ -2121,7 +2185,15 @@ function MarkerPicker({
               click. */}
           <div className="shrink-0 border-t border-day-border dark:border-night-border px-3 py-2 flex items-center justify-between">
             <span className="text-[11px] text-day-muted dark:text-night-muted">
-              {hasMarker ? `${iconEntry?.label ?? 'Shape'} marker` : 'Default'}
+              {hasMarker
+                ? `${
+                    resolved?.kind === 'emoji'
+                      ? resolved.char
+                      : resolved?.kind === 'custom'
+                        ? 'Custom'
+                        : resolved?.label ?? 'Shape'
+                  } marker`
+                : 'Default'}
             </span>
             <button
               type="button"
@@ -2176,22 +2248,64 @@ function ShapeChip({ active, onClick, label, children }) {
 // Tiny preview chip rendered next to the picker trigger label.
 // Mirrors the marker that gets drawn on the map closely enough to be
 // recognisable at a glance, without paying the cost of generating the
-// real PNG.
-function MarkerPreview({ shape, iconEntry, fillColor, strokeColor, strokeWidth, backgroundColor }) {
-  const Icon = iconEntry?.Component;
-  // Icon colour: contrasts with the shape background when a shape is
-  // chosen, otherwise paints the fill colour (since there's no bg
-  // for it to contrast against).
-  const iconColor = shape === 'none' ? fillColor || '#16a085' : fillColor || '#16a085';
+// real PNG. Branches on the resolver's `kind` so emoji and uploaded
+// images preview the same way they'll render on the map.
+function MarkerPreview({ shape, resolved, fillColor, strokeColor, strokeWidth, backgroundColor }) {
+  const iconColor = fillColor || '#16a085';
   const bg = backgroundColor || fillColor || '#16a085';
+
+  let iconNode = null;
+  if (resolved?.kind === 'lucide' && resolved.Component) {
+    const Icon = resolved.Component;
+    iconNode = (
+      <Icon
+        className="relative h-3 w-3"
+        style={{ color: iconColor }}
+        strokeWidth={2}
+      />
+    );
+  } else if (resolved?.kind === 'emoji') {
+    iconNode = (
+      <span
+        className="relative leading-none"
+        style={{ fontSize: shape === 'none' ? '14px' : '11px' }}
+        aria-hidden
+      >
+        {resolved.char}
+      </span>
+    );
+  } else if (resolved?.kind === 'custom') {
+    iconNode = (
+      <img
+        src={resolved.dataUrl}
+        alt=""
+        aria-hidden
+        className="relative h-3 w-3 object-contain"
+      />
+    );
+  } else if (!shape || shape === 'none') {
+    iconNode = (
+      <Circle
+        className="relative h-3 w-3 text-day-muted dark:text-night-muted"
+        strokeWidth={1.5}
+      />
+    );
+  }
+
+  // Two stacked absolutely-positioned layers: the shape (bg + border)
+  // and the icon. Both anchor at `inset-0` so the icon's centring is
+  // independent of any inline-flex baseline drift the parent might
+  // introduce. Without this split, an `<img>` or emoji `<span>` flex
+  // child would inherit text baseline alignment from the parent and
+  // could land 1-2 px low in some browsers.
   return (
     <span
       aria-hidden
-      className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center"
+      className="relative inline-block h-5 w-5 shrink-0 align-middle overflow-hidden"
     >
       {shape === 'circle' ? (
         <span
-          className="absolute inset-0 inline-block rounded-full"
+          className="absolute inset-0 rounded-full"
           style={{
             background: bg,
             border: `${Math.max(1, strokeWidth || 1)}px solid ${strokeColor || '#0f7560'}`,
@@ -2199,26 +2313,122 @@ function MarkerPreview({ shape, iconEntry, fillColor, strokeColor, strokeWidth, 
         />
       ) : shape === 'square' ? (
         <span
-          className="absolute inset-0 inline-block rounded-[3px]"
+          className="absolute inset-0 rounded-[3px]"
           style={{
             background: bg,
             border: `${Math.max(1, strokeWidth || 1)}px solid ${strokeColor || '#0f7560'}`,
           }}
         />
       ) : null}
-      {Icon ? (
-        <Icon
-          className="relative h-3 w-3"
-          style={{ color: iconColor }}
-          strokeWidth={2}
-        />
-      ) : !shape || shape === 'none' ? (
-        <Circle
-          className="relative h-3 w-3 text-day-muted dark:text-night-muted"
-          strokeWidth={1.5}
-        />
-      ) : null}
+      <span className="absolute inset-0 flex items-center justify-center">
+        {iconNode}
+      </span>
     </span>
+  );
+}
+
+// Custom upload row — file input + preview tile. Reads the chosen
+// .svg / .png as a base64 data URL via FileReader so the result is
+// self-contained (no blob URLs to revoke, no server round-trip). The
+// data URL goes straight into `marker.icon`; the renderer detects
+// the `data:` prefix and routes through SVG <image>. Files larger than
+// MAX_BYTES are rejected up front because anything bigger than ~256 KB
+// is almost certainly a photo or full-resolution PNG, neither of which
+// would render legibly at marker size.
+const CUSTOM_ICON_MAX_BYTES = 256 * 1024;
+
+function CustomUploadRow({ resolved, onUpload, onClear }) {
+  const fileRef = useRef(null);
+  const [error, setError] = useState(null);
+  const isCustom = resolved?.kind === 'custom';
+
+  const handleFiles = (files) => {
+    const file = files && files[0];
+    if (!file) return;
+    if (!/^image\/(svg\+xml|png)$/.test(file.type) && !/\.(svg|png)$/i.test(file.name)) {
+      setError('Only SVG or PNG files are supported.');
+      return;
+    }
+    if (file.size > CUSTOM_ICON_MAX_BYTES) {
+      setError('File must be 256 KB or smaller.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => setError('Could not read the file.');
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
+        setError('Unexpected file contents.');
+        return;
+      }
+      setError(null);
+      onUpload(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        {isCustom ? (
+          <span className="h-7 w-7 shrink-0 rounded border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg overflow-hidden inline-flex items-center justify-center">
+            <img
+              src={resolved.dataUrl}
+              alt="Custom icon preview"
+              className="h-full w-full object-contain"
+            />
+          </span>
+        ) : (
+          <span className="h-7 w-7 shrink-0 rounded border border-dashed border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg inline-flex items-center justify-center text-day-muted dark:text-night-muted">
+            <ImageIcon className="h-3.5 w-3.5" />
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] transition-colors',
+            'border border-day-border dark:border-night-border',
+            'text-day-text dark:text-night-text hover:border-[#16a085]/60',
+          )}
+        >
+          <Upload className="h-3 w-3" />
+          {isCustom ? 'Replace' : 'Upload SVG / PNG'}
+        </button>
+        {isCustom ? (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              onClear();
+            }}
+            className="text-[11px] text-day-muted dark:text-night-muted hover:text-[#16a085] transition-colors"
+          >
+            Remove
+          </button>
+        ) : null}
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".svg,.png,image/svg+xml,image/png"
+          className="hidden"
+          onChange={(e) => {
+            handleFiles(e.target.files);
+            // Clear so picking the same file twice still fires onChange.
+            e.target.value = '';
+          }}
+        />
+      </div>
+      {error ? (
+        <p className="text-[10.5px] text-red-500" role="alert">
+          {error}
+        </p>
+      ) : (
+        <p className="text-[10.5px] text-day-muted dark:text-night-muted">
+          Square SVG or PNG ≤ 256 KB. Stored inline with the layer.
+        </p>
+      )}
+    </div>
   );
 }
 

@@ -200,3 +200,71 @@ export const ICONS_BY_ID = (() => {
 export function findIcon(id) {
   return id ? ICONS_BY_ID.get(id) ?? null : null;
 }
+
+// ---------------------------------------------------------------------------
+// Emoji catalog — a curated subset that covers the workflows the GLOF
+// dashboard actually needs (places, nature/weather, transport, hazard
+// symbols). Stored as `emoji:<char>` in the marker icon slot so the
+// existing `marker.icon` field stays a single string and back-compat
+// with lucide ids is preserved.
+//
+// Why curate instead of dumping the full Unicode emoji set:
+//   • the picker stays scannable (4 small grids, not a 1800-cell wall)
+//   • avoids the rendering inconsistency of obscure emoji on Windows
+//   • every glyph here has full color support in Segoe UI Emoji /
+//     Apple Color Emoji / Noto Color Emoji.
+// ---------------------------------------------------------------------------
+export const EMOJI_CATEGORIES = [
+  {
+    id: 'emoji-places',
+    label: 'Places',
+    emojis: ['🏔️', '⛰️', '🌋', '🏝️', '🏞️', '🏠', '🏥', '🏫', '🏨', '⛪', '🏭', '🏛️', '🏟️', '🛖'],
+  },
+  {
+    id: 'emoji-nature',
+    label: 'Nature & Weather',
+    emojis: ['🌲', '🌳', '🌊', '☁️', '☀️', '🌧️', '⛈️', '❄️', '🌨️', '🔥', '🌸', '🍃', '🌪️', '🌫️'],
+  },
+  {
+    id: 'emoji-transport',
+    label: 'Transportation',
+    emojis: ['🚗', '🚌', '🚂', '✈️', '🚢', '🚁', '🚲', '🛻', '🚑', '⛵', '🚀', '🛰️', '🛵', '🚓'],
+  },
+  {
+    id: 'emoji-symbols',
+    label: 'Symbols & Hazards',
+    emojis: ['⭐', '❤️', '❓', '❗', '💧', '⛺', '📍', '🚩', '⚠️', '⚡', '☢️', '☣️', '🆘', '🪧'],
+  },
+];
+
+// Resolve any `marker.icon` string to its kind + payload. Three formats
+// share the slot:
+//   • plain id (e.g. `'car'`) — a built-in lucide icon
+//   • `'emoji:🏔️'`            — a user-picked emoji glyph
+//   • `'data:image/...'`        — a user-uploaded SVG/PNG (data URL)
+//
+// Returns `null` if the id is missing, malformed, or refers to a
+// lucide icon that's no longer in the catalog. Callers are expected
+// to render a sensible fallback (default circle / outlined chip) in
+// that case.
+export function resolveMarkerIcon(id) {
+  if (!id || typeof id !== 'string') return null;
+  if (id.startsWith('emoji:')) {
+    const char = id.slice(6);
+    if (!char) return null;
+    return { kind: 'emoji', char, label: char };
+  }
+  if (id.startsWith('data:')) {
+    return { kind: 'custom', dataUrl: id, label: 'Custom icon' };
+  }
+  const entry = ICONS_BY_ID.get(id);
+  if (entry) {
+    return {
+      kind: 'lucide',
+      id: entry.id,
+      label: entry.label,
+      Component: entry.Component,
+    };
+  }
+  return null;
+}

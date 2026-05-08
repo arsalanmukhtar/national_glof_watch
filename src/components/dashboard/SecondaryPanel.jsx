@@ -34,7 +34,7 @@ import { useSecondary } from '@/contexts/SecondaryContext';
 import { useMapView } from '@/contexts/MapContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import { effectiveStyle } from '@/utils/layerStyle';
-import { findIcon as findMarkerIcon } from '@/config/markerIcons';
+import { resolveMarkerIcon } from '@/config/markerIcons';
 import {
   equalIntervalBreaks,
   rampById,
@@ -74,24 +74,62 @@ const ACCEPTED_TYPES = '.geojson,.json,application/geo+json,application/json,.zi
 //     When bg === fillColor (i.e. user didn't pick a distinct bg)
 //     the icon auto-contrasts to black or white so it stays legible.
 //   • shape 'none' — bare icon coloured with fillColor.
+//
+// Three icon kinds share the slot:
+//   • lucide — stroked icon component painted with iconColor.
+//   • emoji  — rendered as a text glyph; ignores iconColor (the emoji
+//              font carries its own colours).
+//   • custom — user-uploaded SVG/PNG embedded as <img> with object-fit
+//              contain, so non-square uploads still fit the chip.
 function MarkerSwatch({ style, marker }) {
-  const Icon = findMarkerIcon(marker.icon)?.Component;
+  const resolved = resolveMarkerIcon(marker.icon);
   const fill = style.fillColor || '#16a085';
   const stroke = style.strokeColor || '#0f7560';
   const bg = marker.backgroundColor || fill;
   const sameBg = bg.replace(/^#/, '').toLowerCase() === fill.replace(/^#/, '').toLowerCase();
   const iconColor = sameBg ? autoContrast(bg) : fill;
+  const noShape = marker.shape === 'none' || !marker.shape;
 
-  if (marker.shape === 'none' || !marker.shape) {
-    if (Icon) {
+  // Pick the right inner-icon node for the chosen kind. Sizes differ
+  // slightly between the no-shape branch (bare icon, larger) and the
+  // shape branch (icon nested inside the bg, smaller).
+  const renderIcon = (sizeClass, color, weight) => {
+    if (resolved?.kind === 'lucide' && resolved.Component) {
+      const Icon = resolved.Component;
       return (
         <Icon
-          className="h-3.5 w-3.5"
-          style={{ color: fill }}
-          strokeWidth={2.25}
+          className={sizeClass}
+          style={{ color }}
+          strokeWidth={weight}
         />
       );
     }
+    if (resolved?.kind === 'emoji') {
+      return (
+        <span
+          className={cn(sizeClass, 'leading-none inline-flex items-center justify-center')}
+          aria-hidden
+        >
+          {resolved.char}
+        </span>
+      );
+    }
+    if (resolved?.kind === 'custom') {
+      return (
+        <img
+          src={resolved.dataUrl}
+          alt=""
+          aria-hidden
+          className={cn(sizeClass, 'object-contain')}
+        />
+      );
+    }
+    return null;
+  };
+
+  if (noShape) {
+    const inner = renderIcon('h-3.5 w-3.5', fill, 2.25);
+    if (inner) return inner;
     return (
       <span
         className="inline-block h-3 w-3 rounded-full border"
@@ -99,11 +137,15 @@ function MarkerSwatch({ style, marker }) {
       />
     );
   }
+  // Two stacked layers — bg shape via the outer span's own background,
+  // icon via an absolute child that's flex-centred against the same
+  // bounds. Keeps the icon's centre independent of any baseline drift
+  // the inline `<img>` / emoji glyph would otherwise inherit.
   const isCircle = marker.shape === 'circle';
   return (
     <span
       className={cn(
-        'relative inline-flex h-4 w-4 shrink-0 items-center justify-center',
+        'relative inline-block h-4 w-4 shrink-0 align-middle overflow-hidden',
         isCircle ? 'rounded-full' : 'rounded-[3px]',
       )}
       style={{
@@ -111,13 +153,9 @@ function MarkerSwatch({ style, marker }) {
         border: `1px solid ${stroke}`,
       }}
     >
-      {Icon ? (
-        <Icon
-          className="relative h-2.5 w-2.5"
-          style={{ color: iconColor }}
-          strokeWidth={2.5}
-        />
-      ) : null}
+      <span className="absolute inset-0 flex items-center justify-center">
+        {renderIcon('h-2.5 w-2.5', iconColor, 2.5)}
+      </span>
     </span>
   );
 }

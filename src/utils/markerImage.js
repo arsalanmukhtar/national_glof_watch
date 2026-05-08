@@ -14,7 +14,7 @@
 
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
-import { findIcon } from '@/config/markerIcons';
+import { resolveMarkerIcon } from '@/config/markerIcons';
 
 // Pixel size of the generated PNG. The marker's `radius` style field
 // drives the FINAL on-map size via `icon-size`-style scaling — but
@@ -105,6 +105,20 @@ function sameColor(a, b) {
     String(b).replace(/^#/, '').toLowerCase();
 }
 
+// Parse a `#RRGGBB` / `#RGB` hex string into a `[r, g, b]` triple in
+// 0-255 space. Returns `null` for the literal `'transparent'` token,
+// non-strings, or anything that doesn't match the hex shape — callers
+// fall back to a safe default.
+function hexToRgb(hex) {
+  if (!hex || typeof hex !== 'string') return null;
+  const m = /^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.exec(hex.trim());
+  if (!m) return null;
+  let s = m[1];
+  if (s.length === 3) s = s.split('').map((c) => c + c).join('');
+  const v = parseInt(s, 16);
+  return [(v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
+}
+
 // Pick black or white for an icon overlay based on the bg's perceived
 // luminance (YIQ approximation). Used when the user hasn't picked a
 // distinct bg vs. fillColor — without this the icon stroke == bg fill
@@ -115,6 +129,25 @@ function autoContrastFor(hex) {
   const yiq = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
   return yiq >= 128 ? '#000000' : '#ffffff';
 }
+
+// Tiny XML escape helpers — only used for the few strings that we
+// thread into raw SVG markup (emoji glyph as text content, data URL as
+// attribute value). Everything else in this file is numeric or
+// hex-only so it doesn't need escaping.
+function escapeXmlText(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function escapeXmlAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+// System emoji font stack — the SVG-to-canvas pipeline below relies on
+// the browser's font system to rasterise this, so we order the most
+// likely platform fonts first. Falls back to plain sans-serif when no
+// color emoji font is available (the glyph renders monochrome but
+// stays recognisable).
+const EMOJI_FONT_STACK =
+  "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Twemoji Mozilla','EmojiOne Color',sans-serif";
 
 function buildMarkerSvg({
   shape,
@@ -135,12 +168,21 @@ function buildMarkerSvg({
   // shape, the icon takes the whole canvas (minus padding).
   const iconBox =
     shape && shape !== 'none' ? Math.max(8, inner * 0.62) : inner;
+  const iconOffsetX = (size - iconBox) / 2;
+  const iconOffsetY = (size - iconBox) / 2;
+  const iconScale = iconBox / 24;
+  const iconTransform = `translate(${iconOffsetX} ${iconOffsetY}) scale(${iconScale})`;
 
-  const icon = findIcon(iconId);
-  let iconChildren = '';
-  if (icon) {
+  // Three icon paths share this builder, distinguished by the
+  // resolver's `kind`. Lucide is the only one that gets a halo /
+  // contrast-aware stroke colour — emoji and custom uploads carry
+  // their own pixels and styling, so we just lay them on top.
+  const resolved = resolveMarkerIcon(iconId);
+
+  let lucideChildren = '';
+  if (resolved?.kind === 'lucide' && resolved.Component) {
     const raw = renderToStaticMarkup(
-      createElement(icon.Component, {
+      createElement(resolved.Component, {
         size: 24,
         // Component-level props are mostly thrown away — we set the
         // real attributes on the wrapping <g> below for inheritance,
@@ -153,13 +195,8 @@ function buildMarkerSvg({
       }),
     );
     const match = raw.match(/<svg[^>]*>([\s\S]*)<\/svg>/i);
-    iconChildren = match ? match[1] : '';
+    lucideChildren = match ? match[1] : '';
   }
-
-  const iconScale = iconBox / 24;
-  const iconOffsetX = (size - iconBox) / 2;
-  const iconOffsetY = (size - iconBox) / 2;
-  const iconTransform = `translate(${iconOffsetX} ${iconOffsetY}) scale(${iconScale})`;
 
   let shapeMarkup = '';
   let iconStrokeColor = fillColor;
@@ -182,36 +219,78 @@ function buildMarkerSvg({
       const x = (size - inner) / 2;
       shapeMarkup = `<rect x="${x}" y="${x}" width="${inner}" height="${inner}" rx="${inner * 0.18}" fill="${bg}" stroke="${strokeColor}" stroke-width="${sw}"/>`;
     }
-  } else if (iconChildren && sw > 0) {
-    // shape === 'none': render a halo by stamping the icon paths
-    // underneath the main icon with a wider stroke in `strokeColor`.
-    // Halo width = the user's stroke width on each side of the icon's
-    // natural 2px stroke. When sw is 0, no halo is drawn (the user
-    // explicitly turned the outline off).
+  } else if (resolved?.kind === 'lucide' && lucideChildren && sw > 0) {
+    // shape === 'none' + lucide: render a halo by stamping the icon
+    // paths underneath the main icon with a wider stroke in
+    // `strokeColor`. Halo width = the user's stroke width on each side
+    // of the icon's natural 2 px stroke. When sw is 0, no halo is
+    // drawn (the user explicitly turned the outline off).
     //
     // The halo is drawn in the icon's 24×24 coordinate space which
     // gets scaled by `iconScale` on the way to output px — so we
     // inverse-scale the requested px width to keep the on-screen
     // halo the same thickness regardless of icon size.
+    //
+    // Emoji and custom uploads skip the halo: emoji glyphs are
+    // already-coloured raster bitmaps in their host fonts, and a
+    // user-uploaded image is a sealed pixel buffer we can't outline
+    // meaningfully without re-tracing.
     const haloIconSpace = 2 + (sw * 2) / Math.max(0.0001, iconScale);
     halo =
       `<g transform="${iconTransform}" ` +
       `stroke="${strokeColor}" stroke-width="${haloIconSpace}" ` +
       `fill="none" stroke-linecap="round" stroke-linejoin="round">` +
-      iconChildren +
+      lucideChildren +
       `</g>`;
   }
 
-  const iconGroup = iconChildren
-    ? `<g transform="${iconTransform}" ` +
+  // Build the icon-rendering group based on resolved kind.
+  let iconGroup = '';
+  if (resolved?.kind === 'lucide' && lucideChildren) {
+    iconGroup =
+      `<g transform="${iconTransform}" ` +
       `stroke="${iconStrokeColor}" stroke-width="2" fill="none" ` +
       `stroke-linecap="round" stroke-linejoin="round">` +
-      iconChildren +
-      `</g>`
-    : '';
+      lucideChildren +
+      `</g>`;
+  } else if (resolved?.kind === 'emoji') {
+    // SVG <text> rasterises through the browser's font system, so
+    // colour emoji fonts (Apple, Segoe UI, Noto) "just work" when the
+    // rendering goes through canvas drawImage. We center the glyph at
+    // (half, half) and emit BOTH `dominant-baseline` and the legacy
+    // `alignment-baseline`: Chromium and Firefox prefer the former,
+    // older WebKit / SVG2-pre renderers fall back on the latter, so
+    // emitting both prevents a vertical drift that would otherwise
+    // push the emoji slightly low in Safari.
+    const cx = half;
+    const cy = half;
+    const fontSize = iconBox * 0.92;
+    iconGroup =
+      `<text x="${cx}" y="${cy}" font-size="${fontSize}" ` +
+      `text-anchor="middle" dominant-baseline="central" alignment-baseline="central" ` +
+      `font-family="${EMOJI_FONT_STACK}">` +
+      escapeXmlText(resolved.char) +
+      `</text>`;
+  } else if (resolved?.kind === 'custom') {
+    // SVG <image> with a self-contained data URL — no CORS / external
+    // load to worry about. Both `href` and the legacy `xlink:href`
+    // are emitted because some older renderers (and the headless
+    // pipeline used by Mapbox's image cache) still key off the xlink
+    // namespace. `image-rendering="auto"` keeps the browser from
+    // falling back to nearest-neighbour scaling in some headless
+    // contexts, which would visibly shift sub-pixel content.
+    const safeUrl = escapeXmlAttr(resolved.dataUrl);
+    iconGroup =
+      `<image href="${safeUrl}" xlink:href="${safeUrl}" ` +
+      `x="${iconOffsetX}" y="${iconOffsetY}" ` +
+      `width="${iconBox}" height="${iconBox}" ` +
+      `image-rendering="auto" ` +
+      `preserveAspectRatio="xMidYMid meet"/>`;
+  }
 
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ` +
+    `width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
     shapeMarkup +
     halo +
     iconGroup +
