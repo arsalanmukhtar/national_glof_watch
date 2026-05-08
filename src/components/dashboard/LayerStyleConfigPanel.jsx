@@ -341,8 +341,24 @@ function isHex(v) {
 const PRESET_ROWS = [
   ['#1f6f5c', '#5b8b3a', '#7eb539', '#65a30d', '#0f766e', '#0e7490', '#1d4ed8'],
   ['#22d3ee', '#93c5fd', '#a78bfa', '#c084fc', '#f472b6', '#dc2626', '#f97316'],
-  ['#facc15', '#fde047', '#92400e', '#7c2d12', '#0f172a', '#475569', '#cbd5e1', '#ffffff'],
+  ['#facc15', '#fde047', '#92400e', '#7c2d12', '#0f172a', '#475569', '#cbd5e1', '#ffffff', 'transparent'],
 ];
+
+// Visual tile shown for the literal value `'transparent'` in any swatch
+// grid — the same checker pattern used by ColorButton's trigger so the
+// language is consistent across the dashboard. Mapbox accepts the CSS
+// keyword `'transparent'` directly as a paint colour, so picking this
+// swatch lets users zero out a fill or stroke without having to rely
+// on opacity sliders.
+const SWATCH_CHECKER_STYLE = {
+  backgroundImage: 'repeating-conic-gradient(#cbd5e1 0% 25%, #ffffff 0% 50%)',
+  backgroundSize: '6px 6px',
+};
+
+function swatchBgStyle(c) {
+  if (c === 'transparent') return SWATCH_CHECKER_STYLE;
+  return { backgroundColor: c };
+}
 
 function ColorButton({ value, onChange, ariaLabel, allowNone = false }) {
   return (
@@ -414,8 +430,11 @@ function ColorButton({ value, onChange, ariaLabel, allowNone = false }) {
 
 function FullColorPicker({ value, onChange, allowNone, onClear }) {
   // Strip any hex8 alpha down to hex6 — opacity is owned by the layer's
-  // dedicated Opacity field, not by the color picker.
-  const value6 = (value || '').slice(0, 7);
+  // dedicated Opacity field, not by the color picker. The literal
+  // `'transparent'` token is preserved as-is so it doesn't get sliced
+  // into a meaningless 'transpa' string; downstream code keys off
+  // value6 being empty to skip HSV/hex re-derivation.
+  const value6 = value === 'transparent' ? '' : (value || '').slice(0, 7);
   const rgb = hexToRgb(value6);
   const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
   const [h, setH] = useState(hsv.h);
@@ -493,21 +512,28 @@ function FullColorPicker({ value, onChange, allowNone, onClear }) {
                 None
               </button>
             )}
-            {row.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => pickPreset(c)}
-                aria-label={c}
-                className={cn(
-                  'h-5 w-5 rounded-sm border transition-transform hover:scale-110',
-                  value6.toLowerCase() === c.toLowerCase()
-                    ? 'border-[#16a085] ring-2 ring-[#16a085]/30'
-                    : 'border-black/10 dark:border-white/10',
-                )}
-                style={{ backgroundColor: c }}
-              />
-            ))}
+            {row.map((c) => {
+              const isActive =
+                c === 'transparent'
+                  ? value === 'transparent'
+                  : value6.toLowerCase() === c.toLowerCase();
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => pickPreset(c)}
+                  aria-label={c === 'transparent' ? 'Transparent' : c}
+                  title={c === 'transparent' ? 'Transparent' : c}
+                  className={cn(
+                    'h-5 w-5 rounded-sm border transition-transform hover:scale-110 overflow-hidden',
+                    isActive
+                      ? 'border-[#16a085] ring-2 ring-[#16a085]/30'
+                      : 'border-black/10 dark:border-white/10',
+                  )}
+                  style={swatchBgStyle(c)}
+                />
+              );
+            })}
           </div>
         ))}
       </div>
@@ -1645,8 +1671,13 @@ const PICKER_PRESETS = [
   '#67e8f9', '#7dd3fc', '#93c5fd', '#c4b5fd', '#f0abfc', '#f9a8d4',
   // Earth tones / land cover-ish
   '#78350f', '#92400e', '#854d0e', '#3f6212', '#166534', '#115e59',
-  // Greyscale ramp — black through white in even steps
+  // Greyscale ramp — black through white in even steps, plus a
+  // transparent slot rendered as a checker pattern. The literal
+  // `'transparent'` is a valid Mapbox paint colour, so picking this
+  // swatch zeroes out a fill or stroke without touching the layer's
+  // opacity slider.
   '#000000', '#1f2937', '#4b5563', '#9ca3af', '#e5e7eb', '#ffffff',
+  'transparent',
 ];
 
 const HEX_REGEX = /^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/;
@@ -1683,11 +1714,11 @@ function ColorSwatch({ value, onChange, ariaLabel = 'Pick colour' }) {
         aria-label={ariaLabel}
         title={ariaLabel}
         className={cn(
-          'h-6 w-7 shrink-0 rounded border border-day-border dark:border-night-border',
+          'h-6 w-7 shrink-0 rounded border border-day-border dark:border-night-border overflow-hidden',
           'cursor-pointer transition-shadow',
           'hover:ring-2 hover:ring-[#16a085]/40 focus:outline-none focus:ring-2 focus:ring-[#16a085]/60',
         )}
-        style={{ backgroundColor: safeValue }}
+        style={swatchBgStyle(safeValue)}
       />
       <Transition
         as={Fragment}
@@ -1718,8 +1749,8 @@ function ColorSwatch({ value, onChange, ariaLabel = 'Pick colour' }) {
                 <div className="flex items-center gap-2">
                   <span
                     aria-hidden
-                    className="h-9 w-9 shrink-0 rounded-md border border-day-border dark:border-night-border"
-                    style={{ backgroundColor: hexInput }}
+                    className="h-9 w-9 shrink-0 rounded-md border border-day-border dark:border-night-border overflow-hidden"
+                    style={swatchBgStyle(hexInput)}
                   />
                   <input
                     type="text"
@@ -1760,24 +1791,25 @@ function ColorSwatch({ value, onChange, ariaLabel = 'Pick colour' }) {
                 <div className="grid grid-cols-12 gap-1">
                   {PICKER_PRESETS.map((c) => {
                     const active = c.toLowerCase() === (value || '').toLowerCase();
+                    const label = c === 'transparent' ? 'Transparent' : c;
                     return (
                       <button
                         key={c}
                         type="button"
-                        title={c}
-                        aria-label={c}
+                        title={label}
+                        aria-label={label}
                         onClick={() => {
                           onChange(c);
                           close();
                         }}
                         className={cn(
-                          'aspect-square rounded transition-transform hover:scale-110',
+                          'aspect-square rounded transition-transform hover:scale-110 overflow-hidden',
                           'border',
                           active
                             ? 'ring-2 ring-[#16a085] ring-offset-1 ring-offset-white dark:ring-offset-night-surface border-transparent'
                             : 'border-black/10 dark:border-white/15',
                         )}
-                        style={{ backgroundColor: c }}
+                        style={swatchBgStyle(c)}
                       />
                     );
                   })}
@@ -1824,8 +1856,8 @@ function InlineBgPicker({ value, explicit, onChange, onReset }) {
         </span>
         <span
           aria-hidden
-          className="h-5 w-5 shrink-0 rounded border border-day-border dark:border-night-border"
-          style={{ background: value }}
+          className="h-5 w-5 shrink-0 rounded border border-day-border dark:border-night-border overflow-hidden"
+          style={swatchBgStyle(value)}
         />
         <input
           type="text"
@@ -1863,21 +1895,22 @@ function InlineBgPicker({ value, explicit, onChange, onReset }) {
       <div className="grid grid-cols-12 gap-0.5">
         {PICKER_PRESETS.map((c) => {
           const active = sameHex(c, value);
+          const label = c === 'transparent' ? 'Transparent' : c;
           return (
             <button
               key={c}
               type="button"
-              title={c}
-              aria-label={c}
+              title={label}
+              aria-label={label}
               onClick={() => onChange(c)}
               className={cn(
-                'aspect-square rounded transition-transform hover:scale-110',
+                'aspect-square rounded transition-transform hover:scale-110 overflow-hidden',
                 'border',
                 active
                   ? 'ring-1 ring-[#16a085] ring-offset-1 ring-offset-white dark:ring-offset-night-surface border-transparent'
                   : 'border-black/10 dark:border-white/15',
               )}
-              style={{ backgroundColor: c }}
+              style={swatchBgStyle(c)}
             />
           );
         })}
