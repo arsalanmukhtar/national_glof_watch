@@ -85,6 +85,26 @@ if [[ "$ASSUME_YES" -ne 1 ]]; then
   esac
 fi
 
+# The backend container holds an open session against the target DB
+# via its connection pool, which makes the dump's DROP DATABASE fail
+# with "is being accessed by other users". Stop backend before the
+# restore and bring it back up after — `trap` ensures we restart it
+# even if psql aborts mid-stream.
+BACKEND_WAS_RUNNING=0
+if "${COMPOSE[@]}" ps --status running --services | grep -qx backend; then
+  BACKEND_WAS_RUNNING=1
+  echo "[vm-seed-db] Stopping backend so DROP DATABASE can run..."
+  "${COMPOSE[@]}" stop backend
+fi
+
+restart_backend() {
+  if [[ "$BACKEND_WAS_RUNNING" -eq 1 ]]; then
+    echo "[vm-seed-db] Restarting backend..."
+    "${COMPOSE[@]}" start backend
+  fi
+}
+trap restart_backend EXIT
+
 # Stream the dump into the db container. Connecting to the
 # maintenance `postgres` DB lets DROP DATABASE in the dump succeed —
 # you can't drop a DB you're connected to.
