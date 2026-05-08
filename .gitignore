@@ -9,6 +9,7 @@ dist/
 .env
 .env.local
 .env.*.local
+.env.deploy
 
 # Logs
 npm-debug.log*
@@ -33,6 +34,13 @@ data/geojsons/
 # DB dumps — local snapshots, not for git. Keep `scripts/db/*` tracked.
 backups/
 *.sql.bak
+
+# SSH keys — should live under ~/.ssh, never in the repo. Belt-and-
+# suspenders in case someone runs ssh-keygen with a relative filename.
+id_ed25519*
+id_rsa*
+*ssh_key*
+*.pem
 
 # Python (auxiliary scripts under scripts/python/)
 .venv/

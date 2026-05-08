@@ -10,7 +10,12 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "db:backup": "node scripts/db/run-backup.js",
-    "db:restore": "node scripts/db/run-restore.js"
+    "db:restore": "node scripts/db/run-restore.js",
+    "deploy:promote": "bash scripts/deploy/promote.sh",
+    "deploy:sync-rasters": "bash scripts/deploy/sync-rasters.sh",
+    "deploy:sync-db": "bash scripts/deploy/sync-db-dump.sh",
+    "deploy:release": "bash scripts/deploy/release.sh",
+    "deploy:rollback": "bash scripts/deploy/rollback.sh"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",

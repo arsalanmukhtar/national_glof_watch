@@ -1,0 +1,58 @@
+# =============================================================================
+# Production overlay for docker-compose.
+#
+# Usage on the VM:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This file ONLY contains overrides — anything not redefined here
+# inherits from docker-compose.yml. Rationale:
+#
+#   • Same images on dev + prod → no "works on my machine" drift.
+#   • Single Dockerfile per service → fewer rebuild paths to maintain.
+#   • Prod-specific knobs (host ports, restart policy, log driver) live
+#     here so dev compose stays terse and approachable.
+#
+# Things this overlay changes vs. dev:
+#   • frontend host port 80 (the dev compose uses 8090 to dodge IIS /
+#     GeoServer / WSL-relay collisions on Windows).
+#   • restart: always everywhere (dev uses unless-stopped — gentler
+#     when you're iterating; prod wants self-heal).
+#   • Postgres data dir bind-mounted to /opt/glof/db on the host so
+#     it's discoverable for the rsync-based snapshot routine, instead
+#     of buried in a Docker-managed volume.
+#   • Log rotation pinned via the json-file driver so a runaway
+#     backend doesn't fill the VM's disk.
+# =============================================================================
+
+services:
+  db:
+    restart: always
+    volumes:
+      # Override the named volume from base compose with a host bind.
+      # The directory must exist on the VM with the right ownership;
+      # vm-deploy.sh creates it on first run.
+      - /opt/glof/db:/var/lib/postgresql/data
+    logging: &log_opts
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend:
+    restart: always
+    volumes:
+      # Same bind path as dev so backup / sync routines treat both
+      # environments identically. /opt/glof/rasters is created by
+      # vm-deploy.sh and is the rsync target for sync-rasters.sh.
+      - /opt/glof/rasters:/app/data/rasters
+    logging: *log_opts
+
+  frontend:
+    restart: always
+    ports:
+      # Production binds the standard HTTP port. If a TLS terminator
+      # (Caddy / nginx-proxy / Traefik) sits in front, change this to
+      # an internal-only port (e.g. "127.0.0.1:8080:80") and let the
+      # terminator proxy in.
+      - "80:80"
+    logging: *log_opts
