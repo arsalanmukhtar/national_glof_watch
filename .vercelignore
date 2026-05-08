@@ -1,0 +1,43 @@
+# Anything Vercel doesn't need for the frontend SPA build. Keeps the
+# upload size down (Vercel charges by build minutes + bandwidth) and
+# makes the deploy log cleaner. Mirrors .dockerignore loosely but
+# tuned for "just the React app + its assets" output.
+
+# Backend + infra
+server
+Dockerfile.backend
+Dockerfile.frontend
+docker-compose.yml
+docker-compose.prod.yml
+docker
+.dockerignore
+
+# Deploy + DB tooling
+scripts/db
+scripts/deploy
+scripts/python
+backups
+*.sql.bak
+
+# Local dev artefacts
+.venv
+venv
+__pycache__
+data
+Maps
+Alerts
+legacy
+docs
+
+# Env files (Vercel reads from its own dashboard env, not from the repo)
+.env
+.env.local
+.env.*.local
+.env.deploy
+.env.deploy.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea
+.vscode
