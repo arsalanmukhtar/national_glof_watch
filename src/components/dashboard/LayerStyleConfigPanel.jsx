@@ -1364,9 +1364,21 @@ function LayerSelector({ groups, selectedId, onSelect }) {
                             }
                           />
                         </span>
-                        {!item.visible && (
-                          <span className="shrink-0 text-[10px] uppercase tracking-wider text-day-muted/70 dark:text-night-muted/70">hidden</span>
-                        )}
+                        {/* Visibility tag: green "visible" pill when the
+                            layer is currently on, muted "hidden" pill
+                            otherwise. Both stay shrink-0 so a long
+                            layer label truncates against them rather
+                            than pushing them off the row. */}
+                        <span
+                          className={cn(
+                            'shrink-0 text-[10px] font-semibold uppercase tracking-wider',
+                            item.visible
+                              ? 'text-[#16a085]'
+                              : 'text-day-muted/70 dark:text-night-muted/70',
+                          )}
+                        >
+                          {item.visible ? 'visible' : 'hidden'}
+                        </span>
                         {isSel && <Check className="h-3 w-3 shrink-0 text-[#16a085]" />}
                       </>
                     )}
