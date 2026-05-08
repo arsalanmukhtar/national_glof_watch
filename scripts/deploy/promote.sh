@@ -73,16 +73,26 @@ else
   fi
 fi
 
-# Show what's about to be promoted.
+# Show what's about to be promoted. The first-time case is special:
+# prod was just created from main so there's nothing "ahead", but
+# the new branch still needs to be pushed to the remote and tagged.
 COMMITS_AHEAD="$(git rev-list --count prod..main || echo 0)"
-if [[ "$COMMITS_AHEAD" -eq 0 ]]; then
+FIRST_PUSH=0
+if [[ "$PROD_EXISTS_REMOTE" -eq 0 ]]; then
+  FIRST_PUSH=1
+  echo "[promote] First-time push of prod branch to $GIT_REMOTE."
+fi
+
+if [[ "$COMMITS_AHEAD" -eq 0 && "$FIRST_PUSH" -eq 0 ]]; then
   echo "[promote] prod is already up to date with main — nothing to promote."
   git checkout "$CURRENT_BRANCH"
   exit 0
 fi
 
-echo "[promote] $COMMITS_AHEAD commit(s) on main not in prod:"
-git log --oneline prod..main
+if [[ "$COMMITS_AHEAD" -gt 0 ]]; then
+  echo "[promote] $COMMITS_AHEAD commit(s) on main not in prod:"
+  git log --oneline prod..main
+fi
 
 if [[ "$ASSUME_YES" -ne 1 ]]; then
   read -r -p "Promote main → prod and push to $GIT_REMOTE? [y/N] " ans
@@ -94,7 +104,12 @@ fi
 
 # Fast-forward only — divergence means someone committed to prod
 # directly, which we want to surface rather than silently merge over.
-git merge --ff-only main
+# Skipped on first-push when prod and main are already at the same
+# commit (`git merge --ff-only main` would no-op anyway, but git
+# prints "Already up to date" which is misleading in that path).
+if [[ "$COMMITS_AHEAD" -gt 0 ]]; then
+  git merge --ff-only main
+fi
 
 TAG="release-$(date +%Y%m%d-%H%M%S)"
 git tag -a "$TAG" -m "Promote main → prod ($COMMITS_AHEAD commits)"
