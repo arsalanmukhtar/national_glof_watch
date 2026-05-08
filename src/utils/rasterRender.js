@@ -269,7 +269,7 @@ export async function decodeRasterForMap(blob, opts = {}) {
 
   // NoData tag lives on the main IFD; overviews don't always copy it.
   const noData = pickNoDataValue(main, opts.noDataHints);
-  const stats = computeMinMax(band, noData);
+  const stats = computeBandStats(band, noData);
   // User-supplied stretch wins over the data's natural range — that's how
   // the styling panel hands manual min/max overrides to the renderer.
   const min =
@@ -277,40 +277,108 @@ export async function decodeRasterForMap(blob, opts = {}) {
   const max =
     Number.isFinite(opts.styleMax) ? Number(opts.styleMax) : stats.max;
 
-  const cmap = COLORMAPS[opts.colormap]?.stops ?? COLORMAPS.viridis.stops;
+  // NoData paint — falsey color = transparent (the historical default).
+  // Otherwise the user picked a colour for "no data" pixels and we
+  // honor it, with their chosen opacity (0..1) baked into the alpha
+  // channel so Mapbox's raster-opacity stays a separate dimmer.
+  const ndRgb = opts.noDataColor ? hexToRgb(opts.noDataColor) : null;
+  const ndAlpha =
+    ndRgb != null
+      ? Math.max(
+          0,
+          Math.min(255, Math.round(((opts.noDataOpacity ?? 1) * 255) | 0)),
+        )
+      : 0;
+  const writeNoData = (px, idx) => {
+    if (ndRgb) {
+      px[idx]     = ndRgb[0];
+      px[idx + 1] = ndRgb[1];
+      px[idx + 2] = ndRgb[2];
+      px[idx + 3] = ndAlpha;
+    } else {
+      px[idx]     = 0;
+      px[idx + 1] = 0;
+      px[idx + 2] = 0;
+      px[idx + 3] = 0;
+    }
+  };
 
-  // Render to ImageData with a min-max stretch through the chosen
-  // colormap, transparent for nodata / NaN. Encode as PNG so Mapbox can
-  // use it as an `image`-source `url` (cleaner cleanup than blob URLs).
+  // Render to ImageData. Two branches:
+  //   • classified — exact value lookup against the user-supplied
+  //     class list; unmatched values fall through to the nodata paint.
+  //     Built for discrete / reclassified rasters (e.g. risk levels
+  //     0-5 in glof_susceptibility.tif).
+  //   • continuous — min/max stretch through the chosen colormap.
+  //     Default branch; matches every raster we shipped with before
+  //     classified mode existed.
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
   const imageData = ctx.createImageData(width, height);
   const px = imageData.data;
-  const range = max > min ? max - min : 1;
 
-  for (let i = 0; i < band.length; i++) {
-    const v = band[i];
-    const idx = i * 4;
-    if (
-      v == null ||
-      Number.isNaN(v) ||
-      (noData != null && v === noData) ||
-      !Number.isFinite(v)
-    ) {
-      px[idx] = 0;
-      px[idx + 1] = 0;
-      px[idx + 2] = 0;
-      px[idx + 3] = 0;
-      continue;
+  const classified =
+    opts.mode === 'classified' &&
+    Array.isArray(opts.classes) &&
+    opts.classes.length > 0;
+
+  if (classified) {
+    // Pre-parse the class list into a plain Map<value, [r,g,b]> so the
+    // pixel loop is just one Map.get + four writes per sample.
+    const lookup = new Map();
+    for (const c of opts.classes) {
+      const rgb = hexToRgb(c?.color);
+      const v = Number(c?.value);
+      if (rgb && Number.isFinite(v)) lookup.set(v, rgb);
     }
-    const t = Math.max(0, Math.min(1, (v - min) / range));
-    const ci = Math.round(t * 255) * 3;
-    px[idx]     = cmap[ci];
-    px[idx + 1] = cmap[ci + 1];
-    px[idx + 2] = cmap[ci + 2];
-    px[idx + 3] = 255;
+    for (let i = 0; i < band.length; i++) {
+      const v = band[i];
+      const idx = i * 4;
+      const isNoData =
+        v == null ||
+        Number.isNaN(v) ||
+        !Number.isFinite(v) ||
+        (noData != null && v === noData);
+      if (isNoData) {
+        writeNoData(px, idx);
+        continue;
+      }
+      const rgb = lookup.get(Number(v));
+      if (rgb) {
+        px[idx]     = rgb[0];
+        px[idx + 1] = rgb[1];
+        px[idx + 2] = rgb[2];
+        px[idx + 3] = 255;
+      } else {
+        // Value isn't in the class list — paint it as nodata so the
+        // user can see "untouched" classes and decide whether to add
+        // them, instead of silently rendering them with a junk colour.
+        writeNoData(px, idx);
+      }
+    }
+  } else {
+    const cmap = COLORMAPS[opts.colormap]?.stops ?? COLORMAPS.viridis.stops;
+    const range = max > min ? max - min : 1;
+    for (let i = 0; i < band.length; i++) {
+      const v = band[i];
+      const idx = i * 4;
+      if (
+        v == null ||
+        Number.isNaN(v) ||
+        (noData != null && v === noData) ||
+        !Number.isFinite(v)
+      ) {
+        writeNoData(px, idx);
+        continue;
+      }
+      const t = Math.max(0, Math.min(1, (v - min) / range));
+      const ci = Math.round(t * 255) * 3;
+      px[idx]     = cmap[ci];
+      px[idx + 1] = cmap[ci + 1];
+      px[idx + 2] = cmap[ci + 2];
+      px[idx + 3] = 255;
+    }
   }
   ctx.putImageData(imageData, 0, 0);
 
@@ -323,16 +391,33 @@ export async function decodeRasterForMap(blob, opts = {}) {
     height,
     // `dataMin` / `dataMax` are the actual data range; `min`/`max`
     // reflect the stretch that was applied (which may differ when the
-    // user has set a manual range).
+    // user has set a manual range). `uniqueValues` is populated only
+    // for low-cardinality bands (typically classified Byte rasters)
+    // so the styling panel can offer a one-click "auto-fill classes
+    // from data" without having to re-scan the raster itself.
     stats: {
       min,
       max,
       dataMin: stats.min,
       dataMax: stats.max,
       sample: stats.sample.slice(0, 6),
+      uniqueValues: stats.uniqueValues,
     },
     crs,
   };
+}
+
+// Parse '#rgb' / '#rrggbb' into [r, g, b]. Returns null on malformed
+// input — callers fall back to default behaviour (transparent for
+// nodata, default colour for class lookups).
+function hexToRgb(hex) {
+  if (typeof hex !== 'string') return null;
+  let s = hex.trim().replace(/^#/, '');
+  if (s.length === 3) s = s.split('').map((c) => c + c).join('');
+  if (s.length !== 6) return null;
+  const n = parseInt(s, 16);
+  if (Number.isNaN(n)) return null;
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
 
 function identityLngLat(x, y) {
@@ -361,22 +446,38 @@ function pickNoDataValue(image, hints = []) {
   return null;
 }
 
+// Cap on distinct values we'll track during the band scan. Rasters
+// with more than this are treated as "continuous" (uniqueValues = null
+// in the result) so the styling panel doesn't try to spawn 10 000 class
+// rows. 64 covers every realistic discrete classification (risk
+// levels, land-cover codes, hazard zones) while staying tiny in memory.
+const UNIQUE_VALUES_CAP = 64;
+
 // Single linear scan over the band to find min / max while ignoring
-// nodata + NaN. Captures a small sample so the caller can sanity-check
-// the rendered output ("did we read 12-bit ints by mistake?" etc.).
-function computeMinMax(band, noData) {
+// nodata + NaN. Also tracks the set of unique non-nodata values up to
+// `UNIQUE_VALUES_CAP` distinct entries so the styling panel can pre-
+// fill a class list without re-scanning the raster. Captures a small
+// sample for ad-hoc sanity-checking ("did we read 12-bit ints by
+// mistake?" etc.).
+function computeBandStats(band, noData) {
   let min = Infinity;
   let max = -Infinity;
   const sample = [];
-  // Treat 0 as nodata when it's clearly a fill value (rare TIFFs without
-  // an explicit nodata tag use 0 as a transparent background). We only
-  // do this when 0 is also the minimum after the scan — see below.
+  const uniques = new Set();
+  let uniquesOverflowed = false;
   for (let i = 0; i < band.length; i++) {
     const v = band[i];
     if (v == null || Number.isNaN(v) || !Number.isFinite(v)) continue;
     if (noData != null && v === noData) continue;
     if (v < min) min = v;
     if (v > max) max = v;
+    if (!uniquesOverflowed) {
+      uniques.add(Number(v));
+      if (uniques.size > UNIQUE_VALUES_CAP) {
+        uniquesOverflowed = true;
+        uniques.clear(); // free the Set; we won't use it
+      }
+    }
     if (sample.length < 8 && i % Math.max(1, Math.floor(band.length / 8)) === 0) {
       sample.push(v);
     }
@@ -396,7 +497,12 @@ function computeMinMax(band, noData) {
     }
     if (Number.isFinite(nextMin)) min = nextMin;
   }
-  return { min, max, sample };
+  // Sort numerically so callers don't have to. `null` signals "too
+  // many distinct values to enumerate" — i.e. a continuous raster.
+  const uniqueValues = uniquesOverflowed
+    ? null
+    : [...uniques].sort((a, b) => a - b);
+  return { min, max, sample, uniqueValues };
 }
 
 // Bounds-only path. Reads the TIFF header (no raster data, no colormap

@@ -23,12 +23,23 @@ const LAYER_PREFIX  = 'raster-group-lyr-';
 
 // What goes into the cache key. Anything that affects decoded pixels
 // must be here; anything we can update via paint properties must NOT.
+//
+// Mode + classes + nodata-paint all change *what colour each pixel is
+// rendered as*, so they must invalidate the cache; raster-opacity is
+// applied as a Mapbox paint property and so doesn't.
 function symbologyKey(style) {
   if (!style) return '|';
+  const mode = style.mode === 'classified' ? 'classified' : 'continuous';
   const auto = style.autoStretch !== false;
   const min = auto ? 'auto' : style.min ?? 'auto';
   const max = auto ? 'auto' : style.max ?? 'auto';
-  return `${style.colormap || 'viridis'}|${min}|${max}`;
+  const classes = Array.isArray(style.classes)
+    ? style.classes
+        .map((c) => `${c?.value ?? ''}:${c?.color ?? ''}`)
+        .join(',')
+    : '';
+  const nd = `${style.noDataColor ?? ''}@${style.noDataOpacity ?? 1}`;
+  return `${mode}|${style.colormap || 'viridis'}|${min}|${max}|${classes}|${nd}`;
 }
 
 function frameKey(name, style) {
@@ -239,9 +250,13 @@ export default function RasterMapRenderer() {
           let payload = cacheGet(desiredKey);
           if (!payload) {
             payload = await fetchAndDecodeRaster(layer.name, {
+              mode: g.style?.mode,
               colormap: g.style?.colormap,
+              classes: g.style?.classes,
               styleMin: auto ? null : g.style?.min,
               styleMax: auto ? null : g.style?.max,
+              noDataColor: g.style?.noDataColor,
+              noDataOpacity: g.style?.noDataOpacity,
             });
             cacheSet(desiredKey, payload);
           }
@@ -253,17 +268,29 @@ export default function RasterMapRenderer() {
           state.visible = g.visible;
           state.opacity = opacity;
           groupStateRef.current.set(g.id, state);
-          // Surface the actual data range to the styling panel so the
-          // manual min/max inputs can pre-fill with sensible numbers.
-          if (
-            payload.stats &&
-            (g.dataStats?.dataMin !== payload.stats.dataMin ||
-              g.dataStats?.dataMax !== payload.stats.dataMax)
-          ) {
-            setGroupDataStats(g.id, {
-              dataMin: payload.stats.dataMin,
-              dataMax: payload.stats.dataMax,
-            });
+          // Surface the actual data range + low-cardinality value list
+          // to the styling panel so the manual min/max inputs can
+          // pre-fill, and "Auto from data" in classified mode can
+          // populate without re-scanning the raster.
+          if (payload.stats) {
+            const nextUnique = payload.stats.uniqueValues ?? null;
+            const prevUnique = g.dataStats?.uniqueValues ?? null;
+            const uniqueChanged =
+              (nextUnique?.length ?? -1) !== (prevUnique?.length ?? -1) ||
+              (nextUnique &&
+                prevUnique &&
+                nextUnique.some((v, i) => v !== prevUnique[i]));
+            if (
+              g.dataStats?.dataMin !== payload.stats.dataMin ||
+              g.dataStats?.dataMax !== payload.stats.dataMax ||
+              uniqueChanged
+            ) {
+              setGroupDataStats(g.id, {
+                dataMin: payload.stats.dataMin,
+                dataMax: payload.stats.dataMax,
+                uniqueValues: nextUnique,
+              });
+            }
           }
           // Cache the layer's bounds so the zoom-to-extent button can
           // fly straight there without re-fetching the TIFF.

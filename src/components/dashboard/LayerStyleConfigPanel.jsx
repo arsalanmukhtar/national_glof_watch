@@ -7,9 +7,11 @@ import {
   CircleDot,
   Layers as LayersIcon,
   Pipette,
+  Plus,
   RotateCcw,
   Slash,
   Square,
+  Trash2,
 } from 'lucide-react';
 import {
   parseRegionLayerId,
@@ -1404,99 +1406,170 @@ function RasterStyleForm({ groups, selectedId, onSelect }) {
   const auto = style.autoStretch !== false;
   const dataMin = group.dataStats?.dataMin;
   const dataMax = group.dataStats?.dataMax;
+  const uniqueValues = group.dataStats?.uniqueValues ?? null;
+  const mode = style.mode === 'classified' ? 'classified' : 'continuous';
   // Pre-fill manual inputs from the data range if user-provided values
   // aren't set yet (typical when toggling auto → manual).
   const minVal = style.min ?? (Number.isFinite(dataMin) ? dataMin : '');
   const maxVal = style.max ?? (Number.isFinite(dataMax) ? dataMax : '');
+
+  // Switching to classified pre-fills the class list from the data's
+  // unique values (using a categorical palette) the first time, so
+  // the user sees immediate feedback instead of an empty editor.
+  // Subsequent toggles back-and-forth preserve whatever the user has
+  // already authored.
+  const switchToClassified = () => {
+    let classes = Array.isArray(style.classes) ? style.classes : [];
+    if (classes.length === 0 && Array.isArray(uniqueValues) && uniqueValues.length > 0) {
+      const palette = paletteById('set2')?.colors ?? ['#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854'];
+      classes = uniqueValues.map((v, i) => ({
+        value: v,
+        color: palette[i % palette.length],
+      }));
+    }
+    setStyle({ mode: 'classified', classes });
+  };
 
   return (
     <div className="flex flex-col h-full -mx-3 -my-3">
       <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-3 pb-3 flex flex-col gap-3.5">
         <LayerSelector groups={groups} selectedId={selectedId} onSelect={onSelect} />
 
-        <Section title="Colormap">
-          <Field label="Preset">
-            <ColormapDropdown
-              options={colormaps}
-              value={style.colormap || 'viridis'}
-              onChange={(id) => setStyle({ colormap: id })}
-            />
-          </Field>
+        <Section title="Mode">
+          <div className="inline-flex w-full rounded-md border border-day-border dark:border-night-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setStyle({ mode: 'continuous' })}
+              className={cn(
+                'flex-1 px-2 py-1 text-[12px] transition-colors',
+                mode === 'continuous'
+                  ? 'bg-[#16a085] text-white'
+                  : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+              )}
+            >
+              Continuous
+            </button>
+            <button
+              type="button"
+              onClick={switchToClassified}
+              className={cn(
+                'flex-1 px-2 py-1 text-[12px] transition-colors border-l border-day-border dark:border-night-border',
+                mode === 'classified'
+                  ? 'bg-[#16a085] text-white'
+                  : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+              )}
+            >
+              Classified
+            </button>
+          </div>
+          <p className="text-[11px] text-day-muted dark:text-night-muted px-1">
+            {mode === 'classified'
+              ? 'Discrete value → colour lookup. Best for reclassified rasters (risk levels, land cover, hazard zones).'
+              : 'Min/max stretch through a colour ramp. Best for continuous data (temperature, elevation, NDVI).'}
+          </p>
         </Section>
 
-        <Section title="Range">
-          <Field label="Stretch">
-            <div className="inline-flex w-full rounded-md border border-day-border dark:border-night-border overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setStyle({ autoStretch: true })}
-                className={cn(
-                  'flex-1 px-2 py-1 text-[12px] transition-colors',
-                  auto
-                    ? 'bg-[#16a085] text-white'
-                    : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
-                )}
-              >
-                Auto
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setStyle({
-                    autoStretch: false,
-                    min: Number.isFinite(dataMin) ? dataMin : 0,
-                    max: Number.isFinite(dataMax) ? dataMax : 1,
-                  })
-                }
-                className={cn(
-                  'flex-1 px-2 py-1 text-[12px] transition-colors border-l border-day-border dark:border-night-border',
-                  !auto
-                    ? 'bg-[#16a085] text-white'
-                    : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
-                )}
-              >
-                Manual
-              </button>
-            </div>
-          </Field>
-          <Field label="Min">
-            <input
-              type="number"
-              value={auto ? '' : minVal}
-              placeholder={Number.isFinite(dataMin) ? String(dataMin) : '—'}
-              disabled={auto}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                setStyle({ min: Number.isFinite(n) ? n : null });
-              }}
-              className="w-full rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[12px] px-2 py-1 text-day-text dark:text-night-text disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
-            />
-          </Field>
-          <Field label="Max">
-            <input
-              type="number"
-              value={auto ? '' : maxVal}
-              placeholder={Number.isFinite(dataMax) ? String(dataMax) : '—'}
-              disabled={auto}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                setStyle({ max: Number.isFinite(n) ? n : null });
-              }}
-              className="w-full rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[12px] px-2 py-1 text-day-text dark:text-night-text disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
-            />
-          </Field>
-          {auto && (Number.isFinite(dataMin) || Number.isFinite(dataMax)) ? (
-            <p className="text-[11px] text-day-muted dark:text-night-muted px-1">
-              Auto stretch ·{' '}
-              <span className="tabular-nums text-day-text dark:text-night-text">
-                {Number.isFinite(dataMin) ? niceNumber(dataMin) : '—'}
-              </span>{' '}
-              →{' '}
-              <span className="tabular-nums text-day-text dark:text-night-text">
-                {Number.isFinite(dataMax) ? niceNumber(dataMax) : '—'}
-              </span>
-            </p>
-          ) : null}
+        {mode === 'continuous' ? (
+          <>
+            <Section title="Colormap">
+              <Field label="Preset">
+                <ColormapDropdown
+                  options={colormaps}
+                  value={style.colormap || 'viridis'}
+                  onChange={(id) => setStyle({ colormap: id })}
+                />
+              </Field>
+            </Section>
+
+            <Section title="Range">
+              <Field label="Stretch">
+                <div className="inline-flex w-full rounded-md border border-day-border dark:border-night-border overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setStyle({ autoStretch: true })}
+                    className={cn(
+                      'flex-1 px-2 py-1 text-[12px] transition-colors',
+                      auto
+                        ? 'bg-[#16a085] text-white'
+                        : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+                    )}
+                  >
+                    Auto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setStyle({
+                        autoStretch: false,
+                        min: Number.isFinite(dataMin) ? dataMin : 0,
+                        max: Number.isFinite(dataMax) ? dataMax : 1,
+                      })
+                    }
+                    className={cn(
+                      'flex-1 px-2 py-1 text-[12px] transition-colors border-l border-day-border dark:border-night-border',
+                      !auto
+                        ? 'bg-[#16a085] text-white'
+                        : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+                    )}
+                  >
+                    Manual
+                  </button>
+                </div>
+              </Field>
+              <Field label="Min">
+                <input
+                  type="number"
+                  value={auto ? '' : minVal}
+                  placeholder={Number.isFinite(dataMin) ? String(dataMin) : '—'}
+                  disabled={auto}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    setStyle({ min: Number.isFinite(n) ? n : null });
+                  }}
+                  className="w-full rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[12px] px-2 py-1 text-day-text dark:text-night-text disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+                />
+              </Field>
+              <Field label="Max">
+                <input
+                  type="number"
+                  value={auto ? '' : maxVal}
+                  placeholder={Number.isFinite(dataMax) ? String(dataMax) : '—'}
+                  disabled={auto}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    setStyle({ max: Number.isFinite(n) ? n : null });
+                  }}
+                  className="w-full rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[12px] px-2 py-1 text-day-text dark:text-night-text disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+                />
+              </Field>
+              {auto && (Number.isFinite(dataMin) || Number.isFinite(dataMax)) ? (
+                <p className="text-[11px] text-day-muted dark:text-night-muted px-1">
+                  Auto stretch ·{' '}
+                  <span className="tabular-nums text-day-text dark:text-night-text">
+                    {Number.isFinite(dataMin) ? niceNumber(dataMin) : '—'}
+                  </span>{' '}
+                  →{' '}
+                  <span className="tabular-nums text-day-text dark:text-night-text">
+                    {Number.isFinite(dataMax) ? niceNumber(dataMax) : '—'}
+                  </span>
+                </p>
+              ) : null}
+            </Section>
+          </>
+        ) : (
+          <ClassifiedEditor
+            classes={Array.isArray(style.classes) ? style.classes : []}
+            uniqueValues={uniqueValues}
+            onChange={(classes) => setStyle({ classes })}
+          />
+        )}
+
+        <Section title="No data">
+          <NoDataEditor
+            color={style.noDataColor ?? null}
+            opacity={style.noDataOpacity ?? 1}
+            onChange={(partial) => setStyle(partial)}
+          />
         </Section>
 
         <Section title="Appearance">
@@ -1522,11 +1595,15 @@ function RasterStyleForm({ groups, selectedId, onSelect }) {
           type="button"
           onClick={() =>
             setGroupStyle(group.id, {
+              mode: 'continuous',
               colormap: 'viridis',
               opacity: 1,
               autoStretch: true,
               min: null,
               max: null,
+              classes: [],
+              noDataColor: null,
+              noDataOpacity: 1,
             })
           }
           className="inline-flex items-center gap-1 text-[12px] text-day-muted dark:text-night-muted hover:text-[#16a085] transition-colors"
@@ -1535,6 +1612,225 @@ function RasterStyleForm({ groups, selectedId, onSelect }) {
           Reset
         </button>
       </div>
+    </div>
+  );
+}
+
+// Suggestive placeholder text for the per-class label input. The raw
+// value gets passed in so we can offer a sensible default when it
+// matches a familiar small-integer scheme (risk levels 0-5, binary
+// 0/1, ternary -1/0/1) — the user can ignore the suggestion and type
+// whatever they like. Only used as the input's `placeholder`, never
+// as the actual label.
+function getLabelPlaceholder(value) {
+  if (value === 0) return 'No data / Background';
+  if (value === 1) return 'Very Low';
+  if (value === 2) return 'Low';
+  if (value === 3) return 'Moderate';
+  if (value === 4) return 'High';
+  if (value === 5) return 'Very High';
+  return `Class ${value}`;
+}
+
+// ---------------------------------------------------------------------------
+// Classified-mode editor — list of `{ value, color, label? }` rows.
+// Label is display-only — used by the inline legend in the Raster
+// Layers panel for legibility. The "Auto from data" pill replaces
+// whatever's there with one entry per unique value found in the band,
+// paired with a categorical palette. "Add" appends a blank row the
+// user types into; per-row trash deletes.
+// ---------------------------------------------------------------------------
+function ClassifiedEditor({ classes, uniqueValues, onChange }) {
+  const palette = paletteById('set2')?.colors ?? ['#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854'];
+  const updateAt = (i, partial) => {
+    const next = classes.map((c, j) => (j === i ? { ...c, ...partial } : c));
+    onChange(next);
+  };
+  const removeAt = (i) => {
+    onChange(classes.filter((_, j) => j !== i));
+  };
+  const addRow = () => {
+    const used = new Set(classes.map((c) => c.value));
+    // Pick the next unused value from the unique-values list, or just
+    // increment the largest existing value if there's no overlap.
+    let nextValue = 0;
+    if (Array.isArray(uniqueValues)) {
+      const free = uniqueValues.find((v) => !used.has(v));
+      if (free != null) nextValue = free;
+      else if (classes.length) nextValue = (classes.at(-1)?.value ?? 0) + 1;
+    } else if (classes.length) {
+      nextValue = (classes.at(-1)?.value ?? 0) + 1;
+    }
+    onChange([
+      ...classes,
+      { value: nextValue, color: palette[classes.length % palette.length] },
+    ]);
+  };
+  const autoFill = () => {
+    if (!Array.isArray(uniqueValues) || uniqueValues.length === 0) return;
+    onChange(
+      uniqueValues.map((v, i) => ({
+        value: v,
+        color: palette[i % palette.length],
+      })),
+    );
+  };
+
+  return (
+    <Section
+      title="Classes"
+      action={
+        Array.isArray(uniqueValues) && uniqueValues.length > 0 ? (
+          <button
+            type="button"
+            onClick={autoFill}
+            className="text-[10.5px] uppercase tracking-[0.08em] text-[#16a085] hover:underline"
+            title={`${uniqueValues.length} unique value(s) detected in data`}
+          >
+            Auto from data
+          </button>
+        ) : null
+      }
+    >
+      {classes.length === 0 ? (
+        <p className="text-[11px] text-day-muted dark:text-night-muted px-1">
+          No classes yet.{' '}
+          {Array.isArray(uniqueValues) && uniqueValues.length > 0
+            ? `Click “Auto from data” to seed ${uniqueValues.length} from this raster, or add manually.`
+            : 'Add classes manually below.'}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {/* Header row — micro-labels above the columns so the user knows
+              which input is the numeric value and which is the display
+              label. Hidden when no rows exist (the empty-state copy
+              already explains the schema). */}
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted px-0.5">
+            <span className="w-7 shrink-0">colour</span>
+            <span className="w-14 shrink-0">value</span>
+            <span className="flex-1 min-w-0">label (shown in legend)</span>
+            <span className="w-6 shrink-0" />
+          </div>
+          {classes.map((c, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input
+                type="color"
+                value={c.color || '#000000'}
+                onChange={(e) => updateAt(i, { color: e.target.value })}
+                className="h-6 w-7 shrink-0 rounded border border-day-border dark:border-night-border bg-transparent cursor-pointer p-0"
+                aria-label={`Class ${c.value} colour`}
+              />
+              <input
+                type="number"
+                value={c.value}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  updateAt(i, { value: Number.isFinite(n) ? n : 0 });
+                }}
+                className="w-14 shrink-0 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[12px] px-2 py-1 text-day-text dark:text-night-text tabular-nums focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+              />
+              <input
+                type="text"
+                value={c.label ?? ''}
+                onChange={(e) => updateAt(i, { label: e.target.value })}
+                placeholder={`e.g. ${getLabelPlaceholder(c.value)}`}
+                className="flex-1 min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[12px] px-2 py-1 text-day-text dark:text-night-text placeholder:text-day-muted/70 dark:placeholder:text-night-muted/70 focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+                aria-label={`Class ${c.value} display label`}
+              />
+              <button
+                type="button"
+                onClick={() => removeAt(i)}
+                aria-label={`Remove class ${c.value}`}
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-day-muted dark:text-night-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={addRow}
+        className="inline-flex items-center gap-1 text-[12px] text-[#16a085] hover:underline self-start mt-1"
+      >
+        <Plus className="h-3 w-3" /> Add class
+      </button>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// NoData editor — colour + alpha for pixels flagged as nodata (or
+// values not matched by any class in classified mode). Toggling the
+// switch off clears the colour, restoring the default transparent
+// behaviour the renderer used before classified mode existed.
+// ---------------------------------------------------------------------------
+function NoDataEditor({ color, opacity, onChange }) {
+  const enabled = !!color;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[11.5px] text-day-text dark:text-night-text">
+          Paint nodata pixels
+        </span>
+        <Switch
+          checked={enabled}
+          onChange={(v) =>
+            onChange(
+              v
+                ? { noDataColor: color || '#000000' }
+                : { noDataColor: null },
+            )
+          }
+          className={cn(
+            'relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+            enabled ? 'bg-[#16a085]' : 'bg-day-border dark:bg-night-border',
+          )}
+        >
+          <span
+            aria-hidden
+            className={cn(
+              'pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out mt-0.5',
+              enabled ? 'translate-x-3.5' : 'translate-x-0.5',
+            )}
+          />
+        </Switch>
+      </div>
+      {enabled ? (
+        <>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => onChange({ noDataColor: e.target.value })}
+              className="h-6 w-7 rounded border border-day-border dark:border-night-border bg-transparent cursor-pointer p-0"
+              aria-label="No-data colour"
+            />
+            <input
+              type="text"
+              value={color}
+              onChange={(e) => onChange({ noDataColor: e.target.value })}
+              className="flex-1 min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[12px] px-2 py-1 text-day-text dark:text-night-text focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+            />
+          </div>
+          <Field label="Opacity">
+            <NumberSlider
+              value={opacity ?? 1}
+              onChange={(v) => onChange({ noDataOpacity: v })}
+              min={0}
+              max={1}
+              step={0.05}
+              format={(v) => `${Math.round(v * 100)}%`}
+            />
+          </Field>
+        </>
+      ) : (
+        <p className="text-[11px] text-day-muted dark:text-night-muted">
+          NoData stays transparent. Turn this on to paint a fixed colour
+          instead.
+        </p>
+      )}
     </div>
   );
 }

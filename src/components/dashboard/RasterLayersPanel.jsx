@@ -903,6 +903,76 @@ function RasterLegend({
   const frameLabel = activeLayer?.parsedDate || activeLayer?.name || '';
   const gradient = colormapCssGradient(colormapId);
 
+  const classified =
+    style.mode === 'classified' &&
+    Array.isArray(style.classes) &&
+    style.classes.length > 0;
+
+  // Classified mode swaps the gradient + numeric range for a stack of
+  // value/colour swatches — the legend no longer reads as a continuous
+  // ramp, which matches what the renderer is actually doing on the map.
+  if (classified && !isTemporal) {
+    return (
+      <div className="px-2 py-1.5 flex flex-col gap-1">
+        <div className="flex items-center justify-between text-[10.5px]">
+          <span className="text-day-muted dark:text-night-muted">
+            Classified · {style.classes.length} value{style.classes.length === 1 ? '' : 's'}
+          </span>
+          <span className="text-day-muted/80 dark:text-night-muted/80 tabular-nums">
+            opacity {Math.round((style.opacity ?? 1) * 100)}%
+          </span>
+        </div>
+        <ul className="flex flex-col gap-0.5 mt-0.5">
+          {style.classes.map((c, i) => {
+            // Display label wins when set; otherwise fall back to the
+            // numeric value. The numeric value is shown alongside a
+            // user-supplied label so the lookup → label mapping stays
+            // visible (matters when the user mid-edits and a few
+            // classes are still unlabelled).
+            const label = (c.label ?? '').trim();
+            return (
+              <li
+                key={`${c.value}-${i}`}
+                className="flex items-center gap-1.5 text-[11px] text-day-text dark:text-night-text"
+              >
+                <span
+                  aria-hidden
+                  className="inline-block h-3 w-3 shrink-0 rounded-sm border border-black/10 dark:border-white/10"
+                  style={{ background: c.color }}
+                />
+                {label ? (
+                  <>
+                    <span className="flex-1 min-w-0 truncate" title={label}>
+                      {label}
+                    </span>
+                    <span className="tabular-nums text-[10.5px] text-day-muted dark:text-night-muted">
+                      {niceLegendNumber(c.value)}
+                    </span>
+                  </>
+                ) : (
+                  <span className="tabular-nums">{niceLegendNumber(c.value)}</span>
+                )}
+              </li>
+            );
+          })}
+          {style.noDataColor ? (
+            <li className="flex items-center gap-1.5 text-[11px] text-day-muted dark:text-night-muted">
+              <span
+                aria-hidden
+                className="inline-block h-3 w-3 shrink-0 rounded-sm border border-black/10 dark:border-white/10"
+                style={{
+                  background: style.noDataColor,
+                  opacity: style.noDataOpacity ?? 1,
+                }}
+              />
+              <span>nodata</span>
+            </li>
+          ) : null}
+        </ul>
+      </div>
+    );
+  }
+
   return (
     <div className="px-2 py-1.5 flex flex-col gap-1">
       <div className="flex items-center justify-between text-[10.5px]">

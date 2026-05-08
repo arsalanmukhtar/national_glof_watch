@@ -189,15 +189,23 @@ export function RasterProvider({ children }) {
           activeIndex: 0,
           layers: ordered,
           // Symbology — picked up by RasterMapRenderer + LayerStyleConfigPanel.
-          // colormap: ID into COLORMAPS in rasterRender.js
-          // opacity: 0..1 (applied as Mapbox raster-opacity)
-          // autoStretch: true → use the data's own min/max; false → user-set
+          // mode:           'continuous' (ramp) | 'classified' (per-value swatch)
+          // colormap:       ID into COLORMAPS in rasterRender.js (continuous only)
+          // opacity:        0..1, applied as Mapbox raster-opacity
+          // autoStretch:    true → use the data's own min/max; false → user-set
+          // classes:        [{ value, color }] — exact-match lookup in classified mode
+          // noDataColor:    hex string or null (null = transparent, the default)
+          // noDataOpacity:  0..1, only meaningful when noDataColor is set
           style: {
+            mode: 'continuous',
             colormap: 'viridis',
             opacity: 1,
             autoStretch: true,
             min: null,
             max: null,
+            classes: [],
+            noDataColor: null,
+            noDataOpacity: 1,
           },
           // Filled in by the renderer once the active frame decodes —
           // surfaced to the styling panel so the user sees what the auto
