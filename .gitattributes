@@ -5,3 +5,17 @@
 *.jpeg filter=lfs diff=lfs merge=lfs -text
 *.gif filter=lfs diff=lfs merge=lfs -text
 *.xlsx filter=lfs diff=lfs merge=lfs -text
+
+# Bundled-into-the-build assets are stored inline (not in LFS) so
+# Vercel can clone them without depending on GitHub LFS bandwidth
+# quota. Same content as before — just stored as raw blobs in the
+# pack instead of LFS pointers. See the migration commit for context.
+src/assets/** -filter -diff -merge text=auto
+
+# Hard exception: GitHub rejects any single inline blob over 100 MB.
+# These two video files exceed that ceiling so they MUST stay in LFS,
+# even though everything else under src/assets/ is inline. Vercel will
+# pull these via LFS smudge on each clone (~250 MB of LFS bandwidth
+# per build, well under the free 1 GB/month quota).
+src/assets/videos/chatiboi_glacial_lake.mp4 filter=lfs diff=lfs merge=lfs -text
+src/assets/videos/ultar_glacial_lake.mp4 filter=lfs diff=lfs merge=lfs -text
