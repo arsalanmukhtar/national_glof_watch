@@ -1,0 +1,54 @@
+# =============================================================================
+# Backend image — Node + Python + rasterio for the raster pyramid script.
+#
+# Why a single mixed-runtime image (vs. a Python sidecar):
+#   • generate_pyramids.py is invoked synchronously by the upload route
+#     (server/routes/rasters.js:64), so latency / IPC overhead matters.
+#   • rasterio's manylinux wheel bundles GDAL — no apt GDAL pin needed.
+#   • Image stays small enough (~ 350 MB) to deploy comfortably on the VM.
+#
+# Base: node:20-bookworm-slim
+#   • Bookworm gives us Python 3.11 from apt without forcing pyenv.
+#   • -slim trims the OS to just what apt-installed packages need.
+# =============================================================================
+FROM node:20-bookworm-slim
+
+# Python deps go through pip rather than apt's python3-rasterio because
+# the pip wheel ships a newer GDAL and avoids dragging in apt's Python
+# build chain. `--break-system-packages` is needed on Bookworm because
+# PEP 668 marks the system Python as externally managed; the container
+# is single-purpose so this is safe.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        ca-certificates \
+    && pip3 install --no-cache-dir --break-system-packages rasterio>=1.3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Node deps in their own layer so source-only edits don't bust
+# the pip + npm install caches on every rebuild.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# Copy only the bits the backend actually needs at runtime. The React
+# source under src/ and the build artefacts under dist/ are owned by
+# the frontend image — leaving them out keeps this image focused.
+COPY server ./server
+COPY scripts/python ./scripts/python
+
+# `data/rasters/` is mounted as a host volume in compose, but we
+# create the path so a one-off `docker run` without the mount still
+# starts cleanly.
+RUN mkdir -p /app/data/rasters
+
+ENV NODE_ENV=production
+EXPOSE 3001
+
+# `node --watch` (the dev script) is intentionally not used here —
+# production runs the file directly so a crash exits the container
+# and Docker / systemd handles the restart.
+CMD ["node", "server/index.js"]

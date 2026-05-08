@@ -1,0 +1,51 @@
+# Anything not needed inside an image. Keeps build context small and
+# stops local dev artefacts from leaking into production layers.
+
+# Node — re-installed fresh inside the image
+node_modules
+npm-debug.log*
+
+# Vite output — frontend image rebuilds it; backend doesn't need it
+dist
+.vite
+
+# Python venv — image installs its own rasterio
+.venv
+venv
+__pycache__
+*.py[cod]
+
+# Git metadata
+.git
+.gitignore
+.gitattributes
+.github
+
+# Editor / OS
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local env (use compose's .env loading at runtime; don't bake secrets
+# into the image layers)
+.env
+.env.local
+.env.*.local
+
+# DB dumps — never copy into images
+backups
+*.sql.bak
+
+# Docs / extras that bloat context without being shipped
+docs
+legacy
+
+# The data/ tree at repo root holds dev-side raw inputs. The
+# data/rasters subdir is bind-mounted at runtime; the raw originals
+# under data/ shouldn't be baked into the image.
+data
+Maps
+Alerts

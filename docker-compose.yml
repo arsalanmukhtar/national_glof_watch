@@ -1,0 +1,118 @@
+# =============================================================================
+# Production-style stack for the National GLOF Watch dashboard.
+#
+# Three services on one bridge network:
+#   • db        — Postgres 16, named volume for data persistence.
+#   • backend   — Express + cron, runs the schema bootstrap on boot
+#                 (server/lib/db.js → ensureSchema), then begins the
+#                 PMD store cycle.
+#   • frontend  — Nginx serving the built Vite SPA, reverse-proxying
+#                 /api to the backend container.
+#
+# Persistent storage:
+#   • db_data           — Postgres data dir (named volume).
+#   • ./data/rasters    — host-mounted into the backend so uploaded
+#                         GeoTIFFs survive container rebuilds and can
+#                         be rsync'd to/from the host.
+#
+# Env: docker-compose reads .env at the project root by convention.
+# Override per-environment by copying .env to .env.production / etc.
+# and starting compose with --env-file.
+# =============================================================================
+
+services:
+  db:
+    # Pinned to 17 so a `pg_dump` taken from the dev machine (Postgres
+    # 17.6 at the time of writing) restores cleanly into this container
+    # without forcing a downgrade. Bump in lockstep with dev.
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PG_USER:-postgres}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-postgres}
+      POSTGRES_DB: ${PG_DATABASE:-glof}
+    # Don't publish the port to the host by default — only the
+    # backend service on the internal network needs to reach it.
+    # For local debugging, uncomment the `ports` block below.
+    # ports:
+    #   - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      # Backend's `depends_on: condition: service_healthy` waits on
+      # this — without the healthcheck, ensureSchema() can race the
+      # Postgres bootstrap on first boot.
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-postgres} -d ${PG_DATABASE:-glof}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - glof-net
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      # Inside the compose network the DB is at host `db`, port 5432.
+      # We force these here so a stray PG_HOST=localhost in .env
+      # doesn't break the container at runtime.
+      PG_HOST: db
+      PG_PORT: 5432
+      PG_DATABASE: ${PG_DATABASE:-glof}
+      PG_USER: ${PG_USER:-postgres}
+      PG_PASSWORD: ${PG_PASSWORD:-postgres}
+      PORT: 3001
+      STORE_INTERVAL_MIN: ${STORE_INTERVAL_MIN:-10}
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Persist uploaded rasters on the host so docker volume churn
+      # doesn't lose them. Bind-mount keeps them visible to rsync /
+      # backup tooling outside Docker.
+      - ./data/rasters:/app/data/rasters
+    expose:
+      - "3001"
+    networks:
+      - glof-net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        # VITE_* are inlined at build time. If you change any of these,
+        # rebuild with `docker compose build frontend` (no cache reuse
+        # for the matching layers).
+        VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-}
+        VITE_GEOSERVER_BASE_URL: ${VITE_GEOSERVER_BASE_URL:-}
+        VITE_GEOSERVER_PROVINCIAL_URL: ${VITE_GEOSERVER_PROVINCIAL_URL:-}
+        VITE_DEFAULT_MAP_CENTER_LNG: ${VITE_DEFAULT_MAP_CENTER_LNG:-}
+        VITE_DEFAULT_MAP_CENTER_LAT: ${VITE_DEFAULT_MAP_CENTER_LAT:-}
+        VITE_DEFAULT_MAP_ZOOM: ${VITE_DEFAULT_MAP_ZOOM:-}
+        VITE_DEFAULT_MAP_PITCH: ${VITE_DEFAULT_MAP_PITCH:-}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      # Host 8090 → container 80. Avoiding 80 (Windows / WSL relay)
+      # and 8080 (GeoServer / Jetty), which collide on this dev box.
+      # On the VM, change to "80:80" (or front this with nginx /
+      # Caddy / Traefik for HTTPS) — see the Phase 4 deploy notes.
+      - "8090:80"
+    networks:
+      - glof-net
+
+volumes:
+  db_data:
+    # Named volume — survives `docker compose down` but is removed by
+    # `docker compose down -v`. For prod, the VM bind-mounts this to a
+    # backed-up directory; see Phase 4 deploy script.
+    driver: local
+
+networks:
+  glof-net:
+    driver: bridge

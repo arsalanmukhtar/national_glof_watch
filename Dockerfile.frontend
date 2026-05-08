@@ -1,0 +1,65 @@
+# =============================================================================
+# Frontend image — two-stage build: Node compiles the React/Vite SPA,
+# Nginx serves the static output. The production bundle includes every
+# asset under src/assets/ (logos, videos, large GeoJSONs), so the final
+# image is hefty (~ 700 MB) — that's the cost of bundling the data
+# in-app rather than serving it separately.
+#
+# Build args:
+#   VITE_MAPBOX_TOKEN, VITE_GEOSERVER_*, VITE_DEFAULT_MAP_*
+#
+# These have to be passed at build time because Vite inlines them into
+# the bundle. Runtime env vars don't reach the browser.
+# =============================================================================
+
+# ---------- Stage 1: build the SPA -----------------------------------------
+FROM node:20-bookworm-slim AS builder
+
+# Each VITE_* arg becomes an env var for the duration of `npm run
+# build`, which is when Vite reads them. Defaults are empty strings so
+# a missing arg fails loudly (Vite warns) rather than silently baking
+# in `undefined`.
+ARG VITE_MAPBOX_TOKEN=
+ARG VITE_GEOSERVER_BASE_URL=
+ARG VITE_GEOSERVER_PROVINCIAL_URL=
+ARG VITE_DEFAULT_MAP_CENTER_LNG=
+ARG VITE_DEFAULT_MAP_CENTER_LAT=
+ARG VITE_DEFAULT_MAP_ZOOM=
+ARG VITE_DEFAULT_MAP_PITCH=
+
+ENV VITE_MAPBOX_TOKEN=$VITE_MAPBOX_TOKEN \
+    VITE_GEOSERVER_BASE_URL=$VITE_GEOSERVER_BASE_URL \
+    VITE_GEOSERVER_PROVINCIAL_URL=$VITE_GEOSERVER_PROVINCIAL_URL \
+    VITE_DEFAULT_MAP_CENTER_LNG=$VITE_DEFAULT_MAP_CENTER_LNG \
+    VITE_DEFAULT_MAP_CENTER_LAT=$VITE_DEFAULT_MAP_CENTER_LAT \
+    VITE_DEFAULT_MAP_ZOOM=$VITE_DEFAULT_MAP_ZOOM \
+    VITE_DEFAULT_MAP_PITCH=$VITE_DEFAULT_MAP_PITCH
+
+WORKDIR /app
+
+# Install full dep set (including devDeps — Vite + plugins are dev) so
+# the build can run.
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy everything else needed for the build. The .dockerignore at the
+# repo root keeps node_modules/, dist/, backups/, .venv/ etc. out of
+# this layer.
+COPY . .
+
+RUN npm run build
+
+# ---------- Stage 2: serve via nginx ---------------------------------------
+FROM nginx:1.27-alpine
+
+# Custom config: SPA routing fallback to /index.html, plus reverse
+# proxy of /api/* to the backend container. See docker/nginx.conf for
+# the full directive set.
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+# nginx:alpine's default CMD is `nginx -g daemon off;` which is what
+# we want — keep PID 1 in the foreground so Docker can supervise it.
