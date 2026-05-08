@@ -30,6 +30,10 @@ Thumbs.db
 coverage/
 data/geojsons/
 
+# DB dumps — local snapshots, not for git. Keep `scripts/db/*` tracked.
+backups/
+*.sql.bak
+
 # Python (auxiliary scripts under scripts/python/)
 .venv/
 venv/

@@ -8,7 +8,9 @@
     "server": "node --watch server/index.js",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "db:backup": "node scripts/db/run-backup.js",
+    "db:restore": "node scripts/db/run-restore.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",
