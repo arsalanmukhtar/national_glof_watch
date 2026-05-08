@@ -36,17 +36,23 @@ for arg in "$@"; do
   esac
 done
 
-# Bind-mount targets used by docker-compose.prod.yml. Created up
-# front so the very first `docker compose up` doesn't trip on a
-# missing path. The directories live under /opt/glof so a single
-# rsync target covers all of prod's persistent state.
-echo "[vm-deploy] Ensuring /opt/glof tree exists..."
-sudo mkdir -p /opt/glof/db /opt/glof/rasters /opt/glof/db-imports
-# Postgres-in-container expects its data dir owned by uid 999
-# (the postgres user inside postgres:17-alpine). The other dirs are
-# rw-only for the deploy user.
-sudo chown -R 999:999 /opt/glof/db
-sudo chown -R "$(id -u):$(id -g)" /opt/glof/rasters /opt/glof/db-imports
+# Bind-mount targets used by docker-compose.prod.yml. Skip the
+# sudo dance when the tree is already in place — non-interactive
+# SSH sessions can't prompt for a password, and re-running the
+# bootstrap on every deploy would defeat the point of the script
+# being idempotent. The first-time setup is meant to be done by
+# the operator (see docs).
+if [[ ! -d /opt/glof/db || ! -d /opt/glof/rasters || ! -d /opt/glof/db-imports ]]; then
+  echo "[vm-deploy] /opt/glof tree missing — running first-time bootstrap (sudo)..."
+  sudo mkdir -p /opt/glof/db /opt/glof/rasters /opt/glof/db-imports
+  # Postgres-in-container expects its data dir owned by uid 999
+  # (the postgres user inside postgres:17-alpine). The other dirs
+  # are rw-only for the deploy user.
+  sudo chown -R 999:999 /opt/glof/db
+  sudo chown -R "$(id -u):$(id -g)" /opt/glof/rasters /opt/glof/db-imports
+else
+  echo "[vm-deploy] /opt/glof tree already exists — skipping bootstrap."
+fi
 
 # Refuse to run if .env is missing — without it the build args are
 # blank and the frontend ships without the Mapbox token.
