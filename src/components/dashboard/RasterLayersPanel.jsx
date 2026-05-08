@@ -214,9 +214,19 @@ function RasterIntake({
     if (mode === 'single') {
       // N selected files in single mode = N independent single-raster
       // groups. The user gets one group per file so they can be styled
-      // / toggled independently.
+      // / toggled independently. When the user typed a layer name and
+      // selected exactly one file, that name applies to the new group;
+      // for multi-file single-mode adds we suffix with the filename so
+      // the panel doesn't show several groups all sharing the same
+      // label.
+      const trimmed = groupName.trim();
       for (const fn of fileNames) {
-        onAdd({ kind: 'single', fileNames: [fn], name: null });
+        const name = trimmed
+          ? fileNames.length > 1
+            ? `${trimmed} · ${fn}`
+            : trimmed
+          : null;
+        onAdd({ kind: 'single', fileNames: [fn], name });
       }
     } else {
       onAdd({
@@ -303,11 +313,16 @@ function RasterIntake({
           mode === 'temporal' ? 'Series name (optional)' : 'Layer name (optional)'
         }
         className={cn(
-          'w-full rounded-md border px-2 py-1.5 text-[12px]',
+          'box-border w-full rounded-md border px-2 py-1.5 text-[12px]',
           'bg-day-bg dark:bg-night-bg',
           'border-day-border dark:border-night-border',
           'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
-          'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+          // `ring-inset` paints the focus ring INSIDE the input's
+          // border-box. The intake panel's parent motion.div has
+          // overflow-hidden (needed for the height animation), which
+          // would otherwise crop the default outset ring on the left
+          // and right edges of this row.
+          'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#16a085]/40',
         )}
       />
 
@@ -523,11 +538,11 @@ function SearchInput({ value, onChange }) {
         onChange={(e) => onChange(e.target.value)}
         placeholder="Filter files…"
         className={cn(
-          'w-full pl-7 pr-2 py-1 rounded-md text-[12px]',
+          'box-border w-full pl-7 pr-2 py-1 rounded-md text-[12px]',
           'bg-day-bg dark:bg-night-bg',
           'border border-day-border dark:border-night-border',
           'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
-          'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+          'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#16a085]/40',
         )}
       />
     </div>
