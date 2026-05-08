@@ -10,8 +10,13 @@
 
 import { Router } from 'express';
 import { promises as fs } from 'node:fs';
-import { createReadStream, createWriteStream } from 'node:fs';
+import {
+  createReadStream,
+  createWriteStream,
+  existsSync,
+} from 'node:fs';
 import { pipeline } from 'node:stream/promises';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 
 export const rastersRouter = Router();
@@ -24,6 +29,59 @@ const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 const PROJECT_ROOT = path.resolve(process.cwd());
 const DEFAULT_DIR = path.join(PROJECT_ROOT, 'data', 'rasters');
 const RASTER_DIR = path.resolve(process.env.RASTER_DIR ?? DEFAULT_DIR);
+
+// Path to the pyramid-building helper that runs after every successful
+// upload. Lives under scripts/python/ — see that script for the
+// rasterio-based implementation.
+const PYRAMID_SCRIPT = path.join(
+  PROJECT_ROOT,
+  'scripts',
+  'python',
+  'generate_pyramids.py',
+);
+
+// Resolve the Python interpreter to use for pyramid generation. We
+// prefer the project's `.venv` so the user doesn't have to install
+// rasterio globally; if that's missing we fall back to whatever
+// `python` is on PATH and let the script's own ImportError surface
+// the install instructions.
+function resolvePythonBin() {
+  const winPy = path.join(PROJECT_ROOT, '.venv', 'Scripts', 'python.exe');
+  const unixPy = path.join(PROJECT_ROOT, '.venv', 'bin', 'python');
+  if (existsSync(winPy)) return winPy;
+  if (existsSync(unixPy)) return unixPy;
+  return process.platform === 'win32' ? 'python.exe' : 'python';
+}
+
+// Run the pyramid script for a single freshly-uploaded file. Resolves
+// `{ ok, log }` so the upload handler can include the outcome in its
+// JSON response without ever rejecting — a missing rasterio or a
+// transient script failure shouldn't fail the upload itself (the
+// file is still on disk and renderable, just slower for big rasters).
+async function buildPyramidsFor(filePath) {
+  return await new Promise((resolve) => {
+    const py = resolvePythonBin();
+    const proc = spawn(py, [PYRAMID_SCRIPT, filePath], {
+      cwd: PROJECT_ROOT,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    proc.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    proc.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    proc.on('error', (err) => {
+      resolve({ ok: false, log: `spawn failed: ${err.message}` });
+    });
+    proc.on('close', (code) => {
+      const log = (stdout + (stderr ? `\nSTDERR:\n${stderr}` : '')).trim();
+      resolve({ ok: code === 0, log });
+    });
+  });
+}
 
 // Patterns we try, in order, for "did this filename embed a date?".
 // First match wins. Anything outside this list returns `null` and the
@@ -146,12 +204,44 @@ rastersRouter.post('/upload', async (req, res) => {
       await fs.unlink(resolved).catch(() => {});
       return res.status(413).json({ error: 'Upload exceeds 500 MB cap' });
     }
+
+    // Build overview pyramids before responding so the frontend never
+    // sees a fresh upload without them — that's exactly the case the
+    // in-browser decoder rejects with "too large to render". The
+    // script no-ops for rasters already small enough or already
+    // pyramidised, so re-uploads of the same file don't pay twice.
+    // If the script fails (e.g. rasterio not installed) we still
+    // accept the upload and log the error — the user can fix their
+    // venv and re-trigger via `python scripts/python/generate_pyramids.py`.
+    const pyramidStart = Date.now();
+    const pyramid = await buildPyramidsFor(resolved);
+    const pyramidMs = Date.now() - pyramidStart;
+    if (!pyramid.ok) {
+      console.warn(
+        `[rasters] pyramid build failed for ${baseName} (${pyramidMs} ms):\n${pyramid.log}`,
+      );
+    } else {
+      console.log(
+        `[rasters] pyramid build for ${baseName} ok in ${pyramidMs} ms`,
+      );
+    }
+
+    // Stat AFTER pyramid generation so the size we report includes
+    // the embedded overview IFDs.
     const stat = await fs.stat(resolved);
     res.json({
       name: baseName,
       size: stat.size,
       mtime: stat.mtime.toISOString(),
       parsedDate: parseDateFromName(baseName),
+      pyramids: {
+        ok: pyramid.ok,
+        durationMs: pyramidMs,
+        // Truncate the log so the client doesn't have to deal with
+        // a multi-line wall on the wire — full output is in the
+        // server console for debugging.
+        log: pyramid.log.slice(-500),
+      },
     });
   } catch (err) {
     // Best-effort cleanup of a half-written file.

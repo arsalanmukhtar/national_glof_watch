@@ -81,18 +81,28 @@ RESAMPLING_MAP: dict[str, Resampling] = {
 }
 
 
-def find_rasters(root: Path) -> list[Path]:
-    if not root.exists():
-        sys.exit(f"error: {root} does not exist")
-    if not root.is_dir():
-        sys.exit(f"error: {root} is not a directory")
+def find_rasters(target: Path) -> list[Path]:
+    """Resolve the CLI target to one or more .tif files. Accepts either
+    a directory (walks it once, filters by lowercased suffix) or a
+    single .tif/.tiff file (returns just that). The single-file path
+    is what the upload route invokes per fresh upload so the browser
+    only waits on the one raster it just dropped, not the whole
+    catalog."""
+    if not target.exists():
+        sys.exit(f"error: {target} does not exist")
+    if target.is_file():
+        if target.suffix.lower() not in (".tif", ".tiff"):
+            sys.exit(f"error: {target} is not a .tif/.tiff file")
+        return [target]
+    if not target.is_dir():
+        sys.exit(f"error: {target} is neither a directory nor a .tif file")
     # Walk the directory once and filter by lowercased suffix so each
     # file appears exactly once. Globbing with separate `*.tif` and
     # `*.TIF` patterns double-counts on Windows (case-insensitive
     # matching) and undercounts on Linux (case-sensitive but with
     # potential mixed-case filenames).
     files = [
-        f for f in root.iterdir()
+        f for f in target.iterdir()
         if f.is_file() and f.suffix.lower() in (".tif", ".tiff")
     ]
     return sorted(files)
@@ -151,11 +161,14 @@ def parse_args() -> argparse.Namespace:
         description="Generate overview pyramids for rasters in data/rasters/.",
     )
     p.add_argument(
-        "directory",
+        "target",
         nargs="?",
         type=Path,
         default=DEFAULT_DIR,
-        help=f"Directory of .tif/.tiff files (default: {DEFAULT_DIR})",
+        help=f"Directory of .tif/.tiff files OR a single .tif file "
+             f"(default: {DEFAULT_DIR}). The server's upload handler "
+             f"calls the script with the just-uploaded file's path so "
+             f"only the new raster gets pyramidized.",
     )
     p.add_argument(
         "--levels",
@@ -197,12 +210,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
 
-    rasters = find_rasters(args.directory)
+    rasters = find_rasters(args.target)
     if not rasters:
-        print(f"No .tif / .tiff files in {args.directory}.")
+        print(f"No .tif / .tiff files in {args.target}.")
         return 0
 
-    print(f"Found {len(rasters)} raster(s) in {args.directory}")
+    print(f"Found {len(rasters)} raster(s) in {args.target}")
     if args.levels:
         print(f"Levels: {' '.join(map(str, args.levels))} (forced)")
     else:
