@@ -19,15 +19,21 @@ scripts/python
 backups
 *.sql.bak
 
-# Local dev artefacts
+# Local dev artefacts.
+# Patterns starting with "/" are anchored to the repo root, so e.g.
+# "/Alerts" excludes the legacy Alerts/ folder at root WITHOUT also
+# nuking src/assets/images/alerts/ on case-insensitive matchers.
+# (We hit exactly that bug — Vercel folded "Alerts" to "alerts" and
+# stripped every alert JPEG out of the upload, which broke the
+# Rollup resolve in src/assets/index.js.)
 .venv
 venv
 __pycache__
-data
-Maps
-Alerts
-legacy
-docs
+/data
+/Maps
+/Alerts
+/legacy
+/docs
 
 # Env files (Vercel reads from its own dashboard env, not from the repo)
 .env
