@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMapView } from '@/contexts/MapContext';
 import { useRasters } from '@/contexts/RasterContext';
-import { fetchAndDecodeRaster } from '@/utils/rasterRender';
+import { boundsToBbox, fetchAndDecodeRaster } from '@/utils/rasterRender';
 
 // ---------------------------------------------------------------------------
 // RasterMapRenderer — bridges `RasterContext.groups` and Mapbox.
@@ -52,8 +52,12 @@ function sameBounds(a, b) {
 }
 
 export default function RasterMapRenderer() {
-  const { map } = useMapView();
-  const { groups, setGroupDataStats, setLayerBounds } = useRasters();
+  const { map, zoomToBbox } = useMapView();
+  const { groups, setGroupDataStats, setLayerBounds, setGroupError } = useRasters();
+  // Tracks groups we've already framed once so the auto-fit only fires
+  // on the first successful decode — subsequent renders (frame swap,
+  // colormap change, opacity tweak) leave the user's pan/zoom alone.
+  const autoZoomedRef = useRef(new Set());
 
   // Per-group reconciliation state. Lives in a ref so it survives
   // re-renders without leaking into the React render cycle.
@@ -266,10 +270,26 @@ export default function RasterMapRenderer() {
           if (payload.bounds && !sameBounds(layer.bounds, payload.bounds)) {
             setLayerBounds(g.id, layer.name, payload.bounds);
           }
+          // First successful decode for this group → fly the map to
+          // the raster's footprint so it's actually visible. Skips on
+          // every later decode (frame change, restyle) so we don't
+          // hijack the user's view.
+          if (!autoZoomedRef.current.has(g.id) && payload.bounds) {
+            const bbox = boundsToBbox(payload.bounds);
+            if (bbox) {
+              autoZoomedRef.current.add(g.id);
+              zoomToBbox(bbox);
+            }
+          }
+          // Decode succeeded — clear any stale error from a previous
+          // failed attempt (e.g. user reuploaded the file with a
+          // supported CRS).
+          setGroupError(g.id, null);
         } catch (err) {
           console.warn(
             `Raster render failed for "${layer.name}": ${err.message}`,
           );
+          setGroupError(g.id, err.message || 'Decode failed');
           state.inFlightKey = null;
           groupStateRef.current.set(g.id, state);
         }
@@ -280,7 +300,16 @@ export default function RasterMapRenderer() {
     return () => {
       cancelled = true;
     };
-  }, [map, groups, setGroupDataStats, setLayerBounds, styleEpoch]);
+  }, [map, groups, setGroupDataStats, setLayerBounds, setGroupError, zoomToBbox, styleEpoch]);
+
+  // Forget the auto-zoom guard for any group that's been removed so
+  // re-adding the same file (e.g. user re-uploaded) re-frames it.
+  useEffect(() => {
+    const liveIds = new Set(groups.map((g) => g.id));
+    for (const id of [...autoZoomedRef.current]) {
+      if (!liveIds.has(id)) autoZoomedRef.current.delete(id);
+    }
+  }, [groups]);
 
   // Tear everything down on unmount (e.g. navigating away from the
   // dashboard) so we don't leave orphaned sources behind.

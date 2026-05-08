@@ -29,3 +29,10 @@ Thumbs.db
 # Coverage
 coverage/
 data/geojsons/
+
+# Python (auxiliary scripts under scripts/python/)
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/

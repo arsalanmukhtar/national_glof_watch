@@ -1322,7 +1322,8 @@ function LayerSelector({ groups, selectedId, onSelect }) {
           <Listbox.Options
             anchor={{ to: 'bottom start', gap: 4 }}
             className={cn(
-              'z-[100] max-h-72 w-[var(--button-width)] overflow-y-auto rounded-md py-1',
+              'z-[100] box-border max-h-72 w-[var(--button-width)] max-w-[var(--button-width)]',
+              'overflow-y-auto overflow-x-hidden rounded-md py-1',
               'bg-white dark:bg-night-surface',
               'border border-day-border dark:border-night-border shadow-lg focus:outline-none text-[13px]',
             )}
@@ -1332,8 +1333,8 @@ function LayerSelector({ groups, selectedId, onSelect }) {
                 No layers available — toggle a layer on first.
               </div>
             ) : groups.map((g) => (
-              <div key={g.name}>
-                <div className="px-2.5 pt-1.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
+              <div key={g.name} className="min-w-0">
+                <div className="px-2.5 pt-1.5 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted truncate">
                   {g.name}
                 </div>
                 {g.items.map((item) => (
@@ -1341,7 +1342,7 @@ function LayerSelector({ groups, selectedId, onSelect }) {
                     key={item.id}
                     value={item.id}
                     className={({ active }) =>
-                      cn('flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none',
+                      cn('flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none min-w-0',
                         active ? 'bg-[#16a085]/10' : '')
                     }
                   >
@@ -1362,9 +1363,9 @@ function LayerSelector({ groups, selectedId, onSelect }) {
                           />
                         </span>
                         {!item.visible && (
-                          <span className="text-[10px] uppercase tracking-wider text-day-muted/70 dark:text-night-muted/70">hidden</span>
+                          <span className="shrink-0 text-[10px] uppercase tracking-wider text-day-muted/70 dark:text-night-muted/70">hidden</span>
                         )}
-                        {isSel && <Check className="h-3 w-3 text-[#16a085]" />}
+                        {isSel && <Check className="h-3 w-3 shrink-0 text-[#16a085]" />}
                       </>
                     )}
                   </Listbox.Option>

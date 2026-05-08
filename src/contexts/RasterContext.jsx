@@ -45,6 +45,9 @@ export function RasterProvider({ children }) {
   });
   const [groups, setGroups] = useState([]);
   const [activeGroupId, setActiveGroupId] = useState(null);
+  // groupId → human-readable error string surfaced from the renderer
+  // (e.g. "Unsupported CRS"). Cleared on the next successful decode.
+  const [groupErrors, setGroupErrors] = useState({});
 
   const refresh = useCallback(async () => {
     setCatalogStatus((s) => ({ ...s, loading: true, error: null }));
@@ -225,6 +228,21 @@ export function RasterProvider({ children }) {
     );
   }, []);
 
+  // Renderer pushes its last error string here so the panel can show
+  // why a group isn't visible (CRS unsupported, decode failed, etc.).
+  // Pass `null` to clear after a successful decode.
+  const setGroupError = useCallback((id, message) => {
+    setGroupErrors((prev) => {
+      const curr = prev[id] ?? null;
+      const next = message || null;
+      if (curr === next) return prev;
+      const out = { ...prev };
+      if (next == null) delete out[id];
+      else out[id] = next;
+      return out;
+    });
+  }, []);
+
   // Bounds get cached on the individual layer so the zoom-to-extent
   // button can fly straight there without re-fetching. The renderer
   // pushes these after each decode; the panel can also push directly
@@ -248,6 +266,12 @@ export function RasterProvider({ children }) {
   const removeGroup = useCallback((id) => {
     setGroups((prev) => prev.filter((g) => g.id !== id));
     setActiveGroupId((curr) => (curr === id ? null : curr));
+    setGroupErrors((prev) => {
+      if (!(id in prev)) return prev;
+      const out = { ...prev };
+      delete out[id];
+      return out;
+    });
   }, []);
 
   const updateGroup = useCallback((id, partial) => {
@@ -302,6 +326,8 @@ export function RasterProvider({ children }) {
       toggleVisible,
       setActiveFrame,
       usedNames,
+      groupErrors,
+      setGroupError,
     }),
     [
       available,
@@ -320,6 +346,8 @@ export function RasterProvider({ children }) {
       toggleVisible,
       setActiveFrame,
       usedNames,
+      groupErrors,
+      setGroupError,
     ],
   );
 

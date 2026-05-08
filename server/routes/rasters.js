@@ -193,7 +193,15 @@ rastersRouter.get('/file/:name', async (req, res) => {
     if (!stat.isFile()) return res.status(404).json({ error: 'Not a file' });
     res.set('Content-Type', 'image/tiff');
     res.set('Content-Length', String(stat.size));
-    res.set('Cache-Control', 'public, max-age=300');
+    // Files in data/rasters/ get rewritten in place when overviews
+    // are embedded (scripts/python/generate_pyramids.py) or when a
+    // user re-uploads the same name. Browser caching here masks
+    // those changes — the user re-adds the file, the browser serves
+    // the pre-pyramid bytes from cache, and the decoder hits the
+    // same "too large to render" error. no-store sidesteps the
+    // entire cache layer; mtime/ETag-based revalidation would also
+    // work but is overkill for a dev-time pipeline.
+    res.set('Cache-Control', 'no-store');
     createReadStream(resolved).pipe(res);
   } catch (err) {
     if (err.code === 'ENOENT') {

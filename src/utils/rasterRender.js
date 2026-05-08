@@ -78,46 +78,175 @@ export function colormapCssGradient(id, stopCount = 12) {
 // ---------------------------------------------------------------------------
 
 import { fromBlob } from 'geotiff';
+import proj4 from 'proj4';
 
 const NODATA_DEFAULTS = [-9999, -3.4028235e38, 0, 32767, 65535];
 
+// EPSG → proj4 string presets for the projections that show up most
+// often in Pakistan / GLOF data. proj4js doesn't ship a registry, so
+// any code we want to support has to be `defs()`-ed up front.
+//
+// Every UTM zone covering Pakistan (41N–44N) is registered. Add new
+// codes here as new datasets land — proj4js handles the math, we just
+// need the projection string.
+const PROJ_DEFS = {
+  // WGS84 UTM zones across Pakistan + neighbours.
+  32641: '+proj=utm +zone=41 +datum=WGS84 +units=m +no_defs',
+  32642: '+proj=utm +zone=42 +datum=WGS84 +units=m +no_defs',
+  32643: '+proj=utm +zone=43 +datum=WGS84 +units=m +no_defs',
+  32644: '+proj=utm +zone=44 +datum=WGS84 +units=m +no_defs',
+  // Kalianpur 1962 UTM (older Pakistan datum, still appears in archive data)
+  24042: '+proj=utm +zone=42 +a=6377301.243 +b=6356100.230165384 +towgs84=283,682,231,0,0,0,0 +units=m +no_defs',
+  24043: '+proj=utm +zone=43 +a=6377301.243 +b=6356100.230165384 +towgs84=283,682,231,0,0,0,0 +units=m +no_defs',
+  // Lambert Conformal Conic — used by some Pakistan national products.
+  26771: '+proj=lcc +lat_1=27 +lat_2=33 +lat_0=30 +lon_0=70 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs',
+};
+
+for (const [code, def] of Object.entries(PROJ_DEFS)) {
+  proj4.defs(`EPSG:${code}`, def);
+}
+
+// Cached proj4 forward-converters keyed by EPSG so each raster decode
+// doesn't re-look-up the projection each pixel-fragment pass.
+const projCache = new Map();
+function getProjector(epsg) {
+  if (projCache.has(epsg)) return projCache.get(epsg);
+  try {
+    const fn = proj4(`EPSG:${epsg}`, 'EPSG:4326');
+    projCache.set(epsg, fn);
+    return fn;
+  } catch {
+    projCache.set(epsg, null);
+    return null;
+  }
+}
+
+// Output cap for the rendered ImageData. 2048² ≈ 16 MB ImageData,
+// fits every Mapbox-supported maxTextureSize, and is far above what's
+// distinguishable at the dashboard's zoom range. Lower than the
+// previous 4096² cap because the bottleneck is *source* reads, not the
+// canvas itself.
+const MAX_PIXELS = 2048 * 2048;
+
+// Hard cap on source pixels we'll ask geotiff.js to read in a single
+// pass. Above this we lean on the file's overview pyramid; below it
+// we read the full-res image at our target resolution. 64 M source
+// pixels is roughly a 64 MB Byte buffer / 256 MB Float32 — large but
+// safe for a desktop browser.
+const MAX_SOURCE_PIXELS = 64 * 1024 * 1024;
+
+// Pick the smallest IFD entry that's still bigger than the target
+// output. GeoTIFFs written by GDAL / QGIS / rasterio with default
+// settings ship overviews as additional images with the
+// NewSubfileType "reduced-resolution" bit set. Walking them lets us
+// read a 30K × 18K Byte raster as a 7K × 4K overview (or smaller)
+// instead of forcing geotiff.js to decode the whole full-res grid
+// just to throw 99 % of it away in resampling.
+//
+// Returns `{ image, ifdCount, overviewDims }` so the caller can fall
+// through to a useful error when there's no overview big enough.
+// `ifdCount` is the total number of images in the file; `overviewDims`
+// lists every reduced-res IFD found (in source order) — both make it
+// easy to tell from the surfaced error whether the pyramid never got
+// written, got wiped by a re-upload, or just isn't big enough.
+async function pickRenderImage(tiff, targetW, targetH) {
+  const ifdCount = await tiff.getImageCount();
+  const main = await tiff.getImage(0);
+  const mainPixels = main.getWidth() * main.getHeight();
+  const overviewDims = [];
+
+  if (ifdCount <= 1) {
+    return { image: main, ifdCount, overviewDims };
+  }
+
+  let best = main;
+  let bestPixels = mainPixels;
+  for (let i = 1; i < ifdCount; i++) {
+    let img;
+    try {
+      img = await tiff.getImage(i);
+    } catch {
+      continue;
+    }
+    const w = img.getWidth();
+    const h = img.getHeight();
+    // Treat any sub-main-sized IFD as an overview. We used to gate on
+    // NewSubfileType bit 0 ("reduced-resolution image") but rasterio /
+    // GDAL builds overviews without consistently setting that flag in
+    // a way geotiff.js's fileDirectory exposes — the IFDs are present,
+    // they're just unlabelled. A "strictly smaller than main" check is
+    // what GDAL itself uses when reading these files back, and it
+    // safely excludes mask/page IFDs that happen to share dimensions
+    // with the main image.
+    if (w * h >= mainPixels) continue;
+    overviewDims.push([w, h]);
+    if (w < targetW || h < targetH) continue;
+    const pixels = w * h;
+    if (pixels < bestPixels) {
+      best = img;
+      bestPixels = pixels;
+    }
+  }
+  return { image: best, ifdCount, overviewDims };
+}
+
 export async function decodeRasterForMap(blob, opts = {}) {
   const tiff = await fromBlob(blob);
-  const image = await tiff.getImage();
-  const width = image.getWidth();
-  const height = image.getHeight();
 
-  // Bounding box in the raster's native CRS. Pixel order = ULX, ULY, LRX, LRY
-  // (image space, where Y increases downward).
-  const bbox = image.getBoundingBox();
+  // Compute the target ImageData size from the full-res dimensions
+  // first — we need it both for picking the right overview AND for
+  // sizing the canvas.
+  const main = await tiff.getImage();
+  const srcWidth = main.getWidth();
+  const srcHeight = main.getHeight();
+  let width = srcWidth;
+  let height = srcHeight;
+  const totalPixels = srcWidth * srcHeight;
+  if (totalPixels > MAX_PIXELS) {
+    const scale = Math.sqrt(MAX_PIXELS / totalPixels);
+    width = Math.max(1, Math.round(srcWidth * scale));
+    height = Math.max(1, Math.round(srcHeight * scale));
+  }
+
+  // Use the smallest reduced-res overview that's still ≥ our target.
+  // Falls back to the full-res image when no overviews are present.
+  const picked = await pickRenderImage(tiff, width, height);
+  const image = picked.image;
+  const readWidth = image.getWidth();
+  const readHeight = image.getHeight();
+
+  // If the chosen image is *still* too big to read in one pass (file
+  // had no overviews and the raster is enormous, or its overviews are
+  // all smaller than the target), refuse rather than burn 30 s of
+  // compute and crash the tab. The error surfaces in the panel via
+  // setGroupError so the user can act on it. We embed exactly what we
+  // found (IFD count, overview dimensions) so they can tell whether
+  // the pyramid script never ran, got wiped by a re-upload, or
+  // produced overviews that are too small for the requested target.
+  if (readWidth * readHeight > MAX_SOURCE_PIXELS) {
+    const summary = picked.overviewDims.length
+      ? `found ${picked.overviewDims.length} overview(s): ${picked.overviewDims
+          .map(([w, h]) => `${w}×${h}`)
+          .join(', ')} — all smaller than the ${width}×${height} target`
+      : `${picked.ifdCount === 1 ? 'no overviews in file' : `${picked.ifdCount} IFDs but none flagged as reduced-resolution`}`;
+    throw new Error(
+      `Raster is too large to render in-browser (${readWidth} × ${readHeight} ` +
+        `≈ ${Math.round((readWidth * readHeight) / 1e6)} M px; ${summary}). ` +
+        'Run `python scripts/python/generate_pyramids.py` and ensure the ' +
+        'file on disk has the new pyramids before re-adding.',
+    );
+  }
+
+  // Bounding box + geo keys come from the main IFD — overviews may
+  // omit duplicate geo tags but they share the same georef as the
+  // full-res image regardless. Pixel order = ULX, ULY, LRX, LRY.
+  const bbox = main.getBoundingBox();
   const [minX, minY, maxX, maxY] = bbox;
-
-  // Geo keys → crs label. ProjectedCSTypeGeoKey wins; fall back to
-  // GeographicTypeGeoKey for "GCS_*" tags (4326-family).
-  const geoKeys = image.getGeoKeys?.() ?? {};
+  const geoKeys = main.getGeoKeys?.() ?? {};
   const projected = geoKeys.ProjectedCSTypeGeoKey;
   const geographic = geoKeys.GeographicTypeGeoKey;
 
-  let crs = 'unknown';
-  let toLngLat;
-  if (projected === 3857) {
-    crs = 'EPSG:3857';
-    toLngLat = mercatorToLngLat;
-  } else if (projected === 4326 || geographic === 4326 || (!projected && !geographic)) {
-    // No geo keys often means the TIFF is already in lng/lat (typical
-    // for QGIS exports without a hard CRS tag). Treat as 4326 — if it
-    // isn't, the bounds will land somewhere visibly wrong and the user
-    // will know.
-    crs = projected === 4326 ? 'EPSG:4326' : geographic === 4326 ? 'EPSG:4326' : 'EPSG:4326?';
-    toLngLat = identityLngLat;
-  } else {
-    // Bail loud — better to raise a useful error than draw the raster
-    // in the wrong place.
-    throw new Error(
-      `Unsupported CRS (Projected=${projected ?? '–'}, Geographic=${geographic ?? '–'}). ` +
-        'Reproject to EPSG:4326 or EPSG:3857.',
-    );
-  }
+  const { crs, toLngLat } = resolveCrs(projected, geographic);
 
   // Map corners in lng/lat. mapbox image source expects:
   //   [TL, TR, BR, BL]
@@ -127,11 +256,19 @@ export async function decodeRasterForMap(blob, opts = {}) {
   const bl = toLngLat(minX, minY);
 
   // First band only for now. Multi-band RGB rendering lands when we
-  // wire symbology controls (phase 2 / pass 2).
-  const rasters = await image.readRasters({ samples: [0], interleave: false });
+  // wire symbology controls (phase 2 / pass 2). When the source is
+  // larger than MAX_PIXELS we ask geotiff for a downsampled grid;
+  // when it's small we read at native res (width/height match srcW/H).
+  const rasters = await image.readRasters({
+    samples: [0],
+    interleave: false,
+    width,
+    height,
+  });
   const band = rasters[0];
 
-  const noData = pickNoDataValue(image, opts.noDataHints);
+  // NoData tag lives on the main IFD; overviews don't always copy it.
+  const noData = pickNoDataValue(main, opts.noDataHints);
   const stats = computeMinMax(band, noData);
   // User-supplied stretch wins over the data's natural range — that's how
   // the styling panel hands manual min/max overrides to the renderer.
@@ -274,19 +411,7 @@ export async function decodeRasterBounds(blob) {
   const projected = geoKeys.ProjectedCSTypeGeoKey;
   const geographic = geoKeys.GeographicTypeGeoKey;
 
-  let toLngLat;
-  if (projected === 3857) toLngLat = mercatorToLngLat;
-  else if (
-    projected === 4326 ||
-    geographic === 4326 ||
-    (!projected && !geographic)
-  )
-    toLngLat = identityLngLat;
-  else {
-    throw new Error(
-      `Unsupported CRS (Projected=${projected ?? '–'}, Geographic=${geographic ?? '–'})`,
-    );
-  }
+  const { toLngLat } = resolveCrs(projected, geographic);
 
   return [
     toLngLat(minX, maxY),
@@ -296,8 +421,44 @@ export async function decodeRasterBounds(blob) {
   ];
 }
 
+// Resolve the geokey pair to an output CRS label and a corner-converter.
+// Falls through to proj4 for any registered EPSG before giving up.
+function resolveCrs(projected, geographic) {
+  if (projected === 3857) return { crs: 'EPSG:3857', toLngLat: mercatorToLngLat };
+  if (projected === 4326 || geographic === 4326) {
+    return { crs: 'EPSG:4326', toLngLat: identityLngLat };
+  }
+  if (!projected && !geographic) {
+    // No geo keys → assume the TIFF is already in lng/lat. Common for
+    // QGIS exports without a hard CRS tag. If the assumption is wrong
+    // the corners will land somewhere visibly wrong.
+    return { crs: 'EPSG:4326?', toLngLat: identityLngLat };
+  }
+  // Try proj4 — covers UTM and any other code we've registered.
+  const epsg = projected ?? geographic;
+  const proj = getProjector(epsg);
+  if (proj) {
+    return {
+      crs: `EPSG:${epsg}`,
+      toLngLat: (x, y) => {
+        const r = proj.forward([x, y]);
+        return [r[0], r[1]];
+      },
+    };
+  }
+  throw new Error(
+    `Unsupported CRS (Projected=${projected ?? '–'}, Geographic=${geographic ?? '–'}). ` +
+      'Reproject to EPSG:4326 or add the EPSG to PROJ_DEFS in rasterRender.js.',
+  );
+}
+
 export async function fetchRasterBounds(name) {
-  const r = await fetch(`/api/rasters/file/${encodeURIComponent(name)}`);
+  // `cache: 'no-store'` so the browser always hits the server — files
+  // in data/rasters/ get rewritten in place by the pyramid script and
+  // re-uploads, and a stale cached blob makes those updates invisible.
+  const r = await fetch(`/api/rasters/file/${encodeURIComponent(name)}`, {
+    cache: 'no-store',
+  });
   if (!r.ok) {
     let msg = `HTTP ${r.status}`;
     try {
@@ -334,7 +495,11 @@ export function boundsToBbox(corners) {
 // Surfaces server-side errors as JS errors with the body's `error`
 // field when present.
 export async function fetchAndDecodeRaster(name, opts) {
-  const r = await fetch(`/api/rasters/file/${encodeURIComponent(name)}`);
+  // See fetchRasterBounds — `no-store` keeps the browser from holding
+  // pre-pyramid bytes after the file changes on disk.
+  const r = await fetch(`/api/rasters/file/${encodeURIComponent(name)}`, {
+    cache: 'no-store',
+  });
   if (!r.ok) {
     let msg = `HTTP ${r.status}`;
     try {

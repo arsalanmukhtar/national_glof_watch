@@ -56,6 +56,7 @@ export default function RasterLayersPanel() {
     setActiveFrame,
     setLayerBounds,
     usedNames,
+    groupErrors,
   } = useRasters();
   const { zoomToBbox } = useMapView();
 
@@ -118,6 +119,7 @@ export default function RasterLayersPanel() {
               <GroupRow
                 key={g.id}
                 group={g}
+                error={groupErrors[g.id] ?? null}
                 onRemove={() => removeGroup(g.id)}
                 onToggleVisible={() => toggleVisible(g.id)}
                 onSetFrame={(idx) => setActiveFrame(g.id, idx)}
@@ -415,7 +417,7 @@ function UploadZone({ uploadFile, onComplete }) {
         className={cn(
           'box-border w-full flex flex-col items-center justify-center gap-1',
           'rounded-md border border-dashed px-3 py-3 text-center cursor-pointer',
-          'transition-colors focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+          'transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#16a085]/40',
           'disabled:cursor-not-allowed disabled:opacity-80',
           dragOver
             ? 'border-[#16a085] bg-[#16a085]/5'
@@ -640,7 +642,7 @@ function FileList({ files, catalogStatus, usedNames, selected, onToggle, onDelet
 const FRAME_INTERVAL_MS = 1200;
 const SPEED_PRESETS = [0.5, 1, 2, 4];
 
-function GroupRow({ group, onRemove, onToggleVisible, onSetFrame, onZoom }) {
+function GroupRow({ group, error, onRemove, onToggleVisible, onSetFrame, onZoom }) {
   const [open, setOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -816,6 +818,19 @@ function GroupRow({ group, onRemove, onToggleVisible, onSetFrame, onZoom }) {
               );
             })}
           </ul>
+        </div>
+      ) : null}
+
+      {/* Decode error banner — shows when the renderer couldn't put
+          the raster on the map (unsupported CRS, fetch failed, etc.).
+          Lives above the legend so the user sees *why* the raster
+          isn't visible without expanding anything. */}
+      {error ? (
+        <div className="px-2 pb-1.5 -mt-0.5">
+          <div className="inline-flex items-start gap-1.5 w-full rounded border border-red-300 dark:border-red-900/40 bg-red-50 dark:bg-red-950/30 px-2 py-1 text-[11px] text-red-700 dark:text-red-300">
+            <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+            <span className="flex-1 min-w-0 break-words">{error}</span>
+          </div>
         </div>
       ) : null}
 

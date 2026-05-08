@@ -1,0 +1,13 @@
+# Python deps for the auxiliary data-prep scripts in this folder.
+# These are tooling, not runtime app deps -- the dashboard itself
+# is pure Node/JS. Install into a project-local venv:
+#
+#     python -m venv .venv
+#     .venv\Scripts\activate            (PowerShell / cmd)
+#     source .venv/bin/activate         (bash / zsh)
+#     pip install -r scripts/python/requirements.txt
+#
+# rasterio bundles GDAL in its wheel, so this is the only package the
+# generate_pyramids.py script needs. fetch_geoserver_layers.py and
+# split_zonation.py are stdlib-only and don't require the venv.
+rasterio>=1.3
