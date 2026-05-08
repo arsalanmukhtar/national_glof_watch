@@ -1616,6 +1616,166 @@ function RasterStyleForm({ groups, selectedId, onSelect }) {
   );
 }
 
+// Curated palette for the custom colour picker's preset grid. Hand-
+// picked to cover the workflows the dashboard actually sees (risk /
+// hazard levels in saturated reds-to-greens, terrain / land cover in
+// earth tones, plus a row of greys for masks and outlines). The
+// colours are laid out in a 12-wide grid so the popover stays compact.
+const PICKER_PRESETS = [
+  // Saturated hues — risk / hazard / classification colours
+  '#dc2626', '#ea580c', '#d97706', '#ca8a04', '#65a30d', '#16a34a',
+  '#0891b2', '#0284c7', '#2563eb', '#7c3aed', '#c026d3', '#db2777',
+  // Pastel / lighter variants for layered overlays
+  '#fca5a5', '#fdba74', '#fcd34d', '#fde68a', '#bef264', '#86efac',
+  '#67e8f9', '#7dd3fc', '#93c5fd', '#c4b5fd', '#f0abfc', '#f9a8d4',
+  // Earth tones / land cover-ish
+  '#78350f', '#92400e', '#854d0e', '#3f6212', '#166534', '#115e59',
+  // Greyscale ramp — black through white in even steps
+  '#000000', '#1f2937', '#4b5563', '#9ca3af', '#e5e7eb', '#ffffff',
+];
+
+const HEX_REGEX = /^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/;
+
+// Compact, Popover-anchored colour swatch + picker. The swatch button
+// itself is the same h-6 w-7 footprint the native `<input type="color">`
+// produced, so existing row layouts don't shift. Clicking it opens a
+// portal'd panel with a HEX input auto-focused for keyboard entry plus
+// a preset grid for one-click selection. The HEX input commits on
+// every valid 3- or 6-char hex; partially-typed values stay local
+// without firing onChange so the parent layer's cache doesn't churn
+// on every keystroke.
+function ColorSwatch({ value, onChange, ariaLabel = 'Pick colour' }) {
+  const safeValue = value || '#000000';
+  const [hexInput, setHexInput] = useState(safeValue);
+  // Sync local input when the value changes externally (e.g. user
+  // picked a swatch, or some other code path edited the colour).
+  useEffect(() => {
+    setHexInput(safeValue);
+  }, [safeValue]);
+
+  const commitHex = (raw) => {
+    const m = HEX_REGEX.exec(String(raw).trim());
+    if (!m) return;
+    let hex = m[1];
+    if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
+    onChange(`#${hex.toLowerCase()}`);
+  };
+
+  return (
+    <Popover className="relative">
+      <Popover.Button
+        type="button"
+        aria-label={ariaLabel}
+        title={ariaLabel}
+        className={cn(
+          'h-6 w-7 shrink-0 rounded border border-day-border dark:border-night-border',
+          'cursor-pointer transition-shadow',
+          'hover:ring-2 hover:ring-[#16a085]/40 focus:outline-none focus:ring-2 focus:ring-[#16a085]/60',
+        )}
+        style={{ backgroundColor: safeValue }}
+      />
+      <Transition
+        as={Fragment}
+        enter="transition duration-100 ease-out"
+        enterFrom="opacity-0 scale-95"
+        enterTo="opacity-100 scale-100"
+        leave="transition duration-75 ease-in"
+        leaveFrom="opacity-100 scale-100"
+        leaveTo="opacity-0 scale-95"
+      >
+        <Popover.Panel
+          anchor={{ to: 'bottom start', gap: 6 }}
+          className={cn(
+            'z-[120] w-[260px] rounded-lg p-3',
+            'bg-white dark:bg-night-surface',
+            'border border-day-border dark:border-night-border shadow-xl',
+            'focus:outline-none',
+          )}
+        >
+          {({ close }) => (
+            <div className="flex flex-col gap-3">
+              {/* HEX entry — auto-focused so the keyboard is ready
+                  for direct entry the moment the panel opens. */}
+              <div>
+                <span className="block text-[10px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1">
+                  Hex
+                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="h-9 w-9 shrink-0 rounded-md border border-day-border dark:border-night-border"
+                    style={{ backgroundColor: hexInput }}
+                  />
+                  <input
+                    type="text"
+                    value={hexInput}
+                    autoFocus
+                    spellCheck={false}
+                    maxLength={7}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setHexInput(v);
+                      commitHex(v);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        commitHex(hexInput);
+                        close();
+                      } else if (e.key === 'Escape') {
+                        close();
+                      }
+                    }}
+                    onBlur={() => setHexInput(value || '#000000')}
+                    className={cn(
+                      'box-border w-full rounded-md border px-2 py-1.5 text-[13px] font-mono uppercase tabular-nums',
+                      'bg-day-bg dark:bg-night-bg',
+                      'border-day-border dark:border-night-border',
+                      'text-day-text dark:text-night-text placeholder:text-day-muted',
+                      'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#16a085]/40',
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Preset swatch grid — one-click colour selection */}
+              <div>
+                <span className="block text-[10px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1.5">
+                  Presets
+                </span>
+                <div className="grid grid-cols-12 gap-1">
+                  {PICKER_PRESETS.map((c) => {
+                    const active = c.toLowerCase() === (value || '').toLowerCase();
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        title={c}
+                        aria-label={c}
+                        onClick={() => {
+                          onChange(c);
+                          close();
+                        }}
+                        className={cn(
+                          'aspect-square rounded transition-transform hover:scale-110',
+                          'border',
+                          active
+                            ? 'ring-2 ring-[#16a085] ring-offset-1 ring-offset-white dark:ring-offset-night-surface border-transparent'
+                            : 'border-black/10 dark:border-white/15',
+                        )}
+                        style={{ backgroundColor: c }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </Popover.Panel>
+      </Transition>
+    </Popover>
+  );
+}
+
 // Suggestive placeholder text for the per-class label input. The raw
 // value gets passed in so we can offer a sensible default when it
 // matches a familiar small-integer scheme (risk levels 0-5, binary
@@ -1713,12 +1873,10 @@ function ClassifiedEditor({ classes, uniqueValues, onChange }) {
           </div>
           {classes.map((c, i) => (
             <div key={i} className="flex items-center gap-1.5">
-              <input
-                type="color"
+              <ColorSwatch
                 value={c.color || '#000000'}
-                onChange={(e) => updateAt(i, { color: e.target.value })}
-                className="h-6 w-7 shrink-0 rounded border border-day-border dark:border-night-border bg-transparent cursor-pointer p-0"
-                aria-label={`Class ${c.value} colour`}
+                onChange={(color) => updateAt(i, { color })}
+                ariaLabel={`Class ${c.value} colour`}
               />
               <input
                 type="number"
@@ -1799,20 +1957,15 @@ function NoDataEditor({ color, opacity, onChange }) {
       </div>
       {enabled ? (
         <>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="color"
+          <div className="flex items-center gap-2">
+            <ColorSwatch
               value={color}
-              onChange={(e) => onChange({ noDataColor: e.target.value })}
-              className="h-6 w-7 rounded border border-day-border dark:border-night-border bg-transparent cursor-pointer p-0"
-              aria-label="No-data colour"
+              onChange={(c) => onChange({ noDataColor: c })}
+              ariaLabel="No-data colour"
             />
-            <input
-              type="text"
-              value={color}
-              onChange={(e) => onChange({ noDataColor: e.target.value })}
-              className="flex-1 min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[12px] px-2 py-1 text-day-text dark:text-night-text focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
-            />
+            <span className="flex-1 min-w-0 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg text-[12px] px-2 py-1 font-mono uppercase tabular-nums text-day-text dark:text-night-text">
+              {color}
+            </span>
           </div>
           <Field label="Opacity">
             <NumberSlider
