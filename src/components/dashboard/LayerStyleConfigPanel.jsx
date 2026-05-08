@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Check,
   ChevronDown,
+  Circle,
   CircleDot,
   Layers as LayersIcon,
   Pipette,
@@ -12,7 +13,9 @@ import {
   Slash,
   Square,
   Trash2,
+  X,
 } from 'lucide-react';
+import { CATEGORIES as MARKER_CATEGORIES, findIcon as findMarkerIcon } from '@/config/markerIcons';
 import {
   parseRegionLayerId,
   useRegionLayers,
@@ -1788,6 +1791,409 @@ function ColorSwatch({ value, onChange, ariaLabel = 'Pick colour' }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Inline background-colour picker for the marker popover.
+//
+// Why not the regular ColorSwatch (Popover-based)? Headless UI's
+// outside-click detection treats sibling portaled panels as
+// "outside" each other — so opening the swatch's popover from inside
+// the marker popover dismisses the marker popover entirely, and the
+// user loses their icon-grid view. Rendering the picker inline means
+// no nested popovers, no dismissal, and it stays compact enough to
+// share the marker-popover's panel.
+// ---------------------------------------------------------------------------
+function InlineBgPicker({ value, explicit, onChange, onReset }) {
+  const [hexInput, setHexInput] = useState(value);
+  useEffect(() => {
+    setHexInput(value);
+  }, [value]);
+
+  const commitHex = (raw) => {
+    const m = HEX_REGEX.exec(String(raw).trim());
+    if (!m) return;
+    let hex = m[1];
+    if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
+    onChange(`#${hex.toLowerCase()}`);
+  };
+
+  return (
+    <div className="mt-2 flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[11px] text-day-muted dark:text-night-muted shrink-0">
+          Background
+        </span>
+        <span
+          aria-hidden
+          className="h-5 w-5 shrink-0 rounded border border-day-border dark:border-night-border"
+          style={{ background: value }}
+        />
+        <input
+          type="text"
+          value={hexInput}
+          onChange={(e) => {
+            const v = e.target.value;
+            setHexInput(v);
+            commitHex(v);
+          }}
+          onBlur={() => setHexInput(value)}
+          spellCheck={false}
+          maxLength={7}
+          className={cn(
+            'box-border w-full flex-1 min-w-0 rounded-md border px-2 py-0.5 text-[12px] font-mono uppercase tabular-nums',
+            'bg-day-bg dark:bg-night-bg',
+            'border-day-border dark:border-night-border',
+            'text-day-text dark:text-night-text',
+            'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#16a085]/40',
+          )}
+        />
+        {explicit ? (
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-[10.5px] text-day-muted dark:text-night-muted hover:text-[#16a085] transition-colors shrink-0"
+            title="Reset to layer fill colour"
+          >
+            Reset
+          </button>
+        ) : null}
+      </div>
+      {/* Compact preset strip — same palette as the standalone
+          ColorSwatch so the visual language stays consistent across
+          the dashboard. 12 cols × 3 rows fits in 320 px. */}
+      <div className="grid grid-cols-12 gap-0.5">
+        {PICKER_PRESETS.map((c) => {
+          const active = sameHex(c, value);
+          return (
+            <button
+              key={c}
+              type="button"
+              title={c}
+              aria-label={c}
+              onClick={() => onChange(c)}
+              className={cn(
+                'aspect-square rounded transition-transform hover:scale-110',
+                'border',
+                active
+                  ? 'ring-1 ring-[#16a085] ring-offset-1 ring-offset-white dark:ring-offset-night-surface border-transparent'
+                  : 'border-black/10 dark:border-white/15',
+              )}
+              style={{ backgroundColor: c }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function sameHex(a, b) {
+  if (!a || !b) return false;
+  return String(a).replace(/^#/, '').toLowerCase() ===
+    String(b).replace(/^#/, '').toLowerCase();
+}
+
+// ---------------------------------------------------------------------------
+// MarkerPicker — point-layer marker symbology.
+//
+// Trigger: a small preview chip that mirrors what the layer currently
+// renders on the map (shape + icon + colours). Clicking it opens a
+// portal-anchored popover with a 3-way shape toggle (circle / square /
+// no background) and a category-grouped icon grid. Selecting an icon
+// or shape commits live; the picker stays open so the user can audit
+// across categories before closing. A "Clear" pill resets back to a
+// plain circle (the historical default).
+//
+// The trigger preview deliberately avoids regenerating the actual
+// Mapbox PNG — it's a CSS / SVG facsimile that's faster to render and
+// good enough for "what does my marker look like right now". The
+// authoritative rendering happens on the map via buildMarkerImage().
+// ---------------------------------------------------------------------------
+function MarkerPicker({
+  marker,
+  fillColor,
+  strokeColor,
+  strokeWidth,
+  radius,
+  onChange,
+}) {
+  const shape = marker?.shape || 'none';
+  const iconId = marker?.icon || null;
+  const iconEntry = findMarkerIcon(iconId);
+  const hasMarker = shape !== 'none' || !!iconId;
+
+  return (
+    <Popover className="relative w-full">
+      <Popover.Button
+        type="button"
+        className={cn(
+          'inline-flex w-full items-center gap-2 rounded-md',
+          'border border-day-border dark:border-night-border',
+          'bg-day-bg dark:bg-night-bg',
+          'px-2 py-1 text-left text-[12px] text-day-text dark:text-night-text',
+          'hover:border-[#16a085]/60 transition-colors',
+          'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#16a085]/40',
+        )}
+      >
+        <MarkerPreview
+          shape={shape}
+          iconEntry={iconEntry}
+          fillColor={fillColor}
+          strokeColor={strokeColor}
+          strokeWidth={strokeWidth}
+          backgroundColor={marker?.backgroundColor}
+        />
+        <span className="flex-1 min-w-0 truncate">
+          {hasMarker
+            ? [
+                shape !== 'none' ? capitalize(shape) : null,
+                iconEntry?.label,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : 'Default circle'}
+        </span>
+        <ChevronDown className="h-3 w-3 shrink-0 text-day-muted dark:text-night-muted" />
+      </Popover.Button>
+      <Transition
+        as={Fragment}
+        enter="transition duration-100 ease-out"
+        enterFrom="opacity-0 scale-95"
+        enterTo="opacity-100 scale-100"
+        leave="transition duration-75 ease-in"
+        leaveFrom="opacity-100"
+        leaveTo="opacity-0"
+      >
+        <Popover.Panel
+          anchor={{ to: 'bottom start', gap: 6 }}
+          className={cn(
+            'z-[120] w-[320px] max-h-[480px] overflow-hidden flex flex-col',
+            'rounded-lg bg-white dark:bg-night-surface',
+            'border border-day-border dark:border-night-border shadow-xl',
+            'focus:outline-none',
+          )}
+        >
+          {/* Header — three shape chips + an optional background-
+              colour picker that only surfaces when a shape is chosen.
+              "None" is rendered as a dashed-circle outline so the
+              user reads it as "no container, just an icon". */}
+          <div className="px-3 pt-3 pb-2 border-b border-day-border dark:border-night-border">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1.5">
+              Shape
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <ShapeChip
+                active={shape === 'circle'}
+                onClick={() => onChange({ shape: 'circle' })}
+                label="Circle"
+              >
+                <span
+                  aria-hidden
+                  className="block h-5 w-5 rounded-full"
+                  style={{
+                    background: marker?.backgroundColor || fillColor || '#16a085',
+                    border: `1px solid ${strokeColor || '#0f7560'}`,
+                  }}
+                />
+              </ShapeChip>
+              <ShapeChip
+                active={shape === 'square'}
+                onClick={() => onChange({ shape: 'square' })}
+                label="Square"
+              >
+                <span
+                  aria-hidden
+                  className="block h-5 w-5 rounded-[3px]"
+                  style={{
+                    background: marker?.backgroundColor || fillColor || '#16a085',
+                    border: `1px solid ${strokeColor || '#0f7560'}`,
+                  }}
+                />
+              </ShapeChip>
+              <ShapeChip
+                active={shape === 'none'}
+                onClick={() => onChange({ shape: 'none' })}
+                label="No bg"
+              >
+                <span
+                  aria-hidden
+                  className="block h-5 w-5 rounded-full border-2 border-dashed border-day-muted dark:border-night-muted"
+                />
+              </ShapeChip>
+            </div>
+            {shape !== 'none' ? (
+              <InlineBgPicker
+                value={marker?.backgroundColor || fillColor || '#16a085'}
+                explicit={!!marker?.backgroundColor}
+                onChange={(c) => onChange({ backgroundColor: c })}
+                onReset={() => onChange({ backgroundColor: null })}
+              />
+            ) : null}
+          </div>
+
+          {/* Icon grid — categories rendered in order, each as its own
+              labelled subsection. No search or emoji yet (deferred). */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 pt-2 pb-3">
+            {/* "No icon" tile — quick way back to a plain shape after
+                trying a few. */}
+            <button
+              type="button"
+              onClick={() => onChange({ icon: null })}
+              className={cn(
+                'inline-flex items-center gap-1.5 mb-2 px-2 py-1 rounded-md text-[11px] transition-colors',
+                'border border-day-border dark:border-night-border',
+                iconId == null
+                  ? 'bg-[#16a085]/10 border-[#16a085]/50 text-[#16a085]'
+                  : 'text-day-muted dark:text-night-muted hover:border-[#16a085]/40',
+              )}
+            >
+              <X className="h-3 w-3" />
+              No icon
+            </button>
+
+            {MARKER_CATEGORIES.map((cat) => (
+              <div key={cat.id} className="mb-3 last:mb-0">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted mb-1.5">
+                  {cat.label}
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {cat.icons.map(({ id, label, Component }) => {
+                    const active = iconId === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => onChange({ icon: id })}
+                        title={label}
+                        aria-label={label}
+                        aria-pressed={active}
+                        className={cn(
+                          'aspect-square inline-flex items-center justify-center rounded-md transition-colors',
+                          'border',
+                          active
+                            ? 'bg-[#16a085]/15 border-[#16a085]/60 text-[#16a085]'
+                            : 'border-transparent text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg hover:text-day-text dark:hover:text-night-text',
+                        )}
+                      >
+                        <Component className="h-4 w-4" strokeWidth={1.8} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Footer — Clear resets shape AND icon to defaults so a
+              user can bail out of marker mode entirely with one
+              click. */}
+          <div className="shrink-0 border-t border-day-border dark:border-night-border px-3 py-2 flex items-center justify-between">
+            <span className="text-[11px] text-day-muted dark:text-night-muted">
+              {hasMarker ? `${iconEntry?.label ?? 'Shape'} marker` : 'Default'}
+            </span>
+            <button
+              type="button"
+              onClick={() => onChange({ shape: 'none', icon: null, backgroundColor: null })}
+              disabled={!hasMarker}
+              className={cn(
+                'inline-flex items-center gap-1 text-[11px] transition-colors',
+                hasMarker
+                  ? 'text-day-muted dark:text-night-muted hover:text-[#16a085]'
+                  : 'text-day-muted/40 dark:text-night-muted/40 cursor-not-allowed',
+              )}
+            >
+              <RotateCcw className="h-3 w-3" />
+              Clear
+            </button>
+          </div>
+        </Popover.Panel>
+      </Transition>
+    </Popover>
+  );
+}
+
+function ShapeChip({ active, onClick, label, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-md transition-colors',
+        'border',
+        active
+          ? 'bg-[#16a085]/10 border-[#16a085]/60'
+          : 'border-day-border dark:border-night-border hover:border-day-text/40 dark:hover:border-night-text/40',
+      )}
+    >
+      {children}
+      <span
+        className={cn(
+          'text-[10.5px]',
+          active
+            ? 'text-[#16a085] font-semibold'
+            : 'text-day-muted dark:text-night-muted',
+        )}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
+// Tiny preview chip rendered next to the picker trigger label.
+// Mirrors the marker that gets drawn on the map closely enough to be
+// recognisable at a glance, without paying the cost of generating the
+// real PNG.
+function MarkerPreview({ shape, iconEntry, fillColor, strokeColor, strokeWidth, backgroundColor }) {
+  const Icon = iconEntry?.Component;
+  // Icon colour: contrasts with the shape background when a shape is
+  // chosen, otherwise paints the fill colour (since there's no bg
+  // for it to contrast against).
+  const iconColor = shape === 'none' ? fillColor || '#16a085' : fillColor || '#16a085';
+  const bg = backgroundColor || fillColor || '#16a085';
+  return (
+    <span
+      aria-hidden
+      className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center"
+    >
+      {shape === 'circle' ? (
+        <span
+          className="absolute inset-0 inline-block rounded-full"
+          style={{
+            background: bg,
+            border: `${Math.max(1, strokeWidth || 1)}px solid ${strokeColor || '#0f7560'}`,
+          }}
+        />
+      ) : shape === 'square' ? (
+        <span
+          className="absolute inset-0 inline-block rounded-[3px]"
+          style={{
+            background: bg,
+            border: `${Math.max(1, strokeWidth || 1)}px solid ${strokeColor || '#0f7560'}`,
+          }}
+        />
+      ) : null}
+      {Icon ? (
+        <Icon
+          className="relative h-3 w-3"
+          style={{ color: iconColor }}
+          strokeWidth={2}
+        />
+      ) : !shape || shape === 'none' ? (
+        <Circle
+          className="relative h-3 w-3 text-day-muted dark:text-night-muted"
+          strokeWidth={1.5}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+function capitalize(s) {
+  if (typeof s !== 'string' || s.length === 0) return '';
+  return s[0].toUpperCase() + s.slice(1);
+}
+
 // Suggestive placeholder text for the per-class label input. The raw
 // value gets passed in so we can offer a sensible default when it
 // matches a familiar small-integer scheme (risk levels 0-5, binary
@@ -2425,6 +2831,23 @@ export default function LayerStyleConfigPanel() {
                     format={(v) => v}
                   />
                 )}
+              </Field>
+            )}
+
+            {isPoint && (
+              <Field label="Marker">
+                <MarkerPicker
+                  marker={style.marker || { shape: 'none', icon: null }}
+                  fillColor={style.fillColor}
+                  strokeColor={style.strokeColor}
+                  strokeWidth={style.strokeWidth}
+                  radius={style.radius}
+                  onChange={(partial) =>
+                    setStyle({
+                      marker: { ...(style.marker || {}), ...partial },
+                    })
+                  }
+                />
               </Field>
             )}
 

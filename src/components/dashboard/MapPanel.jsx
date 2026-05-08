@@ -33,6 +33,7 @@ import {
   paletteById,
   summarizeFeaturesAttribute,
 } from '@/utils/stylePalettes';
+import { buildMarkerImage } from '@/utils/markerImage';
 import { useMapView } from '@/contexts/MapContext';
 import BasemapSwitcher from './BasemapSwitcher';
 import MapControls from './MapControls';
@@ -800,7 +801,83 @@ function overlayIds(key) {
     fill:   `${OVERLAY_PREFIX}${key}:fill`,
     line:   `${OVERLAY_PREFIX}${key}:line`,
     circle: `${OVERLAY_PREFIX}${key}:circle`,
+    // Symbol layer used when the user has configured a marker icon /
+    // shape on a point layer. The image registered under the same key
+    // is reused as the layer's `icon-image`.
+    symbol: `${OVERLAY_PREFIX}${key}:symbol`,
   };
+}
+
+// Per-map registry of which marker image id is currently active for
+// each overlay key. Lets us swap to a fresh id on every spec change
+// (so Mapbox re-evaluates `icon-image` and re-renders) while still
+// freeing the previous texture as soon as the swap completes — no
+// orphan images accumulating across icon edits.
+const markerImageRegistry = new WeakMap();
+
+function getMarkerRegistry(map) {
+  let reg = markerImageRegistry.get(map);
+  if (!reg) {
+    reg = new Map();
+    markerImageRegistry.set(map, reg);
+  }
+  return reg;
+}
+
+function clearMarkerRegistryFor(map, key) {
+  const reg = markerImageRegistry.get(map);
+  if (reg) reg.delete(key);
+}
+
+// Async helper: builds a marker PNG from the layer's style spec and
+// registers it on the map under a *spec-derived* image id. Resolves
+// with the image id so the caller can use it as `icon-image` on a
+// symbol layer.
+//
+// Spec-derived (rather than constant per layer) is the critical bit:
+// when the user picks a new icon, the spec hash changes → a new
+// image id gets registered → `setLayoutProperty('icon-image', newId)`
+// is a real change Mapbox honours → the layer redraws on the next
+// frame. With a constant id the call was a no-op and the layer kept
+// rendering the previous texture until a basemap swap forced a
+// full re-add.
+async function ensureMarkerImage(map, key, style, imageRadius) {
+  const marker = style?.marker ?? {};
+  const spec = {
+    shape: marker.shape || 'none',
+    iconId: marker.icon || null,
+    fillColor: style?.fillColor || '#16a085',
+    strokeColor: style?.strokeColor || '#0f7560',
+    strokeWidth: style?.strokeWidth ?? 1.5,
+    backgroundColor: marker.backgroundColor || null,
+    // When the layer's size is zoom-driven, the caller passes the
+    // *larger* of the two zoom endpoints here — Mapbox's `icon-size`
+    // can scale the image down but scaling it up beyond its native
+    // resolution looks blurry, so we always rasterise at the high
+    // end of the range.
+    size: Number.isFinite(imageRadius) ? imageRadius : style?.radius ?? 6,
+  };
+  const built = await buildMarkerImage(spec);
+  // Encode the spec hash into the image id so each unique combo gets
+  // its own Mapbox image. `|` isn't reserved but `_` reads cleaner.
+  const imageId = `${OVERLAY_PREFIX}${key}:marker:${built.key.replace(/\|/g, '_')}`;
+  if (!map.hasImage(imageId)) {
+    map.addImage(imageId, built.imageData, { pixelRatio: built.pixelRatio });
+  }
+  return imageId;
+}
+
+// Promote the supplied image id to the "current" one for `key` and
+// drop whatever was previous. Caller should run this *after* the
+// symbol layer's `icon-image` has been pointed at the new id, so the
+// layer never references a removed image.
+function commitMarkerImage(map, key, imageId) {
+  const reg = getMarkerRegistry(map);
+  const prev = reg.get(key);
+  if (prev && prev !== imageId && map.hasImage(prev)) {
+    map.removeImage(prev);
+  }
+  reg.set(key, imageId);
 }
 
 // Where to insert overlay layers — below the station halo so dots stay
@@ -866,14 +943,61 @@ function ensureOverlay(map, key, geometry, data, style) {
 
   // Heatmap path — only valid for points; replaces the circle layer.
   if (exprs.kind === 'heatmap') {
-    dropLayers(map, ids.fill, ids.line, ids.circle);
+    dropLayers(map, ids.fill, ids.line, ids.circle, ids.symbol);
     setLayer(
       map,
       { id: heatId, type: 'heatmap', source: ids.source, paint: exprs.paint },
       beforeId,
     );
+  } else if (geometry === 'point' && exprs.kind === 'symbol') {
+    // Marker mode — register the generated PNG, then add (or update) a
+    // symbol layer pointed at it. The image build is async so we kick
+    // off in the background and apply paint props eagerly so opacity
+    // changes still feel snappy.
+    dropLayers(map, ids.fill, ids.circle, heatId);
+    (async () => {
+      try {
+        const imageId = await ensureMarkerImage(map, key, style, exprs.imageRadius);
+        // Layer might have been torn down between the await and now —
+        // bail if so. (Style swap, layer toggle off, etc.)
+        if (!map.getSource(ids.source)) return;
+        const layout = { ...exprs.layout, 'icon-image': imageId };
+        if (!map.getLayer(ids.symbol)) {
+          map.addLayer(
+            {
+              id: ids.symbol,
+              type: 'symbol',
+              source: ids.source,
+              layout,
+              paint: exprs.paint,
+            },
+            beforeId,
+          );
+        } else {
+          // Each spec change yields a new image id, so this is a real
+          // layout change Mapbox honours — the icon picker no longer
+          // requires a basemap swap to reflect the user's choice.
+          // We push EVERY layout key (not just icon-image) so changes
+          // to icon-size — including zoom-driven interpolations — also
+          // take effect without re-creating the layer.
+          for (const [k, v] of Object.entries(layout)) {
+            try {
+              map.setLayoutProperty(ids.symbol, k, v);
+            } catch (err) {
+              console.warn(`setLayoutProperty failed for ${ids.symbol} / ${k}:`, err);
+            }
+          }
+          applyPaintProps(map, ids.symbol, exprs.paint);
+        }
+        // Layer is now pointing at the new id — safe to drop the
+        // previous texture and update the registry.
+        commitMarkerImage(map, key, imageId);
+      } catch (err) {
+        console.warn(`Marker image build failed for "${key}":`, err);
+      }
+    })();
   } else if (geometry === 'point') {
-    dropLayers(map, ids.fill, heatId);
+    dropLayers(map, ids.fill, ids.symbol, heatId);
     if (!map.getLayer(ids.circle)) {
       map.addLayer(
         { id: ids.circle, type: 'circle', source: ids.source, paint: exprs.paint },
@@ -883,7 +1007,7 @@ function ensureOverlay(map, key, geometry, data, style) {
       applyPaintProps(map, ids.circle, exprs.paint);
     }
   } else if (geometry === 'line') {
-    dropLayers(map, ids.fill, ids.circle, heatId);
+    dropLayers(map, ids.fill, ids.circle, ids.symbol, heatId);
     if (!map.getLayer(ids.line)) {
       map.addLayer(
         { id: ids.line, type: 'line', source: ids.source, paint: exprs.paint },
@@ -894,7 +1018,7 @@ function ensureOverlay(map, key, geometry, data, style) {
     }
   } else {
     // polygon — fill + stroke
-    dropLayers(map, ids.circle, heatId);
+    dropLayers(map, ids.circle, ids.symbol, heatId);
     if (!map.getLayer(ids.fill)) {
       map.addLayer(
         { id: ids.fill, type: 'fill', source: ids.source, paint: exprs.paint },
@@ -936,10 +1060,17 @@ function removeOverlay(map, key) {
     ids.fill,
     ids.line,
     ids.circle,
+    ids.symbol,
     overlayLabelId(key),
     overlayHeatmapId(key),
   );
   if (map.getSource(ids.source)) map.removeSource(ids.source);
+  // Drop the layer's currently-registered marker image so the
+  // texture doesn't outlive the layer it was generated for.
+  const reg = markerImageRegistry.get(map);
+  const imageId = reg?.get(key);
+  if (imageId && map.hasImage(imageId)) map.removeImage(imageId);
+  clearMarkerRegistryFor(map, key);
 }
 
 // ---------------------------------------------------------------------------

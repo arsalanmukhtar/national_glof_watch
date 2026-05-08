@@ -42,6 +42,10 @@ const TYPE_DEFAULTS = {
   heatIntensity: 1,
   // Zoom-driven overrides — { propName: { z1, v1, z2, v2 } }
   zoom: {},
+  // Marker symbology (point geometry). When shape !== 'none' or icon
+  // is set, MapPanel renders this layer as a `symbol` with a generated
+  // PNG instead of the default `circle` paint.
+  marker: { shape: 'none', icon: null, backgroundColor: null },
   // Label
   label: {
     enabled: false,
@@ -81,6 +85,7 @@ export function effectiveStyle(id, geometry, override) {
   const merged = { ...base, ...(override ?? {}) };
   merged.label = { ...base.label, ...((override && override.label) || {}) };
   merged.zoom = { ...base.zoom, ...((override && override.zoom) || {}) };
+  merged.marker = { ...base.marker, ...((override && override.marker) || {}) };
   return merged;
 }
 
@@ -205,6 +210,61 @@ export function paintExprsFor(style, geometry) {
 
     let radius = zoomedOrLiteral(style, 'radius', style.radius ?? 6);
     if (style.type === 'sizeRange') radius = sizeRangeExpr(style, radius);
+
+    // Marker mode: shape is a circle/square or an icon was picked. The
+    // caller (MapPanel) is responsible for actually generating the
+    // image and registering it via map.addImage — we just describe the
+    // intent here and surface the image id.
+    const marker = style.marker ?? {};
+    const useMarker =
+      (marker.shape && marker.shape !== 'none') || !!marker.icon;
+    if (useMarker) {
+      // Default: diameter (and square side) sized off the same
+      // `radius` field the simple-circle path uses.
+      const baseRadius = style.radius ?? 6;
+      let imageRadius = baseRadius;
+      let iconSize = 1;
+
+      // Zoom-driven size — for circle layers `circle-radius` accepts a
+      // pixel-valued zoom interpolation directly. Symbols can't:
+      // `icon-size` is a multiplier of the embedded image's native
+      // pixel dims. So we build the PNG at the LARGER of the two
+      // zoom-driven sizes (so it never has to be scaled up beyond
+      // its native resolution) and emit a normalised interpolation
+      // for `icon-size` that goes between v1/max and v2/max.
+      const z = style.zoom?.radius;
+      if (
+        z &&
+        Number.isFinite(z.z1) && Number.isFinite(z.v1) &&
+        Number.isFinite(z.z2) && Number.isFinite(z.v2)
+      ) {
+        const maxR = Math.max(z.v1, z.v2);
+        if (maxR > 0) {
+          imageRadius = maxR;
+          iconSize = [
+            'interpolate', ['linear'], ['zoom'],
+            z.z1, z.v1 / maxR,
+            z.z2, z.v2 / maxR,
+          ];
+        }
+      }
+
+      return {
+        kind: 'symbol',
+        // Surfaced for the renderer so it knows what radius to pass
+        // into the marker image builder. Icon-image is filled in
+        // there after addImage resolves.
+        imageRadius,
+        layout: {
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-size': iconSize,
+        },
+        paint: {
+          'icon-opacity': zoomedOrLiteral(style, 'fillOpacity', style.fillOpacity ?? 1),
+        },
+      };
+    }
 
     return {
       kind: 'circle',

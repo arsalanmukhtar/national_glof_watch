@@ -37,6 +37,22 @@ export const DEFAULT_STYLES = {
     strokeColor: '#0f7560',
     strokeWidth: 1.5,
     strokeOpacity: 1,
+    // Marker symbology — when `marker.shape !== 'none'` OR `marker.icon`
+    // is set, the renderer swaps the layer from `circle` to `symbol`
+    // and registers a generated PNG via `map.addImage()`. Defaults below
+    // keep behaviour identical to the pre-marker version.
+    //
+    // Colour semantics:
+    //   • fillColor      → ICON colour (always)
+    //   • strokeColor    → halo / outline colour around the marker
+    //   • marker.backgroundColor → shape fill, only used when shape
+    //                              is 'circle' or 'square'. null falls
+    //                              back to fillColor for back-compat.
+    marker: {
+      shape: 'none',           // 'none' | 'circle' | 'square'
+      icon: null,              // string id from src/config/markerIcons.js, or null
+      backgroundColor: null,   // hex string or null (= use fillColor)
+    },
   },
   line: {
     color: '#16a085',

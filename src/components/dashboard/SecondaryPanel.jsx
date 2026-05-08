@@ -34,6 +34,7 @@ import { useSecondary } from '@/contexts/SecondaryContext';
 import { useMapView } from '@/contexts/MapContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import { effectiveStyle } from '@/utils/layerStyle';
+import { findIcon as findMarkerIcon } from '@/config/markerIcons';
 import {
   equalIntervalBreaks,
   rampById,
@@ -67,8 +68,80 @@ const ACCEPTED_TYPES = '.geojson,.json,application/geo+json,application/json,.zi
 // categories list / color- or size-range gradient / heatmap density.
 // ---------------------------------------------------------------------------
 
+// CSS facsimile of the on-map marker, sized for the sidebar legend.
+// Mirrors the colour rules from `src/utils/markerImage.js`:
+//   • shape 'circle' / 'square' — bg fill + stroke + icon on top.
+//     When bg === fillColor (i.e. user didn't pick a distinct bg)
+//     the icon auto-contrasts to black or white so it stays legible.
+//   • shape 'none' — bare icon coloured with fillColor.
+function MarkerSwatch({ style, marker }) {
+  const Icon = findMarkerIcon(marker.icon)?.Component;
+  const fill = style.fillColor || '#16a085';
+  const stroke = style.strokeColor || '#0f7560';
+  const bg = marker.backgroundColor || fill;
+  const sameBg = bg.replace(/^#/, '').toLowerCase() === fill.replace(/^#/, '').toLowerCase();
+  const iconColor = sameBg ? autoContrast(bg) : fill;
+
+  if (marker.shape === 'none' || !marker.shape) {
+    if (Icon) {
+      return (
+        <Icon
+          className="h-3.5 w-3.5"
+          style={{ color: fill }}
+          strokeWidth={2.25}
+        />
+      );
+    }
+    return (
+      <span
+        className="inline-block h-3 w-3 rounded-full border"
+        style={{ backgroundColor: fill, borderColor: stroke }}
+      />
+    );
+  }
+  const isCircle = marker.shape === 'circle';
+  return (
+    <span
+      className={cn(
+        'relative inline-flex h-4 w-4 shrink-0 items-center justify-center',
+        isCircle ? 'rounded-full' : 'rounded-[3px]',
+      )}
+      style={{
+        background: bg,
+        border: `1px solid ${stroke}`,
+      }}
+    >
+      {Icon ? (
+        <Icon
+          className="relative h-2.5 w-2.5"
+          style={{ color: iconColor }}
+          strokeWidth={2.5}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+// YIQ luminance threshold — same heuristic as utils/markerImage.js.
+function autoContrast(hex) {
+  if (!hex) return '#ffffff';
+  const s = hex.replace(/^#/, '');
+  const v = parseInt(s.length === 3 ? s.split('').map((c) => c + c).join('') : s, 16);
+  if (Number.isNaN(v)) return '#ffffff';
+  const r = (v >> 16) & 0xff;
+  const g = (v >> 8) & 0xff;
+  const b = v & 0xff;
+  return (r * 299 + g * 587 + b * 114) / 1000 >= 128 ? '#000000' : '#ffffff';
+}
+
 function SimpleSwatch({ style, geometry }) {
   if (geometry === 'point') {
+    const marker = style.marker || {};
+    const useMarker =
+      (marker.shape && marker.shape !== 'none') || !!marker.icon;
+    if (useMarker) {
+      return <MarkerSwatch style={style} marker={marker} />;
+    }
     return (
       <span
         className="inline-block h-3 w-3 rounded-full border"
