@@ -23,9 +23,12 @@
 services:
   db:
     # Pinned to 17 so a `pg_dump` taken from the dev machine (Postgres
-    # 17.6 at the time of writing) restores cleanly into this container
-    # without forcing a downgrade. Bump in lockstep with dev.
-    image: postgres:17-alpine
+    # 17.6 + PostGIS at the time of writing) restores cleanly into
+    # this container without forcing a downgrade. We pull the PostGIS
+    # variant rather than vanilla postgres:17-alpine because the dev
+    # DB has PostGIS installed and the dump's CREATE EXTENSION postgis
+    # call fails on a base image. Bump both in lockstep with dev.
+    image: postgis/postgis:17-3.5-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${PG_USER:-postgres}

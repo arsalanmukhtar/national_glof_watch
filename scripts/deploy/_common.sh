@@ -31,6 +31,20 @@ load_deploy_env() {
   : "${VM_PATH:?VM_PATH not set in .env.deploy}"
   VM_PORT="${VM_PORT:-22}"
   GIT_REMOTE="${GIT_REMOTE:-origin}"
+
+  # Path-format gotcha: the .env.deploy template uses Windows-style
+  # paths (C:/Users/...) so the same file works whether the user
+  # invokes scripts from Git Bash or PowerShell. Under WSL though,
+  # those paths resolve to /mnt/c/... and the raw form fails with
+  # "Identity file ... not accessible". When wslpath is available
+  # we translate VM_SSH_KEY transparently. Git Bash already handles
+  # the C:/... form natively, so we leave it alone there.
+  if [[ -n "${VM_SSH_KEY:-}" ]] && command -v wslpath >/dev/null 2>&1; then
+    if [[ "$VM_SSH_KEY" =~ ^[A-Za-z]:[/\\] ]]; then
+      VM_SSH_KEY="$(wslpath -u "$VM_SSH_KEY")"
+      export VM_SSH_KEY
+    fi
+  fi
 }
 
 # Build the ssh / scp / rsync command-line fragments once so every
