@@ -14,6 +14,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import LayerAttributesPanel from '@/components/dashboard/LayerAttributesPanel';
+import FeatureDetailsPanel from '@/components/dashboard/FeatureDetailsPanel';
 import { useTheme } from '@/hooks/useTheme';
 import { useParameter } from '@/contexts/ParameterContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
@@ -336,8 +337,10 @@ export default function ChartsRow() {
           <LayerAttributesPanel />
         ) : tab === 'pmd' ? (
           <PmdTrendPanel theme={theme} />
-        ) : (
+        ) : tab === 'lakes' ? (
           <LakesPanel theme={theme} />
+        ) : (
+          <FeatureDetailsPanel />
         )}
       </div>
     </motion.div>
@@ -349,6 +352,7 @@ function Tabs({ tab, onChange }) {
     { id: 'attributes', label: 'Attributes Table' },
     { id: 'pmd',        label: 'PMD Data Trend' },
     { id: 'lakes',      label: 'CSV Trend' },
+    { id: 'feature',    label: 'Feature Details' },
   ];
   return (
     <div

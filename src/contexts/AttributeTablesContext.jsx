@@ -31,6 +31,22 @@ export function AttributeTablesProvider({ children }) {
   // Dashboard can react (collapsing the map when the user is browsing
   // attribute tables, restoring it when they switch to a chart tab).
   const [chartTab, setChartTab] = useState('pmd');
+  // The most recently clicked map feature, plus enough metadata for the
+  // Feature Details tab to render a meaningful header (layer kind, human
+  // label, accent color). Set by MapPanel's overlay click handler;
+  // intentionally NOT auto-switching the chart tab — the user toggles to
+  // "Feature Details" manually.
+  //
+  // Spec shape:
+  //   {
+  //     feature:     GeoJSONFeature,         // raw click hit
+  //     kind:        'region' | 'secondary' | 'upload' | 'db',
+  //     overlayKey:  string,                 // e.g. 'region:badswat::lake'
+  //     label:       string,                 // 'Badswat · Lake'
+  //     sublabel?:   string,                 // 'Polygon' / 'Line' / 'Point'
+  //     accentColor: string,                 // hex, drives header bar tint
+  //   }
+  const [selectedFeature, setSelectedFeature] = useState(null);
 
   const openTable = useCallback((spec) => {
     if (!spec?.id) return;
@@ -99,6 +115,8 @@ export function AttributeTablesProvider({ children }) {
       isOpen,
       chartTab,
       setChartTab,
+      selectedFeature,
+      setSelectedFeature,
     }),
     [
       tables,
@@ -108,6 +126,7 @@ export function AttributeTablesProvider({ children }) {
       toggleTable,
       isOpen,
       chartTab,
+      selectedFeature,
     ],
   );
 

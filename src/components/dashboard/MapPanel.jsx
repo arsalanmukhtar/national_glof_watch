@@ -11,6 +11,7 @@ import { colorForReading, STALE_COLOR } from '@/config/parameterLegends';
 import {
   detectGeometry,
   fetchGeoJson,
+  regionLayerColor,
   regionLayerGeometry,
   regionLayerUrl,
   secondaryLayerUrl,
@@ -20,7 +21,8 @@ import {
   parseRegionLayerId,
   useRegionLayers,
 } from '@/contexts/RegionLayersContext';
-import { useSecondary } from '@/contexts/SecondaryContext';
+import { SECONDARY_LAYERS, useSecondary } from '@/contexts/SecondaryContext';
+import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import {
   effectiveStyle,
   labelLayoutAndPaint,
@@ -133,6 +135,7 @@ export default function MapPanel({ className, onMapReady }) {
     dbLayers,
   } = useSecondary();
   const { setMap, trackPromise, isLoading, focusedFeature } = useMapView();
+  const { setSelectedFeature } = useAttributeTables();
   // Ref mirror so style.load handlers + applyStationLayers can read the
   // current disabled set without re-creating callbacks on every change.
   const disabledBinColorsRef = useRef(disabledBinColors);
@@ -352,6 +355,74 @@ export default function MapPanel({ className, onMapReady }) {
       map.off('mouseleave', STATIONS_LAYER, onLeave);
     };
   }, [setSelectedStation]);
+
+  // Map-wide click handler that powers the Feature Details tab.
+  //
+  // Mapbox events for layer-scoped handlers fire only for that one layer;
+  // we want a single handler that catches ANY overlay (region / secondary
+  // / upload / db) the user clicks regardless of which sub-layer
+  // (`:fill`, `:line`, `:circle`, `:symbol`) caught the hit. So we listen
+  // map-wide and use queryRenderedFeatures with a layer filter built at
+  // event time — that way newly added overlays are picked up without
+  // re-binding.
+  //
+  // We deliberately do NOT switch the chart tab here — the user opens
+  // the "Feature Details" tab themselves. A click just refreshes the
+  // selected feature in context.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const onMapClick = (e) => {
+      // Build the candidate layer list from the live style. Anything
+      // namespaced `overlay:…` is fair game; the auxiliary `:label` and
+      // `:heatmap` sub-layers don't carry the source feature in a useful
+      // shape, so skip them — the matching `:fill`/`:line`/`:circle`/
+      // `:symbol` co-layer will surface the same feature.
+      const style = map.getStyle();
+      if (!style?.layers) return;
+      const overlayLayerIds = style.layers
+        .map((l) => l.id)
+        .filter(
+          (id) =>
+            id.startsWith(OVERLAY_PREFIX) &&
+            !id.endsWith(':label') &&
+            !id.endsWith(':heatmap'),
+        );
+      if (overlayLayerIds.length === 0) return;
+
+      const hits = map.queryRenderedFeatures(e.point, {
+        layers: overlayLayerIds,
+      });
+      if (hits.length === 0) return;
+
+      // Topmost hit wins — it's the visually-frontmost overlay at that
+      // pixel, which matches what the user thinks they clicked.
+      const top = hits[0];
+      const parsed = parseOverlayLayerId(top.layer.id);
+      if (!parsed) return;
+
+      const meta = describeOverlay(parsed, secondaryLayers, secondaryStyles);
+      setSelectedFeature({
+        feature: {
+          type: 'Feature',
+          geometry: top.geometry,
+          properties: { ...top.properties },
+          id: top.id,
+        },
+        kind: parsed.kind,
+        overlayKey: parsed.overlayKey,
+        label: meta.label,
+        sublabel: meta.sublabel,
+        accentColor: meta.accentColor,
+      });
+    };
+
+    map.on('click', onMapClick);
+    return () => {
+      map.off('click', onMapClick);
+    };
+  }, [setSelectedFeature, secondaryLayers, secondaryStyles]);
 
   // Drive both the fly-to and the ripple layers' filter from the
   // currently-selected station. Selecting null clears the highlight.
@@ -794,6 +865,111 @@ function removeStationLayers(map) {
 // ---------------------------------------------------------------------------
 
 const OVERLAY_PREFIX = 'overlay:';
+
+// Parse a Mapbox overlay layer id (`overlay:region:badswat::lake:fill`)
+// back into the source descriptor we composed in `desiredOverlays`.
+// Returns null when the id isn't ours so the click handler can ignore it
+// silently (e.g. a basemap label layer that happens to share the prefix).
+function parseOverlayLayerId(layerId) {
+  if (!layerId?.startsWith(OVERLAY_PREFIX)) return null;
+  // Strip the geometry suffix added by overlayIds(). `risk:high` keys
+  // contain a `:` themselves so we can't just split on `:` — we anchor
+  // on the known suffix list instead.
+  const suffix = ['fill', 'line', 'circle', 'symbol', 'label', 'heatmap'].find(
+    (s) => layerId.endsWith(`:${s}`),
+  );
+  const trimmed = suffix ? layerId.slice(0, -(suffix.length + 1)) : layerId;
+  const overlayKey = trimmed.slice(OVERLAY_PREFIX.length);
+  if (overlayKey.startsWith('region:')) {
+    const inner = overlayKey.slice('region:'.length);
+    // RegionLayersContext composes `${regionId}::${layerKey}` so split
+    // on the doubled colon — keeps `risk:high` etc. intact.
+    const sep = inner.indexOf('::');
+    if (sep < 0) return null;
+    const regionId = inner.slice(0, sep);
+    const layerKey = inner.slice(sep + 2);
+    return { kind: 'region', overlayKey, regionId, layerKey };
+  }
+  if (overlayKey.startsWith('secondary:')) {
+    return { kind: 'secondary', overlayKey, secondaryId: overlayKey.slice('secondary:'.length) };
+  }
+  if (overlayKey.startsWith('upload:')) {
+    return { kind: 'upload', overlayKey, uploadId: overlayKey.slice('upload:'.length) };
+  }
+  if (overlayKey.startsWith('db:')) {
+    return { kind: 'db', overlayKey, dbId: overlayKey.slice('db:'.length) };
+  }
+  return null;
+}
+
+// Map a region layerKey ("lake", "risk:high", …) to the user-facing label
+// shown in LayerMenu. Single source of truth duplicated here to avoid an
+// import cycle from the Feature Details panel back into LayerMenu.
+const REGION_LAYER_KEY_LABELS = {
+  lake:          'Lake',
+  river:         'River',
+  glacier:       'Glacier',
+  faultline:     'Faultline',
+  building:      'Buildings',
+  school:        'Schools',
+  road:          'Roads',
+  'risk:low':    'Low Risk Zone',
+  'risk:medium': 'Medium Risk Zone',
+  'risk:high':   'High Risk Zone',
+};
+
+// `pindoru_chaat` → `Pindoru Chaat`. Used as a graceful fallback when a
+// region id doesn't match any known label list.
+function humanizeId(id) {
+  return String(id)
+    .split('_')
+    .filter(Boolean)
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+    .join(' ');
+}
+
+// Build the (label, sublabel, accentColor) triple the Feature Details
+// panel needs from a parsed overlay descriptor + the live secondary
+// metadata. Keeps the click handler pure / context-agnostic.
+function describeOverlay(parsed, secondaryLayers, secondaryStyles) {
+  if (parsed.kind === 'region') {
+    const regionLabel = humanizeId(parsed.regionId);
+    const layerLabel =
+      REGION_LAYER_KEY_LABELS[parsed.layerKey] ?? humanizeId(parsed.layerKey);
+    return {
+      label:       `${regionLabel} · ${layerLabel}`,
+      sublabel:    KIND_GEOMETRY_LABEL[regionLayerGeometry(parsed.layerKey)] ?? null,
+      accentColor: regionLayerColor(parsed.layerKey),
+    };
+  }
+  if (parsed.kind === 'secondary') {
+    const def = SECONDARY_LAYERS.find((l) => l.id === parsed.secondaryId);
+    const accent = secondaryStyles?.[parsed.secondaryId]?.fillColor
+      ?? secondaryStyles?.[parsed.secondaryId]?.strokeColor
+      ?? '#16a085';
+    return {
+      label:       def?.label ?? humanizeId(parsed.secondaryId),
+      sublabel:    def?.geometry ? KIND_GEOMETRY_LABEL[def.geometry] ?? null : null,
+      accentColor: accent,
+    };
+  }
+  if (parsed.kind === 'upload' || parsed.kind === 'db') {
+    const id = parsed.uploadId ?? parsed.dbId;
+    const meta = secondaryLayers?.find?.((l) => l.id === id);
+    return {
+      label:       meta?.label ?? humanizeId(id),
+      sublabel:    meta?.geometry ? KIND_GEOMETRY_LABEL[meta.geometry] ?? null : null,
+      accentColor: secondaryStyles?.[id]?.fillColor ?? '#16a085',
+    };
+  }
+  return { label: 'Feature', sublabel: null, accentColor: '#16a085' };
+}
+
+const KIND_GEOMETRY_LABEL = {
+  point:   'Point',
+  line:    'Line',
+  polygon: 'Polygon',
+};
 
 function overlayIds(key) {
   return {
