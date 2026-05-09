@@ -2526,8 +2526,12 @@ function ClassifiedEditor({ classes, uniqueValues, onChange }) {
               which input is the numeric value and which is the display
               label. Hidden when no rows exist (the empty-state copy
               already explains the schema). */}
+          {/* Header row — micro-labels above the columns. The swatch
+              column is only 28px (matched to ColorSwatch's w-7 button),
+              which doesn't fit "COLOUR" but does fit the 3-letter "HUE"
+              cleanly. Same idea, smaller footprint. */}
           <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-day-muted dark:text-night-muted px-0.5">
-            <span className="w-7 shrink-0">colour</span>
+            <span className="w-7 shrink-0">hue</span>
             <span className="w-14 shrink-0">value</span>
             <span className="flex-1 min-w-0">label (shown in legend)</span>
             <span className="w-6 shrink-0" />
