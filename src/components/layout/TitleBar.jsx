@@ -1,46 +1,50 @@
-import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Layers, Moon, PanelRight, Sun } from 'lucide-react';
+import { ArrowLeft, BookOpen, Layers, Moon, PanelRight, Sun } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import Tooltip from '@/components/ui/Tooltip';
 import StationStatusBadge from '@/components/layout/StationStatusBadge';
 import { useTheme } from '@/hooks/useTheme';
-import { logos } from '@/assets';
 
-const ndmaLogo = logos.ndma;
-
+// `onOpenMobileMenu` / `onOpenMediaMenu` are dashboard-only — when
+// rendered on /docs they're undefined and the corresponding buttons
+// are skipped. Keeping the same TitleBar component on both routes
+// means the brand bar reads identically across the app.
 export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
   const { theme, toggle } = useTheme();
-  const [logoOk, setLogoOk] = useState(true);
+  const location = useLocation();
+  const onDocs = location.pathname.startsWith('/docs');
 
   return (
     <header className="titlebar">
-      <div className="flex items-center gap-3" style={{ perspective: '600px' }}>
-        {logoOk ? (
-          <motion.img
-            src={ndmaLogo}
-            alt="NDMA"
-            className="h-10 w-auto select-none"
-            onError={() => setLogoOk(false)}
-            draggable={false}
-            animate={{ rotateY: 360 }}
-            transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
-            style={{ transformStyle: 'preserve-3d', backfaceVisibility: 'visible' }}
-          />
-        ) : (
-          <div className="h-10 w-10 rounded bg-white/10 grid place-items-center text-xs font-semibold">
-            NDMA
-          </div>
+      <div className="flex items-center gap-3">
+        {onDocs && (
+          <Tooltip label="Back to dashboard" side="bottom" align="start">
+            <motion.span
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="inline-flex"
+            >
+              <Link
+                to="/"
+                className="btn-icon text-white hover:bg-white/10"
+                aria-label="Back to dashboard"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Link>
+            </motion.span>
+          </Tooltip>
         )}
         <span className="text-lg sm:text-xl lg:text-2xl font-semibold tracking-wide">
-          National GLOF Watch
+          National GLOF Monitoring
         </span>
       </div>
 
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
         {/* Live PMD network status — sits just before the theme toggle
             with a bit of breathing room (`mr-3`) so it doesn't crowd the
-            sun/moon icon. */}
-        <StationStatusBadge />
+            sun/moon icon. Only on the dashboard — pulling station data
+            on the docs page is just noise. */}
+        {!onDocs && <StationStatusBadge />}
         <span aria-hidden className="hidden md:block w-3" />
 
         <Tooltip label={theme === 'day' ? 'Switch to night' : 'Switch to day'} side="bottom" align="end">
@@ -80,38 +84,53 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
           </motion.button>
         </Tooltip>
 
-        <span
-          aria-label="Alert level N-2"
-          className="bg-white text-emerald-800 font-black text-xl sm:text-2xl leading-none px-3 py-1.5 my-2 ml-3 rounded-sm shadow-sm select-none tracking-wide"
-        >
-          N-2
-        </span>
+        {!onDocs && (
+          <Tooltip label="Documentation" side="bottom" align="end">
+            <motion.span
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="inline-flex"
+            >
+              <Link
+                to="/docs"
+                className="btn-icon text-white hover:bg-white/10"
+                aria-label="Open documentation"
+              >
+                <BookOpen className="h-5 w-5" />
+              </Link>
+            </motion.span>
+          </Tooltip>
+        )}
 
-        <Tooltip label="Layers" side="bottom" align="end">
-          <motion.button
-            type="button"
-            onClick={onOpenMobileMenu}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="btn-icon text-white hover:bg-white/10 lg:hidden"
-            aria-label="Open layers menu"
-          >
-            <Layers className="h-5 w-5" />
-          </motion.button>
-        </Tooltip>
+        {onOpenMobileMenu && (
+          <Tooltip label="Layers" side="bottom" align="end">
+            <motion.button
+              type="button"
+              onClick={onOpenMobileMenu}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="btn-icon text-white hover:bg-white/10 lg:hidden"
+              aria-label="Open layers menu"
+            >
+              <Layers className="h-5 w-5" />
+            </motion.button>
+          </Tooltip>
+        )}
 
-        <Tooltip label="Media" side="bottom" align="end">
-          <motion.button
-            type="button"
-            onClick={onOpenMediaMenu}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="btn-icon text-white hover:bg-white/10 lg:hidden"
-            aria-label="Open media menu"
-          >
-            <PanelRight className="h-5 w-5" />
-          </motion.button>
-        </Tooltip>
+        {onOpenMediaMenu && (
+          <Tooltip label="Media" side="bottom" align="end">
+            <motion.button
+              type="button"
+              onClick={onOpenMediaMenu}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="btn-icon text-white hover:bg-white/10 lg:hidden"
+              aria-label="Open media menu"
+            >
+              <PanelRight className="h-5 w-5" />
+            </motion.button>
+          </Tooltip>
+        )}
       </div>
     </header>
   );

@@ -4,14 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-NDMA Pakistan "National GLOF Watch" — a Glacial Lake Outburst Flood monitoring dashboard. Two-process app:
+NDMA Pakistan "National GLOF Monitoring" — a Glacial Lake Outburst Flood monitoring dashboard. Two-process app:
 
-- **Frontend**: React 18 + Vite 5 + Tailwind CSS 3 SPA at the project root.
-- **Backend**: Node + Express + PostgreSQL under `server/`. Owns the PMD weather-station fetch cron, the database schema, and the `/api/parameters/*` endpoints.
+- **Frontend**: React 18 + Vite 5 + Tailwind CSS 3 SPA at the project root. Two routes via React Router 7: `/` (dashboard) and `/docs` (in-app operator's manual).
+- **Backend**: Node + Express + PostgreSQL/PostGIS under `server/`. Owns the PMD weather-station fetch cron, the database schema, and the `/api/parameters/*`, `/api/region/*`, `/api/secondary/*`, `/api/gis/*`, `/api/rasters/*`, `/api/upload/*`, `/api/csv/*`, `/api/db/*` endpoints.
 
 The original HTML/JS implementation is preserved under [legacy/](legacy/) for reference; the React app is the deliverable.
 
-The PMD parameter integration (live data + map layer + legend + attribute table + trend chart) is wired and working. The regional GeoServer layers (per-lake polygons, risk zones, partner infrastructure) are scaffold-only — the per-region accordion in the Layers menu is search-filterable but the toggles aren't yet bound to live WFS sources. Lakes Trend chart is also placeholder until upstream data lands.
+Current feature state:
+- PMD parameter integration (live data + map layer + legend + attribute table + trend chart): **wired**.
+- Region + secondary GIS layers served from PostGIS (region.js + secondary.js): **wired**. Layer Menu accordion + Secondary panel toggle live data. Frontend layerSources.js drops the old `import.meta.glob` approach in favour of API URLs.
+- Raster pipeline (upload, decode, continuous + classified rendering, pixel-value sampling for Feature Details): **wired**.
+- Feature Details tab (4th tab in ChartsRow) — clicked features + raster pixels render in a card layout with unit-aware values (m / km / m² / km² / m³ / °C / mm / …). Server attaches derived `area_m2` / `area_km2` / `perimeter_m` / `perimeter_km` (polygons) and `length_m` / `length_km` (lines) per feature.
+- CSV import + chart, GeoJSON / shapefile uploads: **wired**.
+- Deploy stack: Docker compose (db + backend + frontend) with prod overlay; Vercel config rewriting `/api/*` to the VM. `scripts/deploy/release.sh` orchestrates a full ship.
+- Lakes Trend chart from upstream lake data: still a placeholder until that feed lands.
 
 ## Common commands
 
@@ -54,7 +61,7 @@ national_glof_watch/
 │   └── APP_LAUNCH.md             # detailed deploy / troubleshooting guide
 ├── src/
 │   ├── main.jsx                  # ReactDOM.createRoot + App
-│   ├── App.jsx                   # ThemeProvider → ParameterProvider → AppShell → Dashboard
+│   ├── App.jsx                   # BrowserRouter + ThemeProvider; routes / (dashboard) and /docs
 │   ├── styles/index.css          # Tailwind directives + universal component classes
 │   ├── config/                   # env.js, mapbox.js, theme.js, glacierLayer.js,
 │   │                             # parameterColors.js (chip/dot palette),
@@ -86,7 +93,7 @@ national_glof_watch/
 
 ### Composition
 
-`App` mounts `ThemeProvider` → `ParameterProvider` → `AppShell` → `Dashboard`. `AppShell` renders the fixed `TitleBar` and a `<main>` with class `titlebar-content-offset` (= `pt-16`) so content never overlaps the titlebar. `Dashboard` lays out:
+`App` wraps everything in `BrowserRouter` + `ThemeProvider`, then `Routes` splits `/` (the dashboard tree of providers + AppShell + Dashboard) from `/docs` (DocsPage — its own minimal layout that reuses TitleBar). `AppShell` renders the fixed `TitleBar` and a `<main>` with class `titlebar-content-offset` (= `pt-16`) so content never overlaps the titlebar. The dashboard-specific providers (ParameterContext, MapContext, RasterContext, …) are mounted on the dashboard route only — DocsPage doesn't need them and keeping them on `/` avoids the Parameter cron firing while the user is just reading the manual. `Dashboard` lays out:
 
 - `LeftSidebar` (icon strip with stackable `ParametersPanel` + `LayerMenu` content panels)
 - middle column: `QuickToggles` → `MapPanel` → `ChartsRow`

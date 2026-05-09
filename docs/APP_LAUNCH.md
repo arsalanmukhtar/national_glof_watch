@@ -1,6 +1,6 @@
 # App launch guide
 
-This document walks through everything required to run National GLOF Watch locally, build it for production, deploy the static frontend, run the backend service, and resolve common issues. For an at-a-glance summary, see the [README](../README.md).
+This document walks through everything required to run National GLOF Monitoring locally, build it for production, deploy the static frontend, run the backend service, and resolve common issues. For an at-a-glance summary, see the [README](../README.md). For the operator's manual covering the dashboard's panels, layers, and workflows, the app ships an in-built **/docs** route (Docs button in the title bar).
 
 The application has two processes:
 
@@ -99,6 +99,16 @@ You'll see one log line per element per cycle:
 `+N new` is rows freshly inserted (the upstream `lastUpdate` advanced); `M dedup` is rows the `UNIQUE (station_id, element, last_update)` constraint quietly rejected.
 
 ## Production build and deploy
+
+The repository ships two production paths out of the box:
+
+1. **Docker stack** — `docker-compose.yml` (+ `docker-compose.prod.yml` overlay) brings up `db` (Postgres + PostGIS), `backend` (Node + Express + cron), and `frontend` (nginx serving the Vite build) on a single bridge network. The frontend container reverse-proxies `/api/*` to the backend over the Compose network. `scripts/deploy/release.sh` is the end-to-end "ship it" routine; see the README's *Deployment* section for the script index.
+
+2. **Vercel** — `vercel.json` declares the Vite framework and rewrites `/api/:path*` to the backend's public URL. The frontend deploys as a static SPA; the backend continues to run wherever it lives (typically the same Docker stack). `VITE_*` env vars must be set in the Vercel project's Environment Variables panel and the build re-run without cache so the values get baked in.
+
+If neither fits — e.g. you want a bare-metal deploy with PM2 + system Nginx — the manual recipe below still works.
+
+### Manual (bare-metal) deploy
 
 The frontend is a fully static SPA. Build it with:
 

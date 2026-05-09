@@ -94,6 +94,22 @@
 
   /* Range slider — thin track, small accent-colored thumb. */
   .range-base     { @apply w-full h-1 rounded-full appearance-none cursor-pointer bg-day-border dark:bg-night-border; }
+
+  /* DocsPage prose styling — applies to inline elements rendered by
+     the documentation content blocks (`<code>`, `<strong>`, `<a>`).
+     Each docs Section already styles its own paragraphs and lists; this
+     rule just covers the inline tokens so they read consistently.
+
+     Underline + accent colour is scoped to anchors that sit INSIDE
+     paragraphs / list items / headings — i.e. real inline links inside
+     prose. Block-level card-shaped anchors (FeatureCard, etc.) wrap
+     their own children and so don't match the selector; they keep just
+     the hover-border treatment they already define. */
+  .prose-doc code        { @apply px-1.5 py-0.5 rounded bg-day-bg dark:bg-night-bg text-[12.5px] font-mono text-[#16a085] border border-day-border dark:border-night-border; }
+  .prose-doc strong      { @apply font-semibold text-day-text dark:text-night-text; }
+  .prose-doc :is(p, li, h1, h2, h3, h4, h5, h6) a {
+    @apply text-[#16a085] underline decoration-dotted underline-offset-2 hover:opacity-80;
+  }
 }
 
 .range-base::-webkit-slider-thumb {
