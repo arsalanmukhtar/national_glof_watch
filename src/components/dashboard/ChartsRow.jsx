@@ -179,6 +179,204 @@ const dayMarkerPlugin = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// extremeMarkerPlugin — paints a pulsing ring on the dataset's extreme
+// low and high values so they jump out of the curve regardless of zoom
+// level or window size. Two distinct accents:
+//   • low  — red     #dc2626 (alarm)
+//   • high — emerald #10b981 (positive-extreme; distinct from the line)
+//
+// The pulse animation is driven by a per-chart `requestAnimationFrame`
+// loop. Critical: the loop only starts AFTER the chart's built-in line
+// animation finishes — see `animation.onComplete` in `buildOptions`. If
+// we started it earlier the dots would render on top of a half-drawn
+// curve right after a feature click, which looked wrong. On every
+// `chart.update()` (e.g. new feature → new dataset) the `beforeUpdate`
+// hook tears the loop down so the dots disappear, and they only return
+// once the new line animation completes.
+//
+// Configured via `options.plugins.extremeMarker`:
+//   { enabled, lowColor, highColor, periodMs, baseRadius, growRadius, dotRadius }
+// ---------------------------------------------------------------------------
+const extremeMarkerPlugin = {
+  id: 'extremeMarker',
+  beforeUpdate(chart, _args, opts) {
+    if (!opts?.enabled) return;
+    // New data is about to render: hide the markers and stop the pulse
+    // until the upcoming line animation completes (re-armed by the
+    // chart's `animation.onComplete`).
+    chart._extremeReady = false;
+    if (chart._extremeRaf) {
+      cancelAnimationFrame(chart._extremeRaf);
+      chart._extremeRaf = null;
+    }
+  },
+  afterDestroy(chart) {
+    if (chart._extremeRaf) {
+      cancelAnimationFrame(chart._extremeRaf);
+      chart._extremeRaf = null;
+    }
+  },
+  afterDatasetsDraw(chart, _args, opts) {
+    if (!opts?.enabled || !chart._extremeReady) return;
+    const { ctx, chartArea, scales, data } = chart;
+    if (!chartArea || !scales?.x || !scales?.y) return;
+    const indices = getExtremeIndices(chart);
+    if (!indices) return;
+    const { minIdx, maxIdx } = indices;
+    const values = data.datasets[0].data;
+
+    const periodMs = opts.periodMs ?? 1500;
+    const baseR = opts.baseRadius ?? 6;
+    const growR = opts.growRadius ?? 12;
+    const dotR = opts.dotRadius ?? 3.5;
+    const start = chart._extremeStart ?? performance.now();
+    // Phase loops 0 → 1 over `periodMs`; reset back to 0 = ring restarts.
+    const phase = ((performance.now() - start) % periodMs) / periodMs;
+    const ringR = baseR + growR * phase;
+    const ringAlpha = 0.75 * (1 - phase);
+
+    const drawMarker = (idx, color) => {
+      const v = values[idx];
+      const x = scales.x.getPixelForValue(idx);
+      const y = scales.y.getPixelForValue(v);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      // Clip to the plotting area so a ring at the data-edge doesn't
+      // bleed into the legend / axis labels.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(
+        chartArea.left,
+        chartArea.top,
+        chartArea.right - chartArea.left,
+        chartArea.bottom - chartArea.top,
+      );
+      ctx.clip();
+
+      // Expanding ring (radar-style pulse).
+      ctx.beginPath();
+      ctx.arc(x, y, ringR, 0, Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = ringAlpha;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Solid dot in the centre — opaque so the marker is still
+      // findable when the ring has fully faded mid-cycle.
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      // Hairline so the dot reads against any line / fill colour
+      // underneath it.
+      ctx.beginPath();
+      ctx.arc(x, y, dotR, 0, Math.PI * 2);
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 0.75;
+      ctx.stroke();
+
+      ctx.restore();
+    };
+
+    drawMarker(minIdx, opts.lowColor ?? '#dc2626');
+    drawMarker(maxIdx, opts.highColor ?? '#10b981');
+  },
+};
+
+// Cached min/max indices for the chart's first dataset. Both the
+// pulsing-ring plugin and the tooltip helpers below need this; computing
+// it once per dataset reference keeps the tooltip path cheap on hover.
+function getExtremeIndices(chart) {
+  const values = chart?.data?.datasets?.[0]?.data;
+  if (!Array.isArray(values) || values.length === 0) return null;
+  const cache = chart._extremeCache;
+  if (cache && cache.values === values) return cache.indices;
+  let minIdx = -1;
+  let maxIdx = -1;
+  let minVal = Infinity;
+  let maxVal = -Infinity;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (v == null || !Number.isFinite(v)) continue;
+    if (v < minVal) { minVal = v; minIdx = i; }
+    if (v > maxVal) { maxVal = v; maxIdx = i; }
+  }
+  const indices = minIdx < 0 || maxIdx < 0 ? null : { minIdx, maxIdx };
+  chart._extremeCache = { values, indices };
+  return indices;
+}
+
+// Tooltip-side helpers — used by both PmdTrendPanel and LakesPanel so
+// hovering an extreme point gives a clearly distinctive tooltip:
+//   • a tag line above the date — "↓ Lowest" / "↑ Highest"
+//   • coloured value text matching the marker
+//   • coloured tooltip border matching the marker
+const EXTREME_LOW_HEX = '#dc2626';
+const EXTREME_HIGH_HEX = '#10b981';
+const EXTREME_LOW_TEXT = '#fca5a5';   // softer red on dark tooltip bg
+const EXTREME_HIGH_TEXT = '#6ee7b7';  // softer emerald on dark tooltip bg
+
+function extremeKindForItem(item) {
+  if (!item || !item.chart) return null;
+  const ix = getExtremeIndices(item.chart);
+  if (!ix) return null;
+  if (item.dataIndex === ix.minIdx) return 'low';
+  if (item.dataIndex === ix.maxIdx) return 'high';
+  return null;
+}
+
+function extremeKindForCtx(ctx) {
+  const item = ctx?.tooltip?.dataPoints?.[0];
+  return item ? extremeKindForItem(item) : null;
+}
+
+function extremeTooltipBorderColor(ctx, fallback) {
+  const kind = extremeKindForCtx(ctx);
+  if (kind === 'low') return EXTREME_LOW_HEX;
+  if (kind === 'high') return EXTREME_HIGH_HEX;
+  return fallback;
+}
+
+function extremeTooltipBorderWidth(ctx) {
+  return extremeKindForCtx(ctx) ? 1.5 : 1;
+}
+
+function extremeTooltipTitleTag(item) {
+  const kind = extremeKindForItem(item);
+  if (kind === 'low') return '↓ Lowest';
+  if (kind === 'high') return '↑ Highest';
+  return null;
+}
+
+function extremeTooltipLabelColor(item, fallback) {
+  const kind = extremeKindForItem(item);
+  if (kind === 'low') return EXTREME_LOW_TEXT;
+  if (kind === 'high') return EXTREME_HIGH_TEXT;
+  return fallback;
+}
+
+// Chart.js `animation.onComplete` handler shared by every chart that
+// uses extremeMarkerPlugin. Marks the chart "ready" (so the plugin's
+// `afterDatasetsDraw` will start painting markers) and arms the pulse
+// RAF loop. The early return prevents the pulse phase from being reset
+// on incidental animation events (hover, resize) — only the first
+// completion after a `beforeUpdate` re-arm restarts the timer.
+function extremeMarkerOnComplete() {
+  const chart = this;
+  if (!chart || chart.destroyed) return;
+  if (chart._extremeReady) return;
+  chart._extremeReady = true;
+  chart._extremeStart = performance.now();
+  if (chart._extremeRaf) return;
+  const tick = () => {
+    if (!chart.canvas || chart.destroyed) return;
+    chart.draw();
+    chart._extremeRaf = requestAnimationFrame(tick);
+  };
+  chart._extremeRaf = requestAnimationFrame(tick);
+}
+
 // Walk the timestamp labels and emit one entry per first-point-of-each-day.
 function collectDayStarts(labels) {
   const out = [];
@@ -223,6 +421,15 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
     responsive: true,
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
+    animation: {
+      // Gate the extremeMarkerPlugin's pulse on the chart's intro
+      // animation. The plugin clears `_extremeReady` in `beforeUpdate`;
+      // here we set it back to true once Chart.js says all animations
+      // have finished, then kick off the per-frame redraw loop that
+      // drives the pulsing ring. Without this, the dots flash on top
+      // of an only-half-drawn curve right after a feature click.
+      onComplete: extremeMarkerOnComplete,
+    },
     plugins: {
       legend: {
         display: true,
@@ -243,15 +450,28 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
         backgroundColor: t.tooltipBg,
         titleColor: t.tooltipFg,
         bodyColor: t.tooltipFg,
-        borderColor: t.axis,
-        borderWidth: 1,
+        // Border + width are scriptable so the tooltip flips to the
+        // marker colour (red for low, emerald for high) when hovering
+        // an extreme point — same visual cue as the pulsing ring.
+        borderColor: (ctx) => extremeTooltipBorderColor(ctx, t.axis),
+        borderWidth: (ctx) => extremeTooltipBorderWidth(ctx),
         padding: 8,
         cornerRadius: 6,
         titleFont: { size: 11, weight: '600' },
         bodyFont: { size: 11 },
         callbacks: {
-          title: (items) =>
-            items.length ? formatTooltipTitle(items[0].label) : '',
+          title: (items) => {
+            if (!items.length) return '';
+            const item = items[0];
+            const base = formatTooltipTitle(item.label);
+            const tag = extremeTooltipTitleTag(item);
+            // Returning an array makes Chart.js render two title lines
+            // (tag above the date) — keeps the badge visually obvious
+            // without crowding the body.
+            return tag ? [tag, base] : base;
+          },
+          labelTextColor: (item) =>
+            extremeTooltipLabelColor(item, t.tooltipFg),
           ...(unit
             ? {
                 label: (ctx) =>
@@ -269,6 +489,16 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
         pillBg: t.dayPillBg,
         pillFg: t.dayPillFg,
         maxPills: 14,
+      },
+      // Extreme-low / extreme-high pulsing markers — picked up by
+      // `extremeMarkerPlugin`. Red for the low, emerald for the high
+      // so the two flags are clearly distinguishable across whatever
+      // gradient the line itself is using.
+      extremeMarker: {
+        enabled: true,
+        lowColor: '#dc2626',
+        highColor: '#10b981',
+        periodMs: 1500,
       },
     },
     scales: {
@@ -397,6 +627,9 @@ function PmdTrendPanel({ theme }) {
   //   'weekly' → last 7 days
   //   'custom' → last `customDays` days
   const [mode, setMode] = useState('daily');
+  // Cap at the 30-day ceiling enforced below so the default doesn't
+  // sit above the input's max — also matches what the user sees as
+  // "Past N days" in the UI.
   const [customDays, setCustomDays] = useState(14);
   const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -409,7 +642,7 @@ function PmdTrendPanel({ theme }) {
       ? 1
       : mode === 'weekly'
         ? 7
-        : Math.max(1, Math.min(365, Number(customDays) || 1));
+        : Math.max(1, Math.min(30, Number(customDays) || 1));
 
   useEffect(() => {
     if (!selected || !stationId) {
@@ -644,7 +877,11 @@ function PmdTrendPanel({ theme }) {
             .
           </EmptyState>
         ) : (
-          <Line data={data} options={options} plugins={[dayMarkerPlugin]} />
+          <Line
+            data={data}
+            options={options}
+            plugins={[dayMarkerPlugin, extremeMarkerPlugin]}
+          />
         )}
         {error && (
           <p className="mt-1 text-[11.5px] text-red-600 dark:text-red-400">
@@ -714,14 +951,17 @@ function CustomDaysInput({ value, onChange, disabled }) {
     setDraft(String(value));
   }, [value]);
 
+  // Custom window is capped at 30 days — matches the input's max + the
+  // PmdTrendPanel's `Math.min(30, …)` clamp. Anything bigger gets
+  // rejected at commit so a stale draft doesn't fire a 90-day fetch.
   const tryCommit = (raw) => {
     const n = Math.floor(Number(raw));
-    if (Number.isFinite(n) && n >= 1 && n <= 365) onChange(n);
+    if (Number.isFinite(n) && n >= 1 && n <= 30) onChange(n);
   };
 
   const commit = () => {
     const n = Math.floor(Number(draft));
-    if (Number.isFinite(n) && n >= 1 && n <= 365) {
+    if (Number.isFinite(n) && n >= 1 && n <= 30) {
       onChange(n);
     } else {
       setDraft(String(value));
@@ -749,7 +989,7 @@ function CustomDaysInput({ value, onChange, disabled }) {
         <input
           type="number"
           min={1}
-          max={365}
+          max={30}
           value={draft}
           onChange={(e) => {
             const v = e.target.value;
@@ -849,6 +1089,11 @@ function LakesPanel({ theme }) {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
+      animation: {
+        // Same gating as PmdTrendPanel — wait for the line animation
+        // to finish before showing extreme markers.
+        onComplete: extremeMarkerOnComplete,
+      },
       plugins: {
         legend: {
           display: true,
@@ -866,16 +1111,37 @@ function LakesPanel({ theme }) {
           backgroundColor: t.tooltipBg,
           titleColor: t.tooltipFg,
           bodyColor: t.tooltipFg,
-          borderColor: t.axis,
-          borderWidth: 1,
+          // Same extreme-aware tooltip as PmdTrendPanel — border flips
+          // to the marker colour and the title gains a "↓ Lowest" /
+          // "↑ Highest" tag line on the relevant data point.
+          borderColor: (ctx) => extremeTooltipBorderColor(ctx, t.axis),
+          borderWidth: (ctx) => extremeTooltipBorderWidth(ctx),
           padding: 8,
           cornerRadius: 6,
           titleFont: { size: 11, weight: '600' },
           bodyFont: { size: 11 },
+          callbacks: {
+            title: (items) => {
+              if (!items.length) return '';
+              const item = items[0];
+              const tag = extremeTooltipTitleTag(item);
+              return tag ? [tag, String(item.label ?? '')] : String(item.label ?? '');
+            },
+            labelTextColor: (item) =>
+              extremeTooltipLabelColor(item, t.tooltipFg),
+          },
         },
         // Day separator plugin is intentionally disabled here — X-axis
         // categories on a generic CSV aren't necessarily ISO timestamps.
         dayMarker: { enabled: false },
+        // Same red/emerald extreme markers as the PMD trend so the user
+        // gets a consistent visual cue across both chart families.
+        extremeMarker: {
+          enabled: true,
+          lowColor: '#dc2626',
+          highColor: '#10b981',
+          periodMs: 1500,
+        },
       },
       scales: {
         x: {
@@ -959,7 +1225,11 @@ function LakesPanel({ theme }) {
         </span>
       </div>
       <div className="flex-1 min-h-0">
-        <Line data={data} options={options} />
+        <Line
+          data={data}
+          options={options}
+          plugins={[extremeMarkerPlugin]}
+        />
       </div>
     </div>
   );
