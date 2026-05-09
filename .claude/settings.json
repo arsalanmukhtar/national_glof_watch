@@ -11,11 +11,11 @@
       "LS(*)",
       "WebFetch(*)",
       "WebSearch(*)",
-      "Task(*)"
+      "Task(*)",
+      "Bash(git push *)",
+      "Bash(git push)"
     ],
     "deny": [
-      "Bash(git push *)",
-      "Bash(git push)",
       "Bash(rm -rf /)",
       "Bash(sudo rm -rf *)"
     ]
