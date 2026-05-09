@@ -17,6 +17,7 @@ import {
   regionLayerUrl,
   secondaryLayerUrl,
 } from '@/config/layerSources';
+import { inferUnit } from '@/utils/units';
 import { cn } from '@/utils/cn';
 
 // Cap the rows the table actually puts in the DOM. A 250k-row layer
@@ -539,16 +540,15 @@ function deriveColumns(rows) {
 }
 
 // snake_case / camelCase / random keys → "Snake Case" / "Camel Case".
-// Used purely for column headings; the underlying row keys stay raw so
-// sort + search continue to match what's actually in the GeoJSON.
+// When a unit suffix is recognised (`area_km2`, `length_m`, …) the unit
+// is appended in parentheses so the column heading reads "Area (km²)"
+// without the cell having to repeat the unit on every row. The
+// underlying row keys stay raw so sort + search continue to match
+// what's actually in the GeoJSON.
 function prettyHeader(key) {
   if (!key) return '';
-  return String(key)
-    .replace(/[_\-]+/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const { label, unit } = inferUnit(key);
+  return unit ? `${label} (${unit})` : label;
 }
 
 function formatCell(v) {

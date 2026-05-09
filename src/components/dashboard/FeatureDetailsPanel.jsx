@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
+import { inferUnit } from '@/utils/units';
 import { cn } from '@/utils/cn';
 
 // Feature Details — a card-based, non-tabular view of a clicked map
@@ -226,6 +227,10 @@ function HeaderCard({ kind, label, sublabel, accentColor, propertyCount }) {
 // ---------------------------------------------------------------------------
 function PropTile({ k, v, accentColor, primary = false }) {
   const { Icon, kind } = pickFieldType(k, v);
+  // Strip unit suffixes (`_km2`, `_m`, …) from the heading and surface
+  // them next to the value below. Falls back to a plain humanised key
+  // when no unit is recognised, so legacy columns still read normally.
+  const { label: headingLabel, unit } = inferUnit(k);
   return (
     <div
       className={cn(
@@ -253,11 +258,17 @@ function PropTile({ k, v, accentColor, primary = false }) {
           )}
           title={k}
         >
-          {humanizeKey(k)}
+          {headingLabel}
         </span>
       </div>
       <div className={cn('mt-1', primary ? 'pl-0' : '')}>
-        <ValueRenderer value={v} kind={kind} primary={primary} accentColor={accentColor} />
+        <ValueRenderer
+          value={v}
+          kind={kind}
+          unit={unit}
+          primary={primary}
+          accentColor={accentColor}
+        />
       </div>
     </div>
   );
@@ -267,7 +278,7 @@ function PropTile({ k, v, accentColor, primary = false }) {
 // Value renderers — string, number, boolean, url, json. Picks based on the
 // value's runtime shape and the key's hint (e.g. "*url*", "*name*").
 // ---------------------------------------------------------------------------
-function ValueRenderer({ value, kind, primary, accentColor }) {
+function ValueRenderer({ value, kind, unit, primary, accentColor }) {
   if (value && typeof value === 'object') {
     return (
       <pre
@@ -355,6 +366,9 @@ function ValueRenderer({ value, kind, primary, accentColor }) {
   }
 
   // Numbers — format with locale grouping; coordinates kept compact.
+  // Unit (when known) renders in a slightly muted weight so the figure
+  // stays the eye-catcher: "12.345 km²" with `12.345` solid and `km²`
+  // dimmer. Same trick the StationsTable uses on its value column.
   if (typeof value === 'number') {
     return (
       <span
@@ -364,6 +378,11 @@ function ValueRenderer({ value, kind, primary, accentColor }) {
         )}
       >
         {formatNumber(value)}
+        {unit && (
+          <span className="ml-1 text-day-muted dark:text-night-muted font-normal">
+            {unit}
+          </span>
+        )}
       </span>
     );
   }
@@ -435,17 +454,6 @@ function pickFieldType(key, value) {
 
 function isHexColor(v) {
   return typeof v === 'string' && /^#?[a-f\d]{3}([a-f\d]{3})?$/i.test(v.trim());
-}
-
-// Convert a snake_case / camelCase property key into a human label, while
-// keeping ALL-CAPS acronyms (`OGC_FID` → `OGC FID`) and short codes intact.
-function humanizeKey(k) {
-  return String(k)
-    .replace(/[_-]+/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/\b([a-z])(\w*)/g, (_, a, b) => a.toUpperCase() + b);
 }
 
 // Numbers up to 4 decimals; integers grouped with locale separator;

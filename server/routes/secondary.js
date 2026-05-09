@@ -1,5 +1,6 @@
 import express from 'express';
 import { pool } from '../lib/db.js';
+import { GEOMETRY_STATS_SQL } from './region.js';
 
 // Layers in the `secondary` schema that the dashboard's left sidebar can
 // render. Whitelisted by name because the layer id is interpolated into
@@ -30,7 +31,10 @@ secondaryRouter.get('/:layer', async (req, res) => {
 
   // ogr2ogr loaded these tables with `-lco GEOMETRY_NAME=geom`, so the
   // geometry column is consistently `geom`. `to_jsonb(t) - 'geom'` keeps
-  // every other column as a property and strips the geometry copy.
+  // every other column as a property and strips the geometry copy. The
+  // GEOMETRY_STATS_SQL fragment then merges in derived area / length /
+  // perimeter fields with explicit unit suffixes (`area_km2`,
+  // `length_m`, …) so the client can render them with proper labels.
   const sql = `
     SELECT json_build_object(
       'type', 'FeatureCollection',
@@ -38,7 +42,7 @@ secondaryRouter.get('/:layer', async (req, res) => {
         json_build_object(
           'type', 'Feature',
           'geometry', ST_AsGeoJSON(geom)::json,
-          'properties', to_jsonb(t) - 'geom'
+          'properties', (to_jsonb(t) - 'geom') || ${GEOMETRY_STATS_SQL}
         )
       ), '[]'::json)
     ) AS fc

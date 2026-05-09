@@ -35,6 +35,36 @@ const LAYER_KEY_TO_TABLE = {
 // start with a letter. Anything else 400s before the SQL is built.
 const REGION_RE = /^[a-z][a-z0-9_]*$/;
 
+// Per-feature derived stats that get merged into the properties bag.
+// Branches on geometry type so polygons get area + perimeter, lines
+// get length, and points get an empty object (their position is
+// already in the geometry). Both metric flavours (m / km) are emitted
+// so the client can pick whichever fits the magnitude best — matters
+// for risk zones spanning a few hundred metres versus districts
+// spanning tens of kilometres.
+//
+// `ST_Area(geom::geography)` returns square metres regardless of CRS
+// — the cast does the spheroid math. Similarly for ST_Length and
+// ST_Perimeter. ROUND keeps the JSON small and stops "12.0000000003"
+// floating-point noise from leaking into the panel.
+export const GEOMETRY_STATS_SQL = `(
+    CASE
+      WHEN GeometryType(geom) IN ('POLYGON','MULTIPOLYGON') THEN
+        jsonb_build_object(
+          'area_m2',      ROUND(ST_Area(geom::geography)::numeric, 2),
+          'area_km2',     ROUND((ST_Area(geom::geography) / 1000000.0)::numeric, 6),
+          'perimeter_m',  ROUND(ST_Perimeter(geom::geography)::numeric, 2),
+          'perimeter_km', ROUND((ST_Perimeter(geom::geography) / 1000.0)::numeric, 6)
+        )
+      WHEN GeometryType(geom) IN ('LINESTRING','MULTILINESTRING') THEN
+        jsonb_build_object(
+          'length_m',  ROUND(ST_Length(geom::geography)::numeric, 2),
+          'length_km', ROUND((ST_Length(geom::geography) / 1000.0)::numeric, 6)
+        )
+      ELSE '{}'::jsonb
+    END
+  )`;
+
 export const regionRouter = express.Router();
 
 // GET /api/region/:region/:layerKey
@@ -75,7 +105,11 @@ regionRouter.get('/:region/:layerKey', async (req, res) => {
   // Identifiers are validated above, so direct interpolation is safe.
   // ogr2ogr loads these tables with `-lco GEOMETRY_NAME=geom`, matching
   // the convention secondary.js relies on. `to_jsonb(t) - 'geom'`
-  // strips the geometry copy from the properties bag.
+  // strips the geometry copy from the properties bag; we then merge in
+  // a few derived geometry stats so the Feature Details panel can show
+  // attributes with proper units (m, km, m², km²) regardless of what
+  // the source table happened to store. All tables are SRID 4326, so
+  // casting to `geography` gives us metres without a re-projection.
   const sql = `
     SELECT json_build_object(
       'type', 'FeatureCollection',
@@ -83,7 +117,7 @@ regionRouter.get('/:region/:layerKey', async (req, res) => {
         json_build_object(
           'type', 'Feature',
           'geometry', ST_AsGeoJSON(geom)::json,
-          'properties', to_jsonb(t) - 'geom'
+          'properties', (to_jsonb(t) - 'geom') || ${GEOMETRY_STATS_SQL}
         )
       ), '[]'::json)
     ) AS fc
