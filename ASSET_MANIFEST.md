@@ -4,12 +4,6 @@ Generated 2026-05-04. Maps every legacy asset path to its new location under `sr
 
 Originals in `data/`, `Alerts/`, and `Maps/` are untouched — these are copies.
 
-## Images / Logos
-
-| Old path | New path |
-|---|---|
-| data/ndma_logo.webp | src/assets/images/logos/ndma_logo.webp |
-
 ## Images / Icons (basemap & overlay icons)
 
 | Old path | New path |

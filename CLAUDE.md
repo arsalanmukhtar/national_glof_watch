@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-NDMA Pakistan "National GLOF Monitoring" — a Glacial Lake Outburst Flood monitoring dashboard. Two-process app:
+"National GLOF Monitoring" — a Glacial Lake Outburst Flood monitoring dashboard. Two-process app:
 
 - **Frontend**: React 18 + Vite 5 + Tailwind CSS 3 SPA at the project root. Two routes via React Router 7: `/` (dashboard) and `/docs` (in-app operator's manual).
 - **Backend**: Node + Express + PostgreSQL/PostGIS under `server/`. Owns the PMD weather-station fetch cron, the database schema, and the `/api/parameters/*`, `/api/region/*`, `/api/secondary/*`, `/api/gis/*`, `/api/rasters/*`, `/api/upload/*`, `/api/csv/*`, `/api/db/*` endpoints.
@@ -47,7 +47,7 @@ national_glof_watch/
 │   ├── lib/store.js              # Fetch + persist (transactional, ON CONFLICT dedup)
 │   ├── lib/db.js                 # pg Pool, ensureSchema()
 │   └── sql/schema.sql            # stations + station_readings + indexes
-├── index.html                    # Vite entry — Inter font preconnect, NDMA favicon, mounts /src/main.jsx
+├── index.html                    # Vite entry — Inter font preconnect, snowflake favicon, mounts /src/main.jsx
 ├── package.json                  # type: module
 ├── vite.config.js                # @ alias → /src; proxies /api → :3001
 ├── tailwind.config.js            # darkMode: 'class', brand/day/night/accent palettes, Inter font
@@ -149,7 +149,7 @@ The line and fill use Chart.js scriptable colors that build a vertical CanvasGra
 
 - Tailwind `darkMode: 'class'`. `ThemeContext` toggles `dark` on `document.documentElement`, persists to `localStorage` under `theme`, and seeds from `prefers-color-scheme`.
 - Two surface palettes: `day.{bg,surface,border,text,muted}` and `night.{...}`. Almost every component uses both: `bg-day-bg dark:bg-night-bg`, `text-day-text dark:text-night-text`, etc.
-- The titlebar is intentionally `bg-brand-900` (`#002060`) in **both** themes — it's the NDMA brand bar. Do not add a `dark:` override on it.
+- The titlebar is intentionally constant in **both** themes (deep emerald) — it's the brand bar. Do not add a `dark:` override on it that changes its identity.
 - The accent color used across both themes for active buttons / focus rings / tab underlines / toggle pills is **`#16a085`** (hover `#138b72`, active `#0f7560`). This is unified day+night for consistency. The titlebar theme toggle uses a `text-yellow-300` filled `Sun` icon and a `text-white` filled `Moon` icon.
 
 ### Universal component classes ([src/styles/index.css](src/styles/index.css))
@@ -165,7 +165,7 @@ The project's design system. **Do not write per-component button/input styles** 
 
 ### Brand color
 
-`brand-900 = #002060` is the canonical NDMA navy and is reserved for the titlebar. The full `brand` ramp (50→950) is in [tailwind.config.js](tailwind.config.js). For active-state UI accents (buttons, focus rings, active tabs, toggle pills), use the literal `#16a085` family directly via arbitrary Tailwind values — not `brand-700`. `brand-700 dark:text-brand-200` is only used for decorative panel-header icons.
+`brand-900 = #002060` was the original brand navy and is preserved in the palette for legacy uses. The active titlebar palette is the deep-emerald `bg-emerald-950` / `bg-emerald-900` pair (see `.titlebar` in `src/styles/index.css`). For active-state UI accents (buttons, focus rings, active tabs, toggle pills), use the literal `#16a085` family directly via arbitrary Tailwind values — not `brand-700`. `brand-700 dark:text-brand-200` is only used for decorative panel-header icons.
 
 ### Assets
 
@@ -214,7 +214,7 @@ The legacy → new path map is in [ASSET_MANIFEST.md](ASSET_MANIFEST.md) at root
 - The build emits one chunk over Vite's 500 kB warning threshold (Mapbox GL + Chart.js dominate). Code-splitting (lazy-loading `MapPanel`/`ChartsRow`) is the natural fix when the app is fleshed out.
 - `data/`, `Alerts/`, `Maps/` at the project root still exist as the source of the asset migration. They can be deleted once `src/assets/` is verified, but only after user confirmation — they are the source of truth for the manifest.
 - The legacy GeoJSON files in [src/assets/data/geojson/](src/assets/data/geojson/) are still `.js` files declaring globals (e.g. `const badswatGlacierSource = {...}`) — they need to be converted to ESM exports or proper `.json` when those layers get wired into `MapPanel`.
-- The Mapbox wordmark and bottom-right attribution are CSS-hidden in [src/styles/index.css](src/styles/index.css). Mapbox ToS may require visible attribution in production — confirm with NDMA before going public.
+- The Mapbox wordmark and bottom-right attribution are CSS-hidden in [src/styles/index.css](src/styles/index.css). Mapbox ToS may require visible attribution in production — confirm with stakeholders before going public.
 - `npm install` reports a few audit advisories; not addressed during scaffolding to avoid forced major-version upgrades.
 - `node --watch` reloads on `server/**` changes but **not** on `.env` changes — restart `npm run server` manually after editing the env file.
 - The PMD upstream `lastUpdate` for a station may not advance every 10 min (some sensors only report hourly). The unique constraint dedupes those quietly — `+0 new / N dedup` in the cron log is normal, not a bug.

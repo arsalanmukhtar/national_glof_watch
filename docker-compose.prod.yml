@@ -51,10 +51,10 @@ services:
     restart: always
     ports:
       # The deployment VM has an existing system nginx on :80 fronting
-      # other production apps (NCOP, ndma.gov.pk subdomains), so we
-      # can't bind 80 here. 8090 is the agreed-on external port:
-      # http://<vm-ip>:8090 reaches the dashboard. If a system nginx
-      # later proxies a subdomain into this container, switch to
-      # "127.0.0.1:8090:80" so 8090 isn't exposed publicly twice.
+      # other production apps, so we can't bind 80 here. 8090 is the
+      # agreed-on external port: http://<vm-ip>:8090 reaches the
+      # dashboard. If a system nginx later proxies a subdomain into
+      # this container, switch to "127.0.0.1:8090:80" so 8090 isn't
+      # exposed publicly twice.
       - "8090:80"
     logging: *log_opts

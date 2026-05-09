@@ -143,7 +143,7 @@
 /* StationsTable.jsx. Hide the wordmark and the attribution chrome so the  */
 /* corners stay clean.                                                     */
 /* Note: Mapbox ToS may require visible attribution in production —        */
-/* confirm before shipping to NDMA stakeholders.                           */
+/* confirm before shipping publicly.                                       */
 /* ----------------------------------------------------------------------- */
 .mapboxgl-ctrl-logo,
 .mapboxgl-ctrl-bottom-left,

@@ -22,7 +22,7 @@ The frontend talks to the backend over `/api`, which Vite proxies to `:3001` in 
 Network access:
 
 - The PMD upstream sits at `https://115.186.56.181/ews/classes/stations.php` and uses a self-signed / private-CA certificate. The backend uses an `undici` Agent with `rejectUnauthorized: false` scoped to PMD requests only — not a global TLS bypass. From a restricted network this host may be unreachable; the cron will log errors but the rest of the app still works.
-- For the GeoServer layers: `http://172.18.1.85:8080` (federal) and `http://172.18.1.4:8080` (provincial). Off the NDMA LAN, those WFS calls fail silently and the affected layers stay empty.
+- For the GeoServer layers: `http://172.18.1.85:8080` (federal) and `http://172.18.1.4:8080` (provincial). Off the internal LAN, those WFS calls fail silently and the affected layers stay empty.
 
 ## Initial setup
 
@@ -180,7 +180,7 @@ Frontend (`VITE_*`) variables are read at build time by Vite and inlined into th
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `VITE_MAPBOX_TOKEN` | Yes | Mapbox public access token (`pk.*`). Create in `https://account.mapbox.com/access-tokens/`. Restrict to the production hostname before deploying. Powers both the basemap and the geocoder search. Without it the basemap renders as a blank grey canvas and the geocoder returns 401s. |
-| `VITE_GEOSERVER_BASE_URL` | Yes | Federal NDMA GeoServer (typically `http://172.18.1.85:8080/geoserver`). Hosts the glacial lakes inventory, AKAH infrastructure, populated places, GMRC/WAPDA stations, and GLOF II early-warning stations. |
+| `VITE_GEOSERVER_BASE_URL` | Yes | Federal GeoServer (typically `http://172.18.1.85:8080/geoserver`). Hosts the glacial lakes inventory, AKAH infrastructure, populated places, GMRC/WAPDA stations, and GLOF II early-warning stations. |
 | `VITE_GEOSERVER_PROVINCIAL_URL` | Yes | Provincial GeoServer (typically `http://172.18.1.4:8080/geoserver`). Hosts a separate set of boundary layers. |
 | `VITE_DEFAULT_MAP_CENTER_LNG` | No | Initial longitude. Use a value over northern Pakistan (~72–75 °E). |
 | `VITE_DEFAULT_MAP_CENTER_LAT` | No | Initial latitude (~35–37 °N for the GLOF region). |
@@ -205,7 +205,7 @@ The theme is controlled by a toggle button in the navy titlebar and is implement
 
 - The current theme is persisted in `localStorage` under the key `theme`, with values `light` (day) or `dark` (night).
 - On first load (no value stored), the app reads `window.matchMedia('(prefers-color-scheme: dark)')` and adopts the system preference.
-- The navy titlebar (`#002060`) is intentionally constant in both themes — it is part of the NDMA brand and is excluded from the dark-mode palette.
+- The titlebar (deep emerald) is intentionally constant in both themes — it is part of the brand identity and is excluded from the dark-mode palette.
 - The accent color used across both themes for active buttons / focus rings / tab underlines / toggle pills is `#16a085` (hover `#138b72`, active `#0f7560`).
 
 To force a specific theme during development, run the following in the browser devtools console and reload:

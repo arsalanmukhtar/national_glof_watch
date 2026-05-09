@@ -1,9 +1,6 @@
 // Barrel exports for src/assets — Vite-importable URLs.
 // Add more entries here as the React app needs them.
 
-// Logos
-import ndmaLogo from './images/logos/ndma_logo.webp';
-
 // Common map / UI icons
 import iconGlacier from './images/icons/glacier.png';
 import iconGlacierBadge from './images/icons/glacier_icon.png';
@@ -25,10 +22,6 @@ import mapChatboiLake from './images/maps/chatboi_lake.jpg';
 
 // Representative video
 import bgVideo from './videos/bg_video.mp4';
-
-export const logos = {
-  ndma: ndmaLogo,
-};
 
 export const icons = {
   glacier: iconGlacier,
@@ -62,9 +55,6 @@ export const videos = {
 // String-path fallback (for code that prefers building paths manually,
 // e.g. dynamic loaders or non-Vite tooling). Paths are relative to src/assets.
 export const paths = {
-  logos: {
-    ndma: 'images/logos/ndma_logo.webp',
-  },
   icons: {
     base: 'images/icons',
     glacier: 'images/icons/glacier.png',
@@ -100,4 +90,4 @@ export const paths = {
   },
 };
 
-export default { logos, icons, misc, alerts, maps, videos, paths };
+export default { icons, misc, alerts, maps, videos, paths };

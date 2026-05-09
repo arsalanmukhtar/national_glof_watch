@@ -1,12 +1,11 @@
 # National GLOF Monitoring
 
-NDMA Pakistan's web dashboard for tracking glacial-lake outburst flood (GLOF)
-risk across the country's northern glaciated belt — Hindu Kush, Karakoram,
-Himalaya. Live readings from the Pakistan Meteorological Department (PMD)
-station network are layered over regional GIS context (lakes, glaciers,
-rivers, faultlines, risk zones, infrastructure) so analysts have a single
-operational view of station conditions, regional features, and historical
-context.
+A web dashboard for tracking glacial-lake outburst flood (GLOF) risk across
+Pakistan's northern glaciated belt — Hindu Kush, Karakoram, Himalaya. Live
+readings from the Pakistan Meteorological Department (PMD) station network
+are layered over regional GIS context (lakes, glaciers, rivers, faultlines,
+risk zones, infrastructure) so analysts have a single operational view of
+station conditions, regional features, and historical context.
 
 The deliverable is a React 18 + Vite SPA served from any static host, plus
 a Node + Express backend that owns the PMD cron, the PostGIS endpoints, and
@@ -143,7 +142,7 @@ Frontend variables are prefixed `VITE_`. Backend variables are loaded by
 | Variable | Required | Used by | Description |
 | --- | --- | --- | --- |
 | `VITE_MAPBOX_TOKEN` | Yes | frontend | Mapbox public access token (`pk.*`). The basemap and the geocoder both rely on it. |
-| `VITE_GEOSERVER_BASE_URL` | No | frontend | Federal NDMA GeoServer base URL. LAN-only; off-LAN this returns empty. |
+| `VITE_GEOSERVER_BASE_URL` | No | frontend | Federal GeoServer base URL. LAN-only; off-LAN this returns empty. |
 | `VITE_GEOSERVER_PROVINCIAL_URL` | No | frontend | Provincial GeoServer base URL. LAN-only. |
 | `VITE_DEFAULT_MAP_CENTER_LNG` | No | frontend | Initial map center longitude. |
 | `VITE_DEFAULT_MAP_CENTER_LAT` | No | frontend | Initial map center latitude. |

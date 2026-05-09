@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Fetch NDMA GeoServer WFS layers and persist them as GeoJSON files.
+"""Fetch GeoServer WFS layers and persist them as GeoJSON files.
 
 Output goes to ``data/geoserver/<workspace>_<typename>.geojson``. Existing
 files are overwritten in place.
 
-The GeoServer host (``172.18.1.85:8080``) lives on the NDMA LAN — running
-this script off-network will fail with a connection error for every layer.
+The GeoServer host (``172.18.1.85:8080``) lives on a private internal LAN —
+running this script off-network will fail with a connection error for every
+layer.
 
 Usage (from repo root):
     python scripts/fetch_geoserver_layers.py
