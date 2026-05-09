@@ -64,7 +64,14 @@ function sameBounds(a, b) {
 
 export default function RasterMapRenderer() {
   const { map, zoomToBbox } = useMapView();
-  const { groups, setGroupDataStats, setLayerBounds, setGroupError } = useRasters();
+  const {
+    groups,
+    setGroupDataStats,
+    setLayerBounds,
+    setGroupError,
+    setGroupDecoded,
+    clearGroupDecoded,
+  } = useRasters();
   // Tracks groups we've already framed once so the auto-fit only fires
   // on the first successful decode — subsequent renders (frame swap,
   // colormap change, opacity tweak) leave the user's pan/zoom alone.
@@ -185,6 +192,9 @@ export default function RasterMapRenderer() {
       if (map.getLayer(layerId)) map.removeLayer(layerId);
       if (map.getSource(sourceId)) map.removeSource(sourceId);
       groupStateRef.current.delete(groupId);
+      // Drop the decoded band so pickRasterValueAt doesn't return
+      // values for a layer that isn't on the map any more.
+      clearGroupDecoded(groupId);
     };
 
     const setVisible = (groupId, visible) => {
@@ -268,6 +278,19 @@ export default function RasterMapRenderer() {
           state.visible = g.visible;
           state.opacity = opacity;
           groupStateRef.current.set(g.id, state);
+          // Hand the band + bounds + style off to RasterContext so the
+          // map's click handler can sample pixel values without having
+          // to re-decode. Updated on every successful (re)decode so a
+          // frame swap or symbology change keeps the lookup in sync.
+          setGroupDecoded(g.id, {
+            band:      payload.band,
+            noData:    payload.noData,
+            width:     payload.width,
+            height:    payload.height,
+            bounds:    payload.bounds,
+            layerName: layer.name,
+            style:     g.style,
+          });
           // Surface the actual data range + low-cardinality value list
           // to the styling panel so the manual min/max inputs can
           // pre-fill, and "Auto from data" in classified mode can
@@ -327,7 +350,7 @@ export default function RasterMapRenderer() {
     return () => {
       cancelled = true;
     };
-  }, [map, groups, setGroupDataStats, setLayerBounds, setGroupError, zoomToBbox, styleEpoch]);
+  }, [map, groups, setGroupDataStats, setLayerBounds, setGroupError, zoomToBbox, styleEpoch, setGroupDecoded, clearGroupDecoded]);
 
   // Forget the auto-zoom guard for any group that's been removed so
   // re-adding the same file (e.g. user re-uploaded) re-frames it.

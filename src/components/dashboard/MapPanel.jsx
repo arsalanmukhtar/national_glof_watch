@@ -23,6 +23,7 @@ import {
 } from '@/contexts/RegionLayersContext';
 import { SECONDARY_LAYERS, useSecondary } from '@/contexts/SecondaryContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
+import { useRasters } from '@/contexts/RasterContext';
 import {
   effectiveStyle,
   labelLayoutAndPaint,
@@ -136,6 +137,13 @@ export default function MapPanel({ className, onMapReady }) {
   } = useSecondary();
   const { setMap, trackPromise, isLoading, focusedFeature } = useMapView();
   const { setSelectedFeature } = useAttributeTables();
+  const { pickRasterValueAt, isLngLatOverAnyRaster } = useRasters();
+  // Refs so the map-event handlers (registered once) can read the
+  // current raster lookup functions without re-binding on every render.
+  const pickRasterValueAtRef = useRef(pickRasterValueAt);
+  pickRasterValueAtRef.current = pickRasterValueAt;
+  const isLngLatOverAnyRasterRef = useRef(isLngLatOverAnyRaster);
+  isLngLatOverAnyRasterRef.current = isLngLatOverAnyRaster;
   // Ref mirror so style.load handlers + applyStationLayers can read the
   // current disabled set without re-creating callbacks on every change.
   const disabledBinColorsRef = useRef(disabledBinColors);
@@ -394,28 +402,39 @@ export default function MapPanel({ className, onMapReady }) {
       const hits = map.queryRenderedFeatures(e.point, {
         layers: overlayLayerIds,
       });
-      if (hits.length === 0) return;
 
-      // Topmost hit wins — it's the visually-frontmost overlay at that
-      // pixel, which matches what the user thinks they clicked.
-      const top = hits[0];
-      const parsed = parseOverlayLayerId(top.layer.id);
-      if (!parsed) return;
+      // Vector overlays take priority — they're drawn on top of rasters
+      // and are usually the more meaningful click target. Raster pixel
+      // sampling is the fall-through when the click landed on bare
+      // raster (or empty basemap covered by a raster).
+      if (hits.length > 0) {
+        const top = hits[0];
+        const parsed = parseOverlayLayerId(top.layer.id);
+        if (!parsed) return;
+        const meta = describeOverlay(parsed, secondaryLayers, secondaryStyles);
+        setSelectedFeature({
+          feature: {
+            type: 'Feature',
+            geometry: top.geometry,
+            properties: { ...top.properties },
+            id: top.id,
+          },
+          kind: parsed.kind,
+          overlayKey: parsed.overlayKey,
+          label: meta.label,
+          sublabel: meta.sublabel,
+          accentColor: meta.accentColor,
+        });
+        return;
+      }
 
-      const meta = describeOverlay(parsed, secondaryLayers, secondaryStyles);
-      setSelectedFeature({
-        feature: {
-          type: 'Feature',
-          geometry: top.geometry,
-          properties: { ...top.properties },
-          id: top.id,
-        },
-        kind: parsed.kind,
-        overlayKey: parsed.overlayKey,
-        label: meta.label,
-        sublabel: meta.sublabel,
-        accentColor: meta.accentColor,
-      });
+      // No overlay under the click — try raster pixel lookup. The ref
+      // dereference picks up the freshest function (re-bound when the
+      // raster `groups` array changes) without re-registering the
+      // listener every time.
+      const rasterHit = pickRasterValueAtRef.current?.(e.lngLat);
+      if (!rasterHit) return;
+      setSelectedFeature(buildRasterFeatureSpec(rasterHit));
     };
 
     map.on('click', onMapClick);
@@ -423,6 +442,57 @@ export default function MapPanel({ className, onMapReady }) {
       map.off('click', onMapClick);
     };
   }, [setSelectedFeature, secondaryLayers, secondaryStyles]);
+
+  // Hover cursor — flip to a pointer whenever the cursor sits over
+  // anything clickable (overlay feature, station dot, raster pixel).
+  // Mouseenter/mouseleave on a single layer is the lighter-weight
+  // approach when you know the layers up front, but our layer set
+  // changes at runtime, so a `mousemove` handler with a
+  // queryRenderedFeatures probe is simpler and adapts automatically.
+  // The work per event is bounded by the layers filter — fast in
+  // practice on the dashboard's layer counts.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const onMove = (e) => {
+      const style = map.getStyle();
+      if (!style?.layers) return;
+      const probeLayers = style.layers
+        .map((l) => l.id)
+        .filter(
+          (id) =>
+            id === STATIONS_LAYER ||
+            id === STATIONS_HALO_LAYER ||
+            (id.startsWith(OVERLAY_PREFIX) &&
+              !id.endsWith(':label') &&
+              !id.endsWith(':heatmap')),
+        );
+      let isOver = false;
+      if (probeLayers.length > 0) {
+        const hits = map.queryRenderedFeatures(e.point, {
+          layers: probeLayers,
+        });
+        if (hits.length > 0) isOver = true;
+      }
+      if (!isOver) {
+        // Raster bounds-only check (cheap — no per-pixel sampling).
+        // Acceptable to set pointer over raster nodata regions; a click
+        // there is a no-op rather than wrong behaviour.
+        isOver = !!isLngLatOverAnyRasterRef.current?.(e.lngLat);
+      }
+      const canvas = map.getCanvas();
+      const desired = isOver ? 'pointer' : '';
+      if (canvas.style.cursor !== desired) {
+        canvas.style.cursor = desired;
+      }
+    };
+
+    map.on('mousemove', onMove);
+    return () => {
+      map.off('mousemove', onMove);
+    };
+  }, []);
 
   // Drive both the fly-to and the ripple layers' filter from the
   // currently-selected station. Selecting null clears the highlight.
@@ -970,6 +1040,51 @@ const KIND_GEOMETRY_LABEL = {
   line:    'Line',
   polygon: 'Polygon',
 };
+
+// Translate a raster pixel hit (from RasterContext.pickRasterValueAt)
+// into the same `{kind, label, feature, …}` shape the FeatureDetails
+// panel consumes. Built outside the component so it can be unit-
+// tested / extended without dragging in render dependencies.
+function buildRasterFeatureSpec(hit) {
+  const properties = {
+    Group:        hit.groupName,
+    File:         hit.layerName,
+    Mode:         hit.mode === 'classified' ? 'Classified' : 'Continuous',
+    Value:        hit.value,
+    Longitude:    hit.lng,
+    Latitude:     hit.lat,
+    'Pixel column': hit.col,
+    'Pixel row':    hit.row,
+  };
+  if (hit.mode === 'classified' && hit.matchedClass) {
+    if (hit.matchedClass.label) {
+      properties['Class label'] = hit.matchedClass.label;
+    }
+    if (hit.matchedClass.color) {
+      properties['Class colour'] = hit.matchedClass.color;
+    }
+  } else if (hit.mode === 'continuous' && hit.colormap) {
+    properties.Colormap = hit.colormap;
+  }
+  // Accent: matched class colour wins for classified rasters so the
+  // header bar lines up with the legend; continuous mode gets the
+  // brand teal as a neutral default (we don't have a colormap → solid
+  // colour helper plumbed in here).
+  const accentColor =
+    (hit.mode === 'classified' && hit.matchedClass?.color) || '#16a085';
+  return {
+    feature: {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [hit.lng, hit.lat] },
+      properties,
+    },
+    kind: 'raster',
+    overlayKey: `raster:${hit.groupId}`,
+    label: hit.groupName,
+    sublabel: hit.mode === 'classified' ? 'Classified pixel' : 'Continuous pixel',
+    accentColor,
+  };
+}
 
 function overlayIds(key) {
   return {

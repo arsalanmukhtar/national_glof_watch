@@ -389,6 +389,13 @@ export async function decodeRasterForMap(blob, opts = {}) {
     dataUrl,
     width,
     height,
+    // The decoded band is kept on the payload (in addition to being
+    // baked into `dataUrl`) so consumers like the Feature Details
+    // click handler can read individual pixel values without having to
+    // re-decode the TIFF. Same TypedArray instance the canvas
+    // rasteriser uses — a few MB at most for our rasters.
+    band,
+    noData,
     // `dataMin` / `dataMax` are the actual data range; `min`/`max`
     // reflect the stretch that was applied (which may differ when the
     // user has set a manual range). `uniqueValues` is populated only

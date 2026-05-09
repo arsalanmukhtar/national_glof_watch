@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -305,6 +306,123 @@ export function RasterProvider({ children }) {
     );
   }, []);
 
+  // groupId → {band, noData, width, height, bounds, layerName, style}
+  // for the frame currently rendered on the map. Lives in a ref so the
+  // typed-array bands (which can be a few MB each) don't bloat React
+  // state and trigger re-renders on every decode. RasterMapRenderer
+  // writes here whenever a decode succeeds; pickRasterValueAt reads.
+  const decodedRef = useRef(new Map());
+
+  const setGroupDecoded = useCallback((id, payload) => {
+    decodedRef.current.set(id, payload);
+  }, []);
+
+  const clearGroupDecoded = useCallback((id) => {
+    decodedRef.current.delete(id);
+  }, []);
+
+  // Probe the topmost visible raster covering a given lng/lat. Returns
+  // null when no raster sits under the click, or when the pixel under
+  // the cursor is nodata (so the FeatureDetails panel doesn't stick a
+  // useless "—" in front of the user).
+  //
+  // For classified rasters, also resolves the matching class entry so
+  // the panel can render the swatch + legend label without re-walking
+  // the style. North-up assumption — same one the renderer makes when
+  // baking the PNG; rotated GeoTIFFs would need a per-pixel inverse
+  // affine and we don't ship any.
+  const pickRasterValueAt = useCallback(
+    (lngLat) => {
+      if (!lngLat) return null;
+      const { lng, lat } = lngLat;
+      // Iterate groups in reverse so the visually topmost group wins —
+      // Mapbox draws later-added layers on top, which matches the order
+      // RasterMapRenderer adds them (groups[0] first, groups[N-1] last).
+      for (let i = groups.length - 1; i >= 0; i--) {
+        const g = groups[i];
+        if (!g.visible) continue;
+        const decoded = decodedRef.current.get(g.id);
+        if (!decoded) continue;
+        const { bounds, width, height, band, noData, layerName, style } = decoded;
+        if (!bounds || !band || !width || !height) continue;
+
+        // Axis-aligned bbox from the four corners — handles any corner
+        // ordering convention without assuming TL-first.
+        let minLng = Infinity;
+        let maxLng = -Infinity;
+        let minLat = Infinity;
+        let maxLat = -Infinity;
+        for (const [x, y] of bounds) {
+          if (x < minLng) minLng = x;
+          if (x > maxLng) maxLng = x;
+          if (y < minLat) minLat = y;
+          if (y > maxLat) maxLat = y;
+        }
+        if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) continue;
+
+        const col = Math.floor(((lng - minLng) / (maxLng - minLng)) * width);
+        const row = Math.floor(((maxLat - lat) / (maxLat - minLat)) * height);
+        if (col < 0 || col >= width || row < 0 || row >= height) continue;
+        const value = band[row * width + col];
+        // Bail on nodata / NaN — there's nothing meaningful to surface.
+        if (value === noData) continue;
+        if (typeof value === 'number' && !Number.isFinite(value)) continue;
+
+        let matchedClass = null;
+        if (style?.mode === 'classified' && Array.isArray(style.classes)) {
+          matchedClass = style.classes.find((c) => Number(c.value) === Number(value)) ?? null;
+        }
+
+        return {
+          groupId:      g.id,
+          groupName:    g.name,
+          layerName,
+          lng,
+          lat,
+          col,
+          row,
+          value,
+          noData,
+          mode:         style?.mode === 'classified' ? 'classified' : 'continuous',
+          matchedClass,
+          colormap:     style?.colormap ?? null,
+          opacity:      style?.opacity ?? 1,
+        };
+      }
+      return null;
+    },
+    [groups],
+  );
+
+  // Cheap "is the cursor anywhere over a visible raster?" probe used by
+  // the map's hover-cursor handler. Doesn't read pixels — bounds-only.
+  const isLngLatOverAnyRaster = useCallback(
+    (lngLat) => {
+      if (!lngLat) return false;
+      const { lng, lat } = lngLat;
+      for (const g of groups) {
+        if (!g.visible) continue;
+        const decoded = decodedRef.current.get(g.id);
+        if (!decoded?.bounds) continue;
+        let minLng = Infinity;
+        let maxLng = -Infinity;
+        let minLat = Infinity;
+        let maxLat = -Infinity;
+        for (const [x, y] of decoded.bounds) {
+          if (x < minLng) minLng = x;
+          if (x > maxLng) maxLng = x;
+          if (y < minLat) minLat = y;
+          if (y > maxLat) maxLat = y;
+        }
+        if (lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [groups],
+  );
+
   // Filenames already used by existing groups — surfaced to the file
   // picker so the same raster isn't offered twice when it's already in
   // a group. Filter at the picker level, not at the group level (a user
@@ -336,6 +454,10 @@ export function RasterProvider({ children }) {
       usedNames,
       groupErrors,
       setGroupError,
+      setGroupDecoded,
+      clearGroupDecoded,
+      pickRasterValueAt,
+      isLngLatOverAnyRaster,
     }),
     [
       available,
@@ -356,6 +478,10 @@ export function RasterProvider({ children }) {
       usedNames,
       groupErrors,
       setGroupError,
+      setGroupDecoded,
+      clearGroupDecoded,
+      pickRasterValueAt,
+      isLngLatOverAnyRaster,
     ],
   );
 

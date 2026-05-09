@@ -11,6 +11,7 @@ import {
   Sparkles,
   Type,
   AlertTriangle,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import { cn } from '@/utils/cn';
@@ -321,6 +322,22 @@ function ValueRenderer({ value, kind, primary, accentColor }) {
     );
   }
 
+  if (kind === 'color' && typeof value === 'string') {
+    const hex = value.trim().startsWith('#') ? value.trim() : `#${value.trim()}`;
+    return (
+      <span className="inline-flex items-center gap-2">
+        <span
+          aria-hidden
+          className="inline-block w-4 h-4 rounded border border-day-border dark:border-night-border shrink-0"
+          style={{ background: hex }}
+        />
+        <span className="text-[12.5px] tabular-nums text-day-text dark:text-night-text">
+          {hex.toLowerCase()}
+        </span>
+      </span>
+    );
+  }
+
   if (kind === 'risk' && typeof value === 'string') {
     const tone = pickRiskTone(value);
     return (
@@ -376,6 +393,7 @@ const ICON_FOR_KIND = {
   secondary: Box,
   upload:    FileJson,
   db:        FileJson,
+  raster:    ImageIcon,
 };
 
 const KIND_LABEL = {
@@ -383,6 +401,7 @@ const KIND_LABEL = {
   secondary: 'Secondary Layer',
   upload:    'Uploaded Layer',
   db:        'Database Layer',
+  raster:    'Raster Pixel',
 };
 
 // Pick a field icon + value-rendering hint from the key name + value shape.
@@ -391,6 +410,9 @@ const KIND_LABEL = {
 function pickFieldType(key, value) {
   const k = String(key).toLowerCase();
   if (typeof value === 'object' && value !== null) return { Icon: FileJson, kind: 'json' };
+  if ((k.includes('color') || k.includes('colour')) && isHexColor(value)) {
+    return { Icon: Sparkles, kind: 'color' };
+  }
   if (k.includes('risk') || k.includes('hazard')) return { Icon: AlertTriangle, kind: 'risk' };
   if (k.includes('url') || k.includes('link') || k.includes('href')) {
     return { Icon: FileJson, kind: 'url' };
@@ -409,6 +431,10 @@ function pickFieldType(key, value) {
   }
   if (typeof value === 'number') return { Icon: Hash, kind: 'number' };
   return { Icon: Type, kind: 'string' };
+}
+
+function isHexColor(v) {
+  return typeof v === 'string' && /^#?[a-f\d]{3}([a-f\d]{3})?$/i.test(v.trim());
 }
 
 // Convert a snake_case / camelCase property key into a human label, while
