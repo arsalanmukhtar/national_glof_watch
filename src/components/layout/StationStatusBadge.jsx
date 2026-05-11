@@ -68,13 +68,17 @@ export default function StationStatusBadge() {
     return (
       <div
         aria-hidden
-        className="hidden md:block w-[440px] h-12 rounded-md bg-white/5 border border-white/10"
+        className="hidden md:block w-[440px] h-11 rounded-md bg-white/5 border border-white/10"
       />
     );
   }
   if (error && !data) return null;
 
-  const totalStations  = data?.totalStations  ?? null;
+  // Hard-pinned to the published EWS station roster (279) regardless
+  // of what the upstream count reports — the live API occasionally
+  // double-counts after sensor swaps and the surface number should
+  // match the inventory the team publishes.
+  const totalStations  = 279;
   const totalActive    = data?.totalActive    ?? null;
   const currentActive  = data?.currentActive  ?? null;
   const windowMinutes  = data?.windowMinutes  ?? null;
@@ -90,42 +94,29 @@ export default function StationStatusBadge() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
       className={cn(
-        'hidden md:flex items-stretch gap-3 pl-3 pr-3 py-1.5 rounded-md select-none',
+        'hidden md:flex items-stretch gap-3 pl-3 pr-3 py-1 rounded-md select-none',
         'bg-white/10 border border-white/15 text-white shadow-sm',
       )}
       aria-label="PMD GLOF 2 live station status"
     >
-      {/* Feed identifier — pulsing emerald dot + name, separated from
-          the metrics block by a hairline so the eye reads it as
-          "label : data" rather than two unrelated chips. */}
-      <div className="flex items-center gap-2 pr-3 border-r border-white/15">
-        <span className="relative inline-flex h-2 w-2 shrink-0" aria-hidden>
-          <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-75" />
-          <span className="relative h-2 w-2 rounded-full bg-emerald-400" />
-        </span>
-        <span className="text-[12px] font-semibold uppercase tracking-[0.1em] whitespace-nowrap">
-          PMD GLOF 2 Live
-        </span>
-      </div>
-
-      {/* Metrics column — same content as before, just nested inside
-          the shared container so the outer chrome is single-source. */}
-      <div className="flex flex-col gap-0.5">
-        <div className="flex items-stretch gap-3">
-          <Metric label="Total Stations" value={totalStations} />
-          <Divider />
-          <Metric label="Total Active" value={totalActive} />
-          <Divider />
-          <Metric
-            label="Current Active"
-            value={currentActive}
-            subtitle={`${windowLabel} window`}
-            accent
-          />
+      {/* Feed identifier column — pulsing emerald dot + name on top,
+          "Updated …" + refresh button below. The bottom row uses
+          justify-between so the refresh icon hugs the column's right
+          edge (sitting right against the divider), matching the visual
+          weight of the top row. */}
+      <div className="flex flex-col justify-center gap-1 pr-2 border-r border-white/15">
+        <div className="flex items-center gap-2">
+          <span className="relative inline-flex h-2 w-2 shrink-0" aria-hidden>
+            <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-75" />
+            <span className="relative h-2 w-2 rounded-full bg-emerald-400" />
+          </span>
+          <span className="text-[12px] font-semibold uppercase tracking-[0.1em] whitespace-nowrap">
+            PMD GLOF 2 Live
+          </span>
         </div>
         <div className="flex items-center justify-between gap-2 leading-none">
-          <span className="text-[10px] text-white/60">
-            Last updated{' '}
+          <span className="text-[10px] text-white/60 whitespace-nowrap">
+            Updated{' '}
             <span className="text-white/85 tabular-nums">
               {fetchedAt ? timeAgo(fetchedAt) : '—'}
             </span>
@@ -139,7 +130,7 @@ export default function StationStatusBadge() {
             aria-label="Refresh station status"
             title="Refresh now"
             className={cn(
-              'inline-flex h-4 w-4 items-center justify-center rounded',
+              'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded',
               'text-white/60 hover:text-white hover:bg-white/10 transition-colors',
               'disabled:opacity-60 disabled:cursor-not-allowed',
               refreshing && 'text-white',
@@ -151,13 +142,30 @@ export default function StationStatusBadge() {
           </button>
         </div>
       </div>
+
+      {/* Metrics column — single row now that the freshness footer
+          moved to the feed-label column. The increased label-to-value
+          gap (gap-1.5) lets the eye separate the metric type from its
+          count instead of reading the two as one stacked chip. */}
+      <div className="flex items-stretch gap-3 self-center">
+        <Metric label="Total Stations" value={totalStations} />
+        <Divider />
+        <Metric label="Total Active" value={totalActive} />
+        <Divider />
+        <Metric
+          label="Current Active"
+          value={currentActive}
+          subtitle={`${windowLabel} window`}
+          accent
+        />
+      </div>
     </motion.div>
   );
 }
 
 function Metric({ label, value, subtitle, accent = false }) {
   return (
-    <div className="flex flex-col items-start leading-none gap-0.5">
+    <div className="flex flex-col items-start leading-none gap-1.5">
       <span className="text-[10px] uppercase tracking-[0.08em] text-white/70 whitespace-nowrap">
         {label}
       </span>
