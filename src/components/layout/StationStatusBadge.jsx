@@ -62,12 +62,13 @@ export default function StationStatusBadge() {
   }, [load]);
 
   // Reserve space while the first request is in flight so the layout
-  // doesn't jolt once data lands; vanish only on a hard error.
+  // doesn't jolt once data lands; vanish only on a hard error. Width
+  // matches the rendered combined badge — feed label + metrics + footer.
   if (!loaded && !data) {
     return (
       <div
         aria-hidden
-        className="hidden md:block w-[260px] h-9 rounded-md bg-white/5 border border-white/10"
+        className="hidden md:block w-[440px] h-12 rounded-md bg-white/5 border border-white/10"
       />
     );
   }
@@ -85,15 +86,31 @@ export default function StationStatusBadge() {
 
   return (
     <motion.div
-        initial={{ opacity: 0, y: -4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
-        className={cn(
-          'hidden md:flex flex-col gap-0.5 px-3 py-1 rounded-md select-none',
-          'bg-white/10 border border-white/15 text-white shadow-sm',
-        )}
-        aria-label="PMD station status"
-      >
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className={cn(
+        'hidden md:flex items-stretch gap-3 pl-3 pr-3 py-1.5 rounded-md select-none',
+        'bg-white/10 border border-white/15 text-white shadow-sm',
+      )}
+      aria-label="PMD GLOF 2 live station status"
+    >
+      {/* Feed identifier — pulsing emerald dot + name, separated from
+          the metrics block by a hairline so the eye reads it as
+          "label : data" rather than two unrelated chips. */}
+      <div className="flex items-center gap-2 pr-3 border-r border-white/15">
+        <span className="relative inline-flex h-2 w-2 shrink-0" aria-hidden>
+          <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-75" />
+          <span className="relative h-2 w-2 rounded-full bg-emerald-400" />
+        </span>
+        <span className="text-[12px] font-semibold uppercase tracking-[0.1em] whitespace-nowrap">
+          PMD GLOF 2 Live
+        </span>
+      </div>
+
+      {/* Metrics column — same content as before, just nested inside
+          the shared container so the outer chrome is single-source. */}
+      <div className="flex flex-col gap-0.5">
         <div className="flex items-stretch gap-3">
           <Metric label="Total Stations" value={totalStations} />
           <Divider />
@@ -133,7 +150,8 @@ export default function StationStatusBadge() {
             />
           </button>
         </div>
-      </motion.div>
+      </div>
+    </motion.div>
   );
 }
 

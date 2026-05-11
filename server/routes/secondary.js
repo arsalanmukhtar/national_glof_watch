@@ -11,10 +11,18 @@ const ALLOWED_LAYERS = new Set([
   'provincial_boundary',
   'akah_infrastructure',
   'akah_hazard_exposure',
+  'akah_sensors',
   'all_stations',
+  'damaged_stations',
+  'bri_ff_china_sensors',
+  'gmrc_wapda_stations',
   'glacial_lakes',
   'settlements',
   'cell_towers',
+  'vulnerable_lakes_2026',
+  'vulnerable_melting_glaciers_2026',
+  'vulnerable_melting_points_2026',
+  'vulnerable_sites_2026',
 ]);
 
 export const secondaryRouter = express.Router();

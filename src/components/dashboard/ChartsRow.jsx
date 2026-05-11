@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Chart as ChartJS,
@@ -12,9 +12,13 @@ import {
   Legend,
   Filler,
 } from 'chart.js';
-import { Line } from 'react-chartjs-2';
+import { Bar, Line } from 'react-chartjs-2';
 import LayerAttributesPanel from '@/components/dashboard/LayerAttributesPanel';
 import FeatureDetailsPanel from '@/components/dashboard/FeatureDetailsPanel';
+import {
+  lakeAreaData,
+  chartYears as lakeChartYears,
+} from '../../../data/csv/lake_area_volume';
 import { useTheme } from '@/hooks/useTheme';
 import { useParameter } from '@/contexts/ParameterContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
@@ -569,6 +573,8 @@ export default function ChartsRow() {
           <PmdTrendPanel theme={theme} />
         ) : tab === 'lakes' ? (
           <LakesPanel theme={theme} />
+        ) : tab === 'lakesArea' ? (
+          <LakesAreaPanel theme={theme} />
         ) : (
           <FeatureDetailsPanel />
         )}
@@ -583,6 +589,7 @@ function Tabs({ tab, onChange }) {
     { id: 'pmd',        label: 'PMD Data Trend' },
     { id: 'lakes',      label: 'CSV Trend' },
     { id: 'feature',    label: 'Feature Details' },
+    { id: 'lakesArea',  label: 'Lakes Area' },
   ];
   return (
     <div
@@ -1233,6 +1240,376 @@ function LakesPanel({ theme }) {
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Lakes Area tab — paired view of every glacial lake's area + volume over
+// 2020 → 2025. The dataset ships statically as `data/csv/lake_area_volume`
+// because it's the consolidated published reference set; refreshing it
+// is a code change, not user input.
+//
+// Left chart  : multi-line area trend (m²)
+// Right chart : grouped bar volume comparison (m³)
+//
+// Colours are assigned per lake from a curated 12-step palette so a lake
+// reads as the same colour in both charts — click a legend chip in
+// either chart and the corresponding line / bar set hides on that chart.
+// ---------------------------------------------------------------------------
+
+// Curated 12-step palette. Each tone is distinguishable from the next,
+// has decent contrast on both light and dark surface backgrounds, and
+// avoids two adjacent entries reading as "the same colour" on a small
+// chart canvas — important here because the legend is dense.
+const LAKE_COLORS = [
+  '#2563eb', // blue-600
+  '#dc2626', // red-600
+  '#16a34a', // green-600
+  '#ea580c', // orange-600
+  '#7c3aed', // violet-600
+  '#0891b2', // cyan-600
+  '#db2777', // pink-600
+  '#65a30d', // lime-600
+  '#c026d3', // fuchsia-600
+  '#d97706', // amber-600
+  '#0ea5e9', // sky-500
+  '#4f46e5', // indigo-600
+];
+
+// Compact y-axis formatter — values run from ~10³ (m²) up to ~10⁷ (m³)
+// so abbreviating keeps the axis readable on a small chart.
+function fmtCompact(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '';
+  const v = Number(n);
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return `${(v / 1e9).toFixed(abs >= 1e10 ? 0 : 1)}B`;
+  if (abs >= 1e6) return `${(v / 1e6).toFixed(abs >= 1e7 ? 0 : 1)}M`;
+  if (abs >= 1e3) return `${(v / 1e3).toFixed(abs >= 1e4 ? 0 : 1)}K`;
+  return String(v);
+}
+
+function LakesAreaPanel({ theme }) {
+  const t = TOKENS[theme];
+
+  // One DOM-node ref per chart for the external HTML tooltip. Canvas
+  // tooltips get clipped by the canvas bounds, so 12 lakes' worth of
+  // rows overflow the bottom of a small chart. Rendering the tooltip
+  // as an absolutely-positioned div inside the chart frame lifts that
+  // restriction — and lets us flow the body into multiple columns.
+  const areaTooltipRef = useRef(null);
+  const volumeTooltipRef = useRef(null);
+
+  // One dataset per lake, paired across both charts so the legend chips
+  // line up and clicking either chart's legend toggles the same lake.
+  const areaData = useMemo(
+    () => ({
+      labels: lakeChartYears,
+      datasets: lakeAreaData.map((lake, i) => {
+        const c = LAKE_COLORS[i % LAKE_COLORS.length];
+        return {
+          label: lake.name,
+          data: lake.area,
+          borderColor: c,
+          backgroundColor: c,
+          pointBackgroundColor: c,
+          pointBorderColor: c,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          borderWidth: 1.75,
+          tension: 0.3,
+          fill: false,
+          spanGaps: true,
+          // Stash for tooltip / legend metadata
+          _district: lake.district,
+        };
+      }),
+    }),
+    [],
+  );
+
+  const volumeData = useMemo(
+    () => ({
+      labels: lakeChartYears,
+      datasets: lakeAreaData.map((lake, i) => {
+        const c = LAKE_COLORS[i % LAKE_COLORS.length];
+        return {
+          label: lake.name,
+          data: lake.volume,
+          backgroundColor: c,
+          borderColor: c,
+          borderWidth: 0,
+          borderRadius: 2,
+          // Rounded bars look better at the small heights we have here
+          // and the borderRadius keeps the bar tops from merging into
+          // the next-year group when the values are close.
+          _district: lake.district,
+        };
+      }),
+    }),
+    [],
+  );
+
+  const areaOptions = useMemo(
+    () =>
+      buildLakesAreaOptions(t, {
+        yTitle: 'Area (m²)',
+        unit: 'm²',
+        getTooltipEl: () => areaTooltipRef.current,
+      }),
+    [t],
+  );
+  const volumeOptions = useMemo(
+    () =>
+      buildLakesAreaOptions(t, {
+        yTitle: 'Volume (m³)',
+        unit: 'm³',
+        getTooltipEl: () => volumeTooltipRef.current,
+      }),
+    [t],
+  );
+
+  return (
+    <div className="p-3 flex flex-col gap-2 h-full min-h-0">
+      <div className="flex items-center gap-2 flex-wrap shrink-0">
+        <h3 className="text-sm font-semibold text-day-text dark:text-night-text">
+          Glacial Lake Trends
+        </h3>
+        <span className="text-[12px] tabular-nums text-day-muted dark:text-night-muted px-1.5 py-0.5 rounded bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border">
+          {lakeChartYears[0]} → {lakeChartYears[lakeChartYears.length - 1]}
+        </span>
+        <span className="text-[12px] tabular-nums text-day-muted dark:text-night-muted px-1.5 py-0.5 rounded bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border">
+          {lakeAreaData.length} lakes
+        </span>
+      </div>
+      {/* Side-by-side at lg; stacked on narrow viewports so the bars
+          don't collapse into illegible slivers. */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <LakesAreaChartFrame title="Area" tooltipRef={areaTooltipRef}>
+          <Line data={areaData} options={areaOptions} />
+        </LakesAreaChartFrame>
+        <LakesAreaChartFrame title="Volume" tooltipRef={volumeTooltipRef}>
+          <Bar data={volumeData} options={volumeOptions} />
+        </LakesAreaChartFrame>
+      </div>
+    </div>
+  );
+}
+
+function LakesAreaChartFrame({ title, tooltipRef, children }) {
+  return (
+    <div className="flex flex-col min-h-0 gap-1">
+      <span className="text-[11px] uppercase font-semibold tracking-[0.08em] text-day-muted dark:text-night-muted px-0.5">
+        {title}
+      </span>
+      {/* `relative` is the positioning context for the external HTML
+          tooltip below. The chart canvas fills the frame; the tooltip
+          floats over it as an absolutely-positioned div that the
+          tooltip handler updates in place. */}
+      <div className="flex-1 min-h-0 relative">
+        {children}
+        <div
+          ref={tooltipRef}
+          className={cn(
+            'pointer-events-none absolute top-0 left-0 z-10 opacity-0',
+            'rounded-md px-2.5 py-2 shadow-lg',
+            'bg-[#0f172a]/95 dark:bg-[#1e272e]/95 text-[#f8fafc]',
+            'border border-day-border/30 dark:border-night-border/30',
+            'transition-opacity duration-100',
+          )}
+          style={{ willChange: 'transform, opacity' }}
+          aria-hidden
+        />
+      </div>
+    </div>
+  );
+}
+
+// Shared option builder for the Lakes Area tab — themed tokens come in
+// once so both charts get identical typography / grid / tooltip styling.
+// `getTooltipEl` returns the absolutely-positioned div the external
+// tooltip handler renders into, captured via closure from the React ref.
+function buildLakesAreaOptions(t, { yTitle, unit, getTooltipEl }) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    // `nearest` + `intersect: false` means the cursor only ever picks
+    // a single dataset — the one closest to the pointer — instead of
+    // grouping every series at the hovered x. The tooltip then becomes
+    // a focused, single-value card for that exact lake / year point or
+    // bar, which reads more cleanly than a 12-row index dump.
+    interaction: { mode: 'nearest', intersect: false, axis: 'xy' },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        align: 'center',
+        labels: {
+          boxWidth: 8,
+          boxHeight: 8,
+          padding: 6,
+          color: t.text,
+          font: { size: 10, weight: '600' },
+          usePointStyle: true,
+        },
+      },
+      // Canvas tooltip is off — the external handler below paints a
+      // professionally-styled HTML card so we can render multi-line
+      // detail (district + lake + value + year-over-year change) and
+      // position it without being clipped by the canvas bounds.
+      tooltip: {
+        enabled: false,
+        mode: 'nearest',
+        intersect: false,
+        external: (context) =>
+          renderLakesAreaTooltip(context, getTooltipEl, { unit }),
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: t.text, font: { size: 11, weight: '600' } },
+        border: { color: t.axis },
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: t.grid },
+        ticks: {
+          color: t.text,
+          font: { size: 10, weight: '600' },
+          callback: (v) => fmtCompact(v),
+        },
+        title: {
+          display: true,
+          text: yTitle,
+          color: t.text,
+          font: { size: 11, weight: '600' },
+        },
+        border: { color: t.axis },
+      },
+    },
+  };
+}
+
+// External HTML tooltip handler. Renders a single-point detail card —
+// the user hovers a specific line vertex or bar and the tooltip shows
+// that lake's value for that year, plus the year-over-year delta when
+// a previous reading exists. Floats above the canvas inside the same
+// `relative` wrapper and is auto-flipped horizontally + clamped
+// vertically so it never escapes the chart frame's bounds.
+function renderLakesAreaTooltip(context, getTooltipEl, { unit }) {
+  const el = getTooltipEl?.();
+  if (!el) return;
+  const { chart, tooltip } = context;
+
+  // Hide path: opacity 0 (kept positioned so the fade-out reads
+  // naturally; the next hover overwrites the transform anyway).
+  if (!tooltip || tooltip.opacity === 0 || !tooltip.dataPoints?.length) {
+    el.style.opacity = '0';
+    return;
+  }
+
+  // With `interaction.mode: 'nearest'` the first dataPoint IS the
+  // single closest item to the cursor — that's the lake we paint.
+  const dp = tooltip.dataPoints[0];
+  const ds = chart.data?.datasets?.[dp.datasetIndex];
+  const labels = chart.data?.labels || [];
+  const color = dp.dataset?.borderColor || dp.dataset?.backgroundColor || '#16a085';
+  const district = ds?._district ?? '';
+  const lake = ds?.label ?? '';
+  const year = String(labels[dp.dataIndex] ?? '');
+  const value = dp.parsed?.y;
+
+  // Year-over-year delta — only render when a previous year exists
+  // AND both values are finite. Computed off the live dataset rather
+  // than the formatted tooltip body so we have the raw numbers.
+  let deltaHtml = '';
+  const dataArr = ds?.data || [];
+  const prev = dp.dataIndex > 0 ? dataArr[dp.dataIndex - 1] : null;
+  if (
+    prev != null &&
+    Number.isFinite(Number(prev)) &&
+    Number.isFinite(Number(value)) &&
+    Number(prev) !== 0
+  ) {
+    const pct = ((Number(value) - Number(prev)) / Number(prev)) * 100;
+    const up = pct >= 0;
+    const arrow = up ? '▲' : '▼';
+    // Emerald for growth, red for shrink — keeps the cue colour-blind
+    // friendly by also flipping the arrow direction.
+    const tint = up ? '#10b981' : '#ef4444';
+    deltaHtml =
+      `<div style="display:flex;align-items:center;gap:4px;font-size:10.5px;color:${tint};font-weight:600;">` +
+        `<span>${arrow}</span>` +
+        `<span style="font-variant-numeric:tabular-nums;">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span>` +
+        `<span style="opacity:0.7;color:#94a3b8;font-weight:500;">vs ${escapeHtml(String(labels[dp.dataIndex - 1] ?? ''))}</span>` +
+      `</div>`;
+  }
+
+  const valueStr =
+    value == null || !Number.isFinite(value)
+      ? '—'
+      : `${value.toLocaleString()} ${unit}`;
+
+  // Card layout:
+  //   ┌──────────────────────────────┐
+  //   │ ● DISTRICT                    │
+  //   │   Lake Name                   │
+  //   ├──────────────────────────────┤
+  //   │ Year   2024                   │
+  //   │ {unit} 824,500 m²             │
+  //   │ ▲ +1.2% vs 2023               │
+  //   └──────────────────────────────┘
+  el.innerHTML =
+    `<div style="display:flex;align-items:center;gap:8px;min-width:0;">` +
+      `<span style="display:inline-block;width:9px;height:9px;border-radius:9999px;background:${color};flex-shrink:0;box-shadow:0 0 0 2px rgba(255,255,255,0.06);"></span>` +
+      `<div style="display:flex;flex-direction:column;min-width:0;">` +
+        (district
+          ? `<span style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.7;">${escapeHtml(district)}</span>`
+          : '') +
+        `<span style="font-size:13px;font-weight:600;line-height:1.2;white-space:nowrap;">${escapeHtml(lake)}</span>` +
+      `</div>` +
+    `</div>` +
+    `<div style="margin:6px 0;height:1px;background:rgba(255,255,255,0.12);"></div>` +
+    `<div style="display:grid;grid-template-columns:auto 1fr;column-gap:10px;row-gap:2px;font-size:11.5px;">` +
+      `<span style="opacity:0.7;">Year</span>` +
+      `<span style="font-variant-numeric:tabular-nums;font-weight:600;text-align:right;">${escapeHtml(year)}</span>` +
+      `<span style="opacity:0.7;">${escapeHtml(unit === 'm²' ? 'Area' : 'Volume')}</span>` +
+      `<span style="font-variant-numeric:tabular-nums;font-weight:600;text-align:right;white-space:nowrap;">${escapeHtml(valueStr)}</span>` +
+    `</div>` +
+    (deltaHtml ? `<div style="margin-top:4px;">${deltaHtml}</div>` : '');
+
+  // Positioning — caret coords from Chart.js are relative to the
+  // canvas, which fills the parent .relative wrapper. Flip horizontally
+  // when the tooltip would overflow on the right; clamp vertically so
+  // the card never escapes the frame on either axis.
+  const canvas = chart.canvas;
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  const cw = canvas.clientWidth;
+  const ch = canvas.clientHeight;
+
+  let x = tooltip.caretX + 14;
+  if (x + w > cw) x = tooltip.caretX - w - 14;
+  if (x < 0) x = Math.max(0, cw - w);
+
+  let y = tooltip.caretY - h / 2;
+  if (y + h > ch) y = ch - h;
+  if (y < 0) y = 0;
+
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  el.style.opacity = '1';
+}
+
+// Minimal HTML escape — we only feed it strings out of our static data
+// and Chart.js metadata, but escaping defends against any future feed
+// that might carry punctuation Chart.js's `formattedValue` doesn't sanitise.
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // Hex (#rrggbb) → rgba(r,g,b,a). Used to derive a translucent fill from the

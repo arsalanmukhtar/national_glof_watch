@@ -11,20 +11,30 @@ import {
 // (polygons get fill+stroke, points get radius+fill+stroke, lines get
 // line-only controls).
 export const SECONDARY_LAYERS = [
-  { id: 'national_boundary',     label: 'National Boundary',     geometry: 'polygon', table: 'secondary.national_boundary' },
-  { id: 'provincial_boundary',   label: 'Provincial Boundary',   geometry: 'polygon', table: 'secondary.provincial_boundary' },
+  { id: 'national_boundary',                  label: 'National Boundary',                  geometry: 'polygon', table: 'secondary.national_boundary' },
+  { id: 'provincial_boundary',                label: 'Provincial Boundary',                geometry: 'polygon', table: 'secondary.provincial_boundary' },
   // GLOF reference layers — fetched live from PMD's GIS host via the
   // /api/gis proxy. No local table backing them.
-  { id: 'glof_districts',        label: 'GLOF Districts',        geometry: 'polygon', table: null },
-  { id: 'glof_basins',           label: 'GLOF Basins',           geometry: 'polygon', table: null },
-  { id: 'glof_lakes',            label: 'GLOF Lakes',            geometry: 'polygon', table: null },
-  { id: 'glof_valley',           label: 'GLOF Valley',           geometry: 'polygon', table: null },
-  { id: 'akah_infrastructure',   label: 'AKAH Infrastructure',   geometry: 'point',   table: 'secondary.akah_infrastructure' },
-  { id: 'akah_hazard_exposure',  label: 'AKAH Hazard Exposure',  geometry: 'polygon', table: 'secondary.akah_hazard_exposure' },
-  { id: 'all_stations',          label: 'All Stations',          geometry: 'point',   table: 'secondary.all_stations' },
-  { id: 'glacial_lakes',         label: 'Glacial Lakes',         geometry: 'polygon', table: 'secondary.glacial_lakes' },
-  { id: 'settlements',           label: 'Settlements',           geometry: 'point',   table: 'secondary.settlements' },
-  { id: 'cell_towers',           label: 'Cell Towers',           geometry: 'point',   table: 'secondary.cell_towers' },
+  { id: 'glof_districts',                     label: 'GLOF Districts',                     geometry: 'polygon', table: null },
+  { id: 'glof_basins',                        label: 'GLOF Basins',                        geometry: 'polygon', table: null },
+  { id: 'glof_lakes',                         label: 'GLOF Lakes',                         geometry: 'polygon', table: null },
+  { id: 'glof_valley',                        label: 'GLOF Valley',                        geometry: 'polygon', table: null },
+  { id: 'akah_infrastructure',                label: 'AKAH Infrastructure',                geometry: 'point',   table: 'secondary.akah_infrastructure' },
+  { id: 'akah_hazard_exposure',               label: 'AKAH Hazard Exposure',               geometry: 'polygon', table: 'secondary.akah_hazard_exposure' },
+  { id: 'akah_sensors',                       label: 'AKAH Sensors',                       geometry: 'point',   table: 'secondary.akah_sensors' },
+  { id: 'all_stations',                       label: 'All Stations',                       geometry: 'point',   table: 'secondary.all_stations' },
+  { id: 'damaged_stations',                   label: 'Damaged Stations',                   geometry: 'point',   table: 'secondary.damaged_stations' },
+  { id: 'bri_ff_china_sensors',               label: 'BRI-FF China Sensors',               geometry: 'point',   table: 'secondary.bri_ff_china_sensors' },
+  { id: 'gmrc_wapda_stations',                label: 'GMRC / WAPDA Stations',              geometry: 'point',   table: 'secondary.gmrc_wapda_stations' },
+  { id: 'glacial_lakes',                      label: 'Glacial Lakes',                      geometry: 'polygon', table: 'secondary.glacial_lakes' },
+  { id: 'settlements',                        label: 'Settlements',                        geometry: 'point',   table: 'secondary.settlements' },
+  { id: 'cell_towers',                        label: 'Cell Towers',                        geometry: 'point',   table: 'secondary.cell_towers' },
+  // 2026 vulnerability assessment — year-namespaced so successive
+  // annual updates can land alongside without clobbering history.
+  { id: 'vulnerable_lakes_2026',              label: 'Vulnerable Lakes (2026)',            geometry: 'polygon', table: 'secondary.vulnerable_lakes_2026' },
+  { id: 'vulnerable_melting_glaciers_2026',   label: 'Vulnerable Melting Glaciers (2026)', geometry: 'polygon', table: 'secondary.vulnerable_melting_glaciers_2026' },
+  { id: 'vulnerable_melting_points_2026',     label: 'Vulnerable Melting Points (2026)',   geometry: 'point',   table: 'secondary.vulnerable_melting_points_2026' },
+  { id: 'vulnerable_sites_2026',              label: 'Vulnerable Sites (2026)',            geometry: 'point',   table: 'secondary.vulnerable_sites_2026' },
 ];
 
 // Sensible defaults per geometry type. The accent color (#16a085) keeps

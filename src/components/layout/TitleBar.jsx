@@ -40,10 +40,11 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
       </div>
 
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
-        {/* Live PMD network status — sits just before the theme toggle
-            with a bit of breathing room (`mr-3`) so it doesn't crowd the
-            sun/moon icon. Only on the dashboard — pulling station data
-            on the docs page is just noise. */}
+        {/* PMD GLOF 2 Live feed badge — combined feed identifier +
+            station counter. The component handles its own label,
+            divider, metrics block, and "Last updated" footer. Only on
+            the dashboard — pulling station data on the docs page is
+            just noise. */}
         {!onDocs && <StationStatusBadge />}
         <span aria-hidden className="hidden md:block w-3" />
 

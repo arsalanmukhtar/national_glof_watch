@@ -691,7 +691,9 @@ function Dropdown({ value, onChange, options, renderOption, renderTrigger, width
           <Listbox.Options
             anchor={{ to: 'bottom start', gap: 4 }}
             className={cn(
-              'z-[100] max-h-64 w-[var(--button-width)] overflow-y-auto rounded-md py-1',
+              // `!` makes the cap survive the anchor's inline max-height —
+              // see the LayerSelector below for the full rationale.
+              'z-[100] !max-h-64 w-[var(--button-width)] overflow-y-auto rounded-md py-1',
               'bg-white dark:bg-night-surface',
               'border border-day-border dark:border-night-border shadow-lg text-[12px] focus:outline-none',
             )}
@@ -1358,8 +1360,14 @@ function LayerSelector({ groups, selectedId, onSelect }) {
         <Transition as={Fragment} leave="transition ease-in duration-100" leaveFrom="opacity-100" leaveTo="opacity-0">
           <Listbox.Options
             anchor={{ to: 'bottom start', gap: 4 }}
+            // Headless UI's `anchor` sets an inline `max-height` to "all
+            // remaining viewport space below the trigger." With 20+ layers
+            // that's tall enough to spill off-screen at small windows.
+            // The `!` modifier promotes our cap to `!important` so it
+            // beats the inline style. Same pattern is used on the second
+            // Listbox below.
             className={cn(
-              'z-[100] box-border max-h-72 w-[var(--button-width)] max-w-[var(--button-width)]',
+              'z-[100] box-border !max-h-72 w-[var(--button-width)] max-w-[var(--button-width)]',
               'overflow-y-auto overflow-x-hidden rounded-md py-1',
               'bg-white dark:bg-night-surface',
               'border border-day-border dark:border-night-border shadow-lg focus:outline-none text-[13px]',

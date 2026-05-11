@@ -30,7 +30,10 @@ export function AttributeTablesProvider({ children }) {
   // The chart card's active top-level tab, lifted into context so the
   // Dashboard can react (collapsing the map when the user is browsing
   // attribute tables, restoring it when they switch to a chart tab).
-  const [chartTab, setChartTab] = useState('pmd');
+  // Defaults to `lakesArea` so the multi-lake area + volume view is
+  // visible on first load — the data is the marquee static reference
+  // panel for the dashboard.
+  const [chartTab, setChartTab] = useState('lakesArea');
   // The most recently clicked map feature, plus enough metadata for the
   // Feature Details tab to render a meaningful header (layer kind, human
   // label, accent color). Set by MapPanel's overlay click handler;

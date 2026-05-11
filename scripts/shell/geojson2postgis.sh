@@ -377,9 +377,11 @@ load "$DATA_DIR/administrative_boundaries/pak_boundaries_district_boundary_updat
 # AKAH (Aga Khan Agency for Habitat) partner data
 load "$DATA_DIR/akah/glof_akahp_infrastructure_data_final.geojson" "secondary.akah_infrastructure"
 load "$DATA_DIR/akah/glof_akahp_hazardexposure_final.geojson"      "secondary.akah_hazard_exposure"
+load "$DATA_DIR/akah/akah_sensors.geojson"                         "secondary.akah_sensors"
 
-# All EWS stations (point inventory)
-load "$DATA_DIR/all_stations/glof_stations.geojson" "secondary.all_stations"
+# All EWS stations (point inventory) + damaged-station log
+load "$DATA_DIR/all_stations/glof_stations.geojson"          "secondary.all_stations"
+load "$DATA_DIR/all_stations/glof_damaged_stations.geojson"  "secondary.damaged_stations"
 
 # National glacial-lake inventory
 load "$DATA_DIR/glaciel_lakes/glaciel_lakes.geojson" "secondary.glacial_lakes"
@@ -389,6 +391,21 @@ load "$DATA_DIR/settlements/settlements.geojson" "secondary.settlements"
 
 # Communication / cell towers (point inventory)
 load "$DATA_DIR/cell_towers/cell_towers.geojson" "secondary.cell_towers"
+
+# BRI-FF China sensor network (partner data — sensor point inventory)
+load "$DATA_DIR/bri_ff_china/BRI_FF_sensors.geojson" "secondary.bri_ff_china_sensors"
+
+# WAPDA / GMRC monitoring stations (point inventory)
+load "$DATA_DIR/wapda/GMRC_WAPDA_stations.geojson" "secondary.gmrc_wapda_stations"
+
+# 2026 vulnerability assessment — lakes, melting glaciers, melt points,
+# and the consolidated vulnerable-sites layer. Kept under a dedicated
+# year prefix so subsequent annual updates can land alongside without
+# clobbering the previous year's tables.
+load "$DATA_DIR/year_2026/Vulnerable_Lakes_2026.geojson"        "secondary.vulnerable_lakes_2026"
+load "$DATA_DIR/year_2026/Vulnerable_Melting_Glaciers.geojson"  "secondary.vulnerable_melting_glaciers_2026"
+load "$DATA_DIR/year_2026/Vulnerable_Melting_Points.geojson"    "secondary.vulnerable_melting_points_2026"
+load "$DATA_DIR/year_2026/Vulnerable_Sites_2026.geojson"        "secondary.vulnerable_sites_2026"
 
 echo
 echo "[done] $OK_COUNT ok / $SKIP_COUNT skipped / ${#FAIL_LIST[@]} failed"

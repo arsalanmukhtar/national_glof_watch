@@ -2,26 +2,34 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import shp from 'shpjs';
 import {
+  AlertOctagon,
   AlertTriangle,
+  Antenna,
   Building2,
   Database,
   Droplets,
   FileArchive,
   FileJson,
   FileUp,
+  Gauge,
   Landmark,
   Map as MapIcon,
   MapPin,
+  MapPinned,
   Mountain,
   Radio,
   RadioTower,
+  SatelliteDish,
+  Search,
   Server,
   Shrink,
+  Snowflake,
   Table2,
   TableProperties,
   Triangle,
   Trash2,
   Waves,
+  X,
 } from 'lucide-react';
 import EyeToggle from '@/components/ui/EyeToggle';
 import Badge from '@/components/ui/Badge';
@@ -45,18 +53,26 @@ const MAX_UPLOADS = 5;
 
 // Per-layer icon — purely cosmetic, helps users scan the list.
 const LAYER_ICONS = {
-  national_boundary:    Landmark,
-  provincial_boundary:  Landmark,
-  glof_districts:       MapIcon,
-  glof_basins:          Droplets,
-  glof_lakes:           Waves,
-  glof_valley:          Mountain,
-  akah_infrastructure:  Building2,
-  akah_hazard_exposure: Triangle,
-  all_stations:         Radio,
-  glacial_lakes:        Waves,
-  settlements:          MapPin,
-  cell_towers:          RadioTower,
+  national_boundary:                Landmark,
+  provincial_boundary:              Landmark,
+  glof_districts:                   MapIcon,
+  glof_basins:                      Droplets,
+  glof_lakes:                       Waves,
+  glof_valley:                      Mountain,
+  akah_infrastructure:              Building2,
+  akah_hazard_exposure:             Triangle,
+  akah_sensors:                     Antenna,
+  all_stations:                     Radio,
+  damaged_stations:                 AlertOctagon,
+  bri_ff_china_sensors:             SatelliteDish,
+  gmrc_wapda_stations:              Gauge,
+  glacial_lakes:                    Waves,
+  settlements:                      MapPin,
+  cell_towers:                      RadioTower,
+  vulnerable_lakes_2026:            Waves,
+  vulnerable_melting_glaciers_2026: Snowflake,
+  vulnerable_melting_points_2026:   MapPinned,
+  vulnerable_sites_2026:            AlertTriangle,
 };
 
 const ACCEPTED_TYPES = '.geojson,.json,application/geo+json,application/json,.zip,application/zip';
@@ -794,6 +810,24 @@ export default function SecondaryPanel({ compact = false }) {
   );
   const [dbModalOpen, setDbModalOpen] = useState(false);
   const [browseDbOpen, setBrowseDbOpen] = useState(false);
+  // Label-substring search for the catalog list. Case-insensitive, also
+  // matches db-imported and uploaded layers below so the field is a
+  // single entry point for "find a layer in this panel".
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const filteredLayers = useMemo(
+    () => (q ? layers.filter((l) => l.label.toLowerCase().includes(q)) : layers),
+    [layers, q],
+  );
+  const filteredDbLayers = useMemo(
+    () =>
+      q
+        ? dbLayers.filter((l) => (l.label || '').toLowerCase().includes(q))
+        : dbLayers,
+    [dbLayers, q],
+  );
+  const noResults =
+    q && filteredLayers.length === 0 && filteredDbLayers.length === 0;
 
   // In compact (mobile drawer) mode the panel sits inside an outer
   // overflow-y-auto, so the inner scroll + h-full constraints are
@@ -828,13 +862,58 @@ export default function SecondaryPanel({ compact = false }) {
           </div>
         )}
 
+        {/* Search bar — pinned above the scrollable layer list so the
+            list below can grow + scroll while the filter input stays
+            in view. Also serves as the only place to filter db-imported
+            and uploaded layers, so one input covers the whole panel. */}
+        <div className="px-1 mb-1.5 shrink-0">
+          <div
+            className={cn(
+              'flex items-center gap-1.5 px-2 py-1.5 rounded-md',
+              'bg-day-bg dark:bg-night-bg',
+              'border border-day-border dark:border-night-border',
+              'focus-within:border-[#16a085] focus-within:ring-1 focus-within:ring-[#16a085]/40',
+              'transition-colors',
+            )}
+          >
+            <Search className="h-3.5 w-3.5 shrink-0 text-day-muted dark:text-night-muted" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search layers…"
+              aria-label="Search secondary layers"
+              className={cn(
+                'flex-1 min-w-0 bg-transparent outline-none',
+                'text-[13px] text-day-text dark:text-night-text',
+                'placeholder:text-day-muted dark:placeholder:text-night-muted',
+              )}
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Clear search"
+                className={cn(
+                  'inline-flex h-4 w-4 items-center justify-center rounded',
+                  'text-day-muted dark:text-night-muted',
+                  'hover:text-day-text dark:hover:text-night-text',
+                  'transition-colors',
+                )}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
         <div
           className={cn(
-            'pr-1 flex flex-col gap-1',
+            'px-1 flex flex-col gap-1',
             !compact && 'flex-1 min-h-0 overflow-y-auto',
           )}
         >
-          {layers.map((l) => (
+          {filteredLayers.map((l) => (
             <LayerRow
               key={l.id}
               id={l.id}
@@ -844,7 +923,7 @@ export default function SecondaryPanel({ compact = false }) {
             />
           ))}
 
-          {dbLayers.length > 0 && (
+          {filteredDbLayers.length > 0 && (
             <>
               <div className="flex items-center gap-1.5 px-1 mt-2 mb-1">
                 <Database className="h-3 w-3 text-[#16a085]" />
@@ -852,10 +931,10 @@ export default function SecondaryPanel({ compact = false }) {
                   From Database
                 </span>
                 <span className="ml-auto text-[11px] tabular-nums text-day-muted dark:text-night-muted">
-                  {dbLayers.length}
+                  {filteredDbLayers.length}
                 </span>
               </div>
-              {dbLayers.map((l) => (
+              {filteredDbLayers.map((l) => (
                 <LayerRow
                   key={l.id}
                   id={l.id}
@@ -868,6 +947,12 @@ export default function SecondaryPanel({ compact = false }) {
                 />
               ))}
             </>
+          )}
+
+          {noResults && (
+            <div className="px-2 py-4 text-center text-[12px] text-day-muted dark:text-night-muted">
+              No layers match <span className="font-semibold">"{query}"</span>.
+            </div>
           )}
         </div>
       </div>

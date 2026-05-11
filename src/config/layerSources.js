@@ -15,15 +15,25 @@
 // path string works in all three environments.
 
 // Cross-region reference layers served from PostGIS via /api/secondary.
+// Must stay in sync with server/routes/secondary.js `ALLOWED_LAYERS` and
+// the catalog in src/contexts/SecondaryContext.jsx `SECONDARY_LAYERS`.
 const SECONDARY_API_LAYERS = new Set([
   'national_boundary',
   'provincial_boundary',
   'akah_infrastructure',
   'akah_hazard_exposure',
+  'akah_sensors',
   'all_stations',
+  'damaged_stations',
+  'bri_ff_china_sensors',
+  'gmrc_wapda_stations',
   'glacial_lakes',
   'settlements',
   'cell_towers',
+  'vulnerable_lakes_2026',
+  'vulnerable_melting_glaciers_2026',
+  'vulnerable_melting_points_2026',
+  'vulnerable_sites_2026',
 ]);
 
 // Live PMD GIS layers proxied via /api/gis. Upstream uses a private CA
