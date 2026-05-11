@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Minimize2 } from 'lucide-react';
+import Tooltip from '@/components/ui/Tooltip';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -591,6 +593,12 @@ function Tabs({ tab, onChange }) {
     { id: 'feature',    label: 'Feature Details' },
     { id: 'lakesArea',  label: 'Lakes Area' },
   ];
+  // The Attributes Table is the only tab that collapses the map — it
+  // takes the whole column so the table can breathe. When the user is
+  // in that tab they need an escape hatch to bring the map back without
+  // having to remember which other tab to pick. The minimise button on
+  // the right pops them back to Lakes Area (the default).
+  const isAttributes = tab === 'attributes';
   return (
     <div
       role="tablist"
@@ -623,6 +631,36 @@ function Tabs({ tab, onChange }) {
           </button>
         );
       })}
+      {isAttributes && (
+        // Wrapper takes the `ml-auto` so the Tooltip-wrapped button
+        // floats to the far right of the tab strip (ml-auto on the
+        // button itself doesn't escape the Tooltip slot). The button
+        // stays in the brand colour at rest so it reads as a clear
+        // call-to-action — not a muted secondary control the user
+        // has to discover by hovering.
+        <div className="ml-auto mb-1">
+          <Tooltip label="Restore map view" side="left" align="center">
+            <motion.button
+              type="button"
+              onClick={() => onChange('lakesArea')}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ duration: 0.18 }}
+              aria-label="Restore map view"
+              className={cn(
+                'inline-flex h-7 w-7 items-center justify-center rounded-md',
+                'text-[#16a085] bg-[#16a085]/15 border border-[#16a085]/40',
+                'hover:bg-[#16a085]/25 hover:border-[#16a085]/60',
+                'transition-colors',
+              )}
+            >
+              <Minimize2 className="h-3.5 w-3.5" />
+            </motion.button>
+          </Tooltip>
+        </div>
+      )}
     </div>
   );
 }
