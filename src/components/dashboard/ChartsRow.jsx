@@ -18,7 +18,7 @@ import FeatureDetailsPanel from '@/components/dashboard/FeatureDetailsPanel';
 import {
   lakeAreaData,
   chartYears as lakeChartYears,
-} from '../../../data/csv/lake_area_volume';
+} from '@/config/lakeAreaVolume';
 import { useTheme } from '@/hooks/useTheme';
 import { useParameter } from '@/contexts/ParameterContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
@@ -1244,7 +1244,7 @@ function LakesPanel({ theme }) {
 
 // ---------------------------------------------------------------------------
 // Lakes Area tab — paired view of every glacial lake's area + volume over
-// 2020 → 2025. The dataset ships statically as `data/csv/lake_area_volume`
+// 2020 → 2025. The dataset ships statically as `@/config/lakeAreaVolume`
 // because it's the consolidated published reference set; refreshing it
 // is a code change, not user input.
 //

@@ -1,0 +1,22 @@
+// Static reference dataset for the dashboard's "Lakes Area" tab.
+// 12 glacial lakes × 6 years (2020 → 2025) of area (m²) + volume (m³).
+//
+// Lives under src/ — and not data/csv/ — because the Vercel deploy
+// excludes the repo's data/ folder to keep the upload lean, and this
+// module is imported at build time by ChartsRow.jsx.
+export const lakeAreaData = [
+  { district: 'GHIZER',       name: 'Darkut',         area: [202000, 215000, 222900, 219100, 221600, 221400], volume: [3553303, 3882361, 4086482, 3987912, 4052681, 4047488] },
+  { district: 'UPPER DIR',    name: 'Thalo 1',        area: [233000, 273700, 259200, 227200, 137800, 263100], volume: [4351898, 5469701, 5062850, 4198877, 2064273, 5171362] },
+  { district: 'CHITRAL',      name: 'Thalo 2',        area: [42700, 164400, 172100, 182800, 164600, 62200],   volume: [391057.8, 2652247, 2830363, 3083469, 2656830, 667138] },
+  { district: 'CHITRAL',      name: 'Pindoru Chaat',  area: [219500, 238500, 250700, 274200, 293700, 301200], volume: [3998254, 4498491, 4828725, 5483895, 6045844, 6266245] },
+  { district: 'CHITRAL',      name: 'Near Chatiboi',  area: [10500, 9500, 3900, 3500, 4300, 4200],             volume: [53348.49, 46280.8, 13072.09, 11210.11, 15016.15, 14522.7] },
+  { district: 'CHITRAL',      name: 'Chatiboi',       area: [211900, 186800, 201600, 202900, 244000, 221000], volume: [3803114, 3179717, 3543316, 3575805, 4646510, 4037108] },
+  { district: 'CHITRAL',      name: 'Lasht',          area: [27300, 17500, 40400, 52300, 74200, 77800],        volume: [207197.4, 110191.3, 361488.8, 521561.8, 857051.4, 916694] },
+  { district: 'GHIZER',       name: 'Badswat',        area: [750600, 690700, 792500, 825000, 720900, 738800], volume: [22914664, 20362184, 24752114, 26205832, 21637938, 22404823] },
+  { district: 'GHIZER',       name: 'Ishkoman',       area: [74400, 72700, 77300, 72300, 74800, 79900],        volume: [860333.6, 832553.6, 908339.5, 826056.4, 866909.2, 952028.1] },
+  { district: 'HUNZA NAGAR',  name: 'Ultar',          area: [12000, 11100, 11000, 9600, 8600, 71],             volume: [64486.78, 57728.73, 56991.61, 46974.1, 40181.04, 44.24052] },
+  { district: 'CHITRAL',      name: 'Reshun',         area: [2900, 1400, 1900, 3000, 3700, 2700],              volume: [8582.988, 3051.653, 4708.293, 9006.282, 12130.53, 7754.787] },
+  { district: 'CHITRAL',      name: 'Brep',           area: [24900, 19900, 16400, 17300, 23100, 25000],        volume: [181817.8, 132252.7, 100487.4, 108407.4, 163441.5, 182855.6] },
+];
+
+export const chartYears = ['2020', '2021', '2022', '2023', '2024', '2025'];
