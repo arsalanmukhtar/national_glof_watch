@@ -1,6 +1,9 @@
 // Barrel exports for src/assets — Vite-importable URLs.
 // Add more entries here as the React app needs them.
 
+// Brand logos — bundled so Vite can serve them in both dev and build.
+import logoNdma from './images/logos/ndma_logo.webp';
+
 // Common map / UI icons
 import iconGlacier from './images/icons/glacier.png';
 import iconGlacierBadge from './images/icons/glacier_icon.png';
@@ -22,6 +25,10 @@ import mapChatboiLake from './images/maps/chatboi_lake.jpg';
 
 // Representative video
 import bgVideo from './videos/bg_video.mp4';
+
+export const logos = {
+  ndma: logoNdma,
+};
 
 export const icons = {
   glacier: iconGlacier,
@@ -90,4 +97,4 @@ export const paths = {
   },
 };
 
-export default { icons, misc, alerts, maps, videos, paths };
+export default { logos, icons, misc, alerts, maps, videos, paths };

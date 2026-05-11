@@ -3,6 +3,7 @@ import { ArrowLeft, BookOpen, Layers, Moon, PanelRight, Sun } from 'lucide-react
 import { Link, useLocation } from 'react-router-dom';
 import Tooltip from '@/components/ui/Tooltip';
 import StationStatusBadge from '@/components/layout/StationStatusBadge';
+import { logos } from '@/assets';
 import { useTheme } from '@/hooks/useTheme';
 
 // `onOpenMobileMenu` / `onOpenMediaMenu` are dashboard-only — when
@@ -34,8 +35,29 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
             </motion.span>
           </Tooltip>
         )}
+        {/* Rotating brand logo — spins around the Y-axis like a flipping
+            coin. `perspective` on the wrapper turns the 2D rotateY into
+            a proper 3D animation (without it the logo would just look
+            like it's being scaled horizontally to nothing every half
+            turn). 4 s per revolution feels lively without being
+            distracting; tweak `duration` to taste. */}
+        <span
+          aria-hidden
+          className="inline-flex h-10 w-10 sm:h-12 sm:w-12 shrink-0"
+          style={{ perspective: '600px' }}
+        >
+          <motion.img
+            src={logos.ndma}
+            alt=""
+            className="h-full w-full select-none"
+            animate={{ rotateY: 360 }}
+            transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+            style={{ backfaceVisibility: 'visible', transformStyle: 'preserve-3d' }}
+            draggable={false}
+          />
+        </span>
         <span className="text-lg sm:text-xl lg:text-2xl font-semibold tracking-wide">
-          National GLOF Monitoring
+          Realtime GLOF Monitoring
         </span>
       </div>
 
