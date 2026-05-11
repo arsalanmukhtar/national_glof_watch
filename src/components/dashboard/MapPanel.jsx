@@ -1120,6 +1120,28 @@ function clearMarkerRegistryFor(map, key) {
   if (reg) reg.delete(key);
 }
 
+// Per-overlay-key epoch counter — bumped on every ensureOverlay call
+// that re-kicks the marker build. Async builds capture the epoch at
+// start and bail at the apply step if a newer one has fired, so a
+// slow stale build (e.g. an earlier radius value during a drag) can't
+// flip the layer back to the old size after a newer drag finished.
+const markerEpochRegistry = new WeakMap();
+
+function bumpMarkerEpoch(map, key) {
+  let reg = markerEpochRegistry.get(map);
+  if (!reg) {
+    reg = new Map();
+    markerEpochRegistry.set(map, reg);
+  }
+  const next = (reg.get(key) ?? 0) + 1;
+  reg.set(key, next);
+  return next;
+}
+
+function currentMarkerEpoch(map, key) {
+  return markerEpochRegistry.get(map)?.get(key) ?? 0;
+}
+
 // Async helper: builds a marker PNG from the layer's style spec and
 // registers it on the map under a *spec-derived* image id. Resolves
 // with the image id so the caller can use it as `icon-image` on a
@@ -1246,9 +1268,19 @@ function ensureOverlay(map, key, geometry, data, style) {
     // off in the background and apply paint props eagerly so opacity
     // changes still feel snappy.
     dropLayers(map, ids.fill, ids.circle, heatId);
+    // Claim an epoch for this build so a slower in-flight build from a
+    // previous drag tick can't override us when it finishes. Without
+    // this, dragging the radius slider made the symbol flip back and
+    // forth as out-of-order builds settled.
+    const myEpoch = bumpMarkerEpoch(map, key);
     (async () => {
       try {
         const imageId = await ensureMarkerImage(map, key, style, exprs.imageRadius);
+        // Bail if this build has been superseded by a newer ensureOverlay
+        // call. The image is already registered on the map (we did
+        // map.addImage inside ensureMarkerImage); leaving it cached is
+        // fine — the next successful commit will drop the previous one.
+        if (currentMarkerEpoch(map, key) !== myEpoch) return;
         // Layer might have been torn down between the await and now —
         // bail if so. (Style swap, layer toggle off, etc.)
         if (!map.getSource(ids.source)) return;

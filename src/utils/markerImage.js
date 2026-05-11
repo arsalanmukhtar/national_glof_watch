@@ -324,6 +324,138 @@ async function svgToImageBitmap(svg, pxWidth, pxHeight) {
   }
 }
 
+// Cached decoded HTMLImageElement per custom-icon data URL. Decoding a
+// PNG/WebP is the slow part of rebuilding a custom marker, and the
+// dataUrl itself is the natural cache key (URLs uniquely identify the
+// pixel payload — we never mutate stored URLs in place). Without this
+// cache, dragging the radius slider re-decodes the user's upload on
+// every pointer move, which is what made the layer briefly disappear:
+// the SVG-as-blob pipeline races against the nested <image>'s inner
+// decode and occasionally rasterises a transparent canvas.
+const CUSTOM_DECODE_LIMIT = 32;
+const customDecodeCache = new Map();
+
+function customDecode(dataUrl) {
+  const hit = customDecodeCache.get(dataUrl);
+  if (hit) {
+    // Bump to most-recent.
+    customDecodeCache.delete(dataUrl);
+    customDecodeCache.set(dataUrl, hit);
+    return hit;
+  }
+  const promise = (async () => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = dataUrl;
+    await img.decode();
+    return img;
+  })();
+  customDecodeCache.set(dataUrl, promise);
+  // LRU eviction.
+  while (customDecodeCache.size > CUSTOM_DECODE_LIMIT) {
+    const first = customDecodeCache.keys().next().value;
+    customDecodeCache.delete(first);
+  }
+  // Don't poison cache on failure.
+  promise.catch(() => {
+    if (customDecodeCache.get(dataUrl) === promise) {
+      customDecodeCache.delete(dataUrl);
+    }
+  });
+  return promise;
+}
+
+// Rounded-rectangle path helper, used when compositing a `square`
+// background under a custom icon. Mirrors the corner radius the SVG
+// path uses (`inner * 0.18`) so the two pipelines look identical.
+function drawRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// Build a custom-icon marker directly on canvas (no SVG wrapper). The
+// SVG path works fine for lucide / emoji icons, but for a user-uploaded
+// PNG/WebP bitmap embedded via SVG <image> some browsers don't have the
+// inner bitmap fully decoded by the time the outer SVG hits the canvas
+// — the result is a transparent texture and a visually-empty layer.
+// Decoding the bitmap once via HTMLImageElement and drawing straight
+// into a 2D context sidesteps that entirely and is also faster.
+async function buildCustomMarkerImage(spec, dpr, cssSize, pxSize, cacheKey) {
+  const customImg = await customDecode(spec.iconDataUrl);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = pxSize;
+  canvas.height = pxSize;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  const sw = Math.max(0, Number(spec.strokeWidth) || 0) * dpr;
+  const half = pxSize / 2;
+  const inner = pxSize - sw - PADDING * 2 * dpr;
+
+  const hasShape = spec.shape === 'circle' || spec.shape === 'square';
+  if (hasShape) {
+    const bg = spec.backgroundColor || spec.fillColor || '#16a085';
+    ctx.fillStyle = bg;
+    ctx.strokeStyle = spec.strokeColor || '#0f7560';
+    ctx.lineWidth = sw;
+    if (spec.shape === 'circle') {
+      ctx.beginPath();
+      ctx.arc(half, half, inner / 2, 0, Math.PI * 2);
+      ctx.fill();
+      if (sw > 0) ctx.stroke();
+    } else {
+      const x = (pxSize - inner) / 2;
+      drawRoundRect(ctx, x, x, inner, inner, inner * 0.18);
+      ctx.fill();
+      if (sw > 0) ctx.stroke();
+    }
+  }
+
+  // Icon footprint: 62 % of the inner shape (matching the SVG path),
+  // or the full inner area when there's no background shape.
+  const iconBox = hasShape ? Math.max(8 * dpr, inner * 0.62) : inner;
+  const iconAnchor = (pxSize - iconBox) / 2;
+
+  // Preserve aspect ratio — contain inside the iconBox, with letterbox
+  // offset on whichever axis is shorter. Without this, a wide logo gets
+  // squashed into the marker shape.
+  const naturalW = customImg.naturalWidth || customImg.width || 1;
+  const naturalH = customImg.naturalHeight || customImg.height || 1;
+  let dw = iconBox;
+  let dh = iconBox;
+  let dx = iconAnchor;
+  let dy = iconAnchor;
+  const aspect = naturalW / naturalH;
+  if (aspect > 1) {
+    dh = iconBox / aspect;
+    dy = iconAnchor + (iconBox - dh) / 2;
+  } else if (aspect < 1) {
+    dw = iconBox * aspect;
+    dx = iconAnchor + (iconBox - dw) / 2;
+  }
+  ctx.drawImage(customImg, dx, dy, dw, dh);
+
+  const imageData = ctx.getImageData(0, 0, pxSize, pxSize);
+  return {
+    key: cacheKey,
+    imageData,
+    pixelRatio: dpr,
+    width: pxSize,
+    height: pxSize,
+  };
+}
+
 // Public entry point. Returns `{ key, imageData, pixelRatio, width, height }`
 // — `pixelRatio` is what map.addImage wants alongside the raw bitmap so
 // retina screens render the icon sharp.
@@ -338,6 +470,23 @@ export async function buildMarkerImage(spec) {
   const key = markerSpecKey({ ...spec, size: cssSize, dpr });
   const cached = cacheGet(key);
   if (cached) return cached;
+
+  // Custom uploads (.png / .webp / inline-SVG via the upload row) come
+  // through as `data:` URLs in `spec.iconId`. Route them through the
+  // direct canvas pipeline above — this avoids the SVG-in-SVG bitmap
+  // decode race that left the layer briefly invisible on every radius
+  // change.
+  if (typeof spec.iconId === 'string' && spec.iconId.startsWith('data:')) {
+    const result = await buildCustomMarkerImage(
+      { ...spec, iconDataUrl: spec.iconId },
+      dpr,
+      cssSize,
+      pxSize,
+      key,
+    );
+    cacheSet(key, result);
+    return result;
+  }
 
   const svg = buildMarkerSvg({
     shape: spec.shape || 'none',

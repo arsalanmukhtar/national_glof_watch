@@ -2336,13 +2336,13 @@ function MarkerPreview({ shape, resolved, fillColor, strokeColor, strokeWidth, b
 }
 
 // Custom upload row — file input + preview tile. Reads the chosen
-// .svg / .png as a base64 data URL via FileReader so the result is
-// self-contained (no blob URLs to revoke, no server round-trip). The
-// data URL goes straight into `marker.icon`; the renderer detects
-// the `data:` prefix and routes through SVG <image>. Files larger than
-// MAX_BYTES are rejected up front because anything bigger than ~256 KB
-// is almost certainly a photo or full-resolution PNG, neither of which
-// would render legibly at marker size.
+// .svg / .png / .webp as a base64 data URL via FileReader so the
+// result is self-contained (no blob URLs to revoke, no server round-
+// trip). The data URL goes straight into `marker.icon`; the renderer
+// detects the `data:` prefix and routes through SVG <image>. Files
+// larger than MAX_BYTES are rejected up front because anything bigger
+// than ~256 KB is almost certainly a photo or full-resolution image,
+// neither of which would render legibly at marker size.
 const CUSTOM_ICON_MAX_BYTES = 256 * 1024;
 
 function CustomUploadRow({ resolved, onUpload, onClear }) {
@@ -2353,8 +2353,11 @@ function CustomUploadRow({ resolved, onUpload, onClear }) {
   const handleFiles = (files) => {
     const file = files && files[0];
     if (!file) return;
-    if (!/^image\/(svg\+xml|png)$/.test(file.type) && !/\.(svg|png)$/i.test(file.name)) {
-      setError('Only SVG or PNG files are supported.');
+    if (
+      !/^image\/(svg\+xml|png|webp)$/.test(file.type) &&
+      !/\.(svg|png|webp)$/i.test(file.name)
+    ) {
+      setError('Only SVG, PNG, or WebP files are supported.');
       return;
     }
     if (file.size > CUSTOM_ICON_MAX_BYTES) {
@@ -2401,7 +2404,7 @@ function CustomUploadRow({ resolved, onUpload, onClear }) {
           )}
         >
           <Upload className="h-3 w-3" />
-          {isCustom ? 'Replace' : 'Upload SVG / PNG'}
+          {isCustom ? 'Replace' : 'Upload SVG / PNG / WebP'}
         </button>
         {isCustom ? (
           <button
@@ -2418,7 +2421,7 @@ function CustomUploadRow({ resolved, onUpload, onClear }) {
         <input
           ref={fileRef}
           type="file"
-          accept=".svg,.png,image/svg+xml,image/png"
+          accept=".svg,.png,.webp,image/svg+xml,image/png,image/webp"
           className="hidden"
           onChange={(e) => {
             handleFiles(e.target.files);
@@ -2433,7 +2436,7 @@ function CustomUploadRow({ resolved, onUpload, onClear }) {
         </p>
       ) : (
         <p className="text-[10.5px] text-day-muted dark:text-night-muted">
-          Square SVG or PNG ≤ 256 KB. Stored inline with the layer.
+          Square SVG, PNG, or WebP ≤ 256 KB. Stored inline with the layer.
         </p>
       )}
     </div>
