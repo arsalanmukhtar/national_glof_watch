@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Readable } from 'node:stream';
 import {
   fetchPmd,
   fetchStationStatus,
@@ -185,6 +186,13 @@ parametersRouter.get(
 // Details "Image Catalog" tile to populate its slider modal.
 // Cached 5 min because the underlying rows are seeded once and rarely
 // updated.
+//
+// The `url` field is rewritten to point at the in-house binary proxy
+// below. The PMD upstream only serves HTTP, so a direct <img src> from
+// the HTTPS-fronted Vercel build is blocked as mixed content. Routing
+// through `/api/parameters/station-photo` lets the frontend stay
+// HTTPS-only end-to-end (Vercel rewrites /api → VM, VM fetches the
+// upstream binary over HTTP server-side, browser never sees HTTP).
 parametersRouter.get('/stations/:stationId/photos', async (req, res) => {
   const stationId = Number(req.params.stationId);
   if (!Number.isFinite(stationId)) {
@@ -202,11 +210,68 @@ parametersRouter.get('/stations/:stationId/photos', async (req, res) => {
     res.json({
       stationId,
       count: rows.length,
-      photos: rows,
+      photos: rows.map((r) => ({
+        filename: r.filename,
+        position: r.position,
+        // Original URL kept for debugging / direct-access fallback,
+        // but the frontend should always render `url` (the proxy).
+        sourceUrl: r.url,
+        url:
+          `/api/parameters/station-photo?stationId=${stationId}` +
+          `&filename=${encodeURIComponent(r.filename)}`,
+      })),
     });
   } catch (err) {
     console.error('[GET station photos]', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/parameters/station-photo?stationId=X&filename=Y
+// Streams the image binary for one station photo through the backend
+// so the browser never has to talk to the HTTP-only PMD host. The
+// upstream URL is looked up from `station_photos` by (station_id,
+// filename) — we never accept an arbitrary URL from the client, so
+// there's no SSRF surface here.
+parametersRouter.get('/station-photo', async (req, res) => {
+  const stationId = Number(req.query.stationId);
+  const filename = String(req.query.filename ?? '');
+  if (!Number.isFinite(stationId) || !filename) {
+    return res.status(400).json({ error: 'Missing stationId or filename' });
+  }
+  try {
+    const { rows } = await pool.query(
+      `SELECT url
+         FROM station_photos
+        WHERE station_id = $1 AND filename = $2
+        LIMIT 1`,
+      [stationId, filename],
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Photo not found' });
+    }
+    const upstreamUrl = rows[0].url;
+    const upstream = await fetch(upstreamUrl);
+    if (!upstream.ok) {
+      return res
+        .status(upstream.status)
+        .json({ error: `Upstream returned ${upstream.status}` });
+    }
+    res.set(
+      'Content-Type',
+      upstream.headers.get('content-type') || 'image/jpeg',
+    );
+    const len = upstream.headers.get('content-length');
+    if (len) res.set('Content-Length', len);
+    // Photos are effectively immutable — cache aggressively at the
+    // browser and any intermediary.
+    res.set('Cache-Control', 'public, max-age=86400, immutable');
+    Readable.fromWeb(upstream.body).pipe(res);
+  } catch (err) {
+    console.error('[GET station-photo proxy]', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
   }
 });
 
