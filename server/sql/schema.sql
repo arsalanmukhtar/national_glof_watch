@@ -34,3 +34,23 @@ CREATE INDEX IF NOT EXISTS idx_station_readings_fetched
 
 CREATE INDEX IF NOT EXISTS idx_station_readings_station_element
   ON station_readings(station_id, element, last_update DESC);
+
+-- Photo catalog for PMD stations. Seeded once from
+-- `data/csv/station_photos.json` via `scripts/db/seed-station-photos.js`
+-- and surfaced by the Feature Details "Image Catalog" tile when a
+-- station feature is clicked. Decoupled from `stations` (no FK) because
+-- the JSON ships rosters for some IDs that the PMD cron may not yet
+-- have inserted, and we don't want partial-station inventory to block
+-- photo retrieval.
+CREATE TABLE IF NOT EXISTS station_photos (
+  id         BIGSERIAL PRIMARY KEY,
+  station_id BIGINT NOT NULL,
+  filename   TEXT NOT NULL,
+  url        TEXT NOT NULL,
+  position   INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_station_photo UNIQUE (station_id, filename)
+);
+
+CREATE INDEX IF NOT EXISTS idx_station_photos_station
+  ON station_photos(station_id, position);

@@ -180,6 +180,36 @@ parametersRouter.get(
   },
 );
 
+// GET /api/parameters/stations/:stationId/photos
+// Returns the photo catalog for one station — used by the Feature
+// Details "Image Catalog" tile to populate its slider modal.
+// Cached 5 min because the underlying rows are seeded once and rarely
+// updated.
+parametersRouter.get('/stations/:stationId/photos', async (req, res) => {
+  const stationId = Number(req.params.stationId);
+  if (!Number.isFinite(stationId)) {
+    return res.status(400).json({ error: 'Invalid stationId' });
+  }
+  try {
+    const { rows } = await pool.query(
+      `SELECT filename, url, position
+         FROM station_photos
+        WHERE station_id = $1
+        ORDER BY position ASC, filename ASC`,
+      [stationId],
+    );
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({
+      stationId,
+      count: rows.length,
+      photos: rows,
+    });
+  } catch (err) {
+    console.error('[GET station photos]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/parameters/:element/store
 // Fetch live data from PMD and persist to the database.
 parametersRouter.post('/:element/store', async (req, res) => {

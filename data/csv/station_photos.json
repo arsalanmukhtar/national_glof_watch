@@ -1,0 +1,2804 @@
+{
+  "stationCount": 283,
+  "errorCount": 0,
+  "errors": [],
+  "data": [
+    {
+      "stationId": 955200,
+      "stationName": "Gulkin_ARG_1",
+      "data": [
+        {
+          "filename": "ARG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/955200/photos/ARG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 955300,
+      "stationName": "Gulkin_ARG_2",
+      "data": [
+        {
+          "filename": "ARG-2 DAMAGE OF THE SENSOR.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/955300/photos/ARG-2%20DAMAGE%20OF%20THE%20SENSOR.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/955300/photos/ARG-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 955400,
+      "stationName": "Gulkin_ARG_3",
+      "data": [
+        {
+          "filename": "ARG-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/955400/photos/ARG-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 955500,
+      "stationName": "Gulkin_DG_1",
+      "data": [
+        {
+          "filename": "DG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/955500/photos/DG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 955600,
+      "stationName": "Gulkin_WL-R_3",
+      "data": [
+        {
+          "filename": "WL-R-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/955600/photos/WL-R-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 955900,
+      "stationName": "Gulkin_WP_1",
+      "data": [
+        {
+          "filename": "WP-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/955900/photos/WP-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 956000,
+      "stationName": "Gulkin_WP_2",
+      "data": [
+        {
+          "filename": "WP-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956000/photos/WP-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 956100,
+      "stationName": "Gulkin_WP_3",
+      "data": [
+        {
+          "filename": "WP-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956100/photos/WP-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 956200,
+      "stationName": "Badswat_AWS_1",
+      "data": [
+        {
+          "filename": "AWS-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956200/photos/AWS-1.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "AWS_01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956200/photos/AWS_01.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 956300,
+      "stationName": "Badswat_AWS_2",
+      "data": [
+        {
+          "filename": "AWS-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956300/photos/AWS-2.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "AWS_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956300/photos/AWS_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 956400,
+      "stationName": "Badswat_AWS_3",
+      "data": [
+        {
+          "filename": "AWS_3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956400/photos/AWS_3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 956500,
+      "stationName": "Badswat_ARG_1",
+      "data": [
+        {
+          "filename": "AGR-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956500/photos/AGR-1.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG_01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956500/photos/ARG_01.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 956600,
+      "stationName": "Badswat_ARG_2",
+      "data": [
+        {
+          "filename": "AGR-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956600/photos/AGR-2.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG_02.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956600/photos/ARG_02.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 956700,
+      "stationName": "Badswat_ARG_3",
+      "data": [
+        {
+          "filename": "ARG_03.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956700/photos/ARG_03.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 956800,
+      "stationName": "Badswat_ARG_4",
+      "data": [
+        {
+          "filename": "AGR-4.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956800/photos/AGR-4.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG_04.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956800/photos/ARG_04.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 956900,
+      "stationName": "Badswat_ARG_5",
+      "data": [
+        {
+          "filename": "ARG 5.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956900/photos/ARG%205.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG_05.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/956900/photos/ARG_05.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 957000,
+      "stationName": "Badswat_DG_1",
+      "data": [
+        {
+          "filename": "DG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/957000/photos/DG-1.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "DG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/957000/photos/DG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 957100,
+      "stationName": "Badswat_DG_2",
+      "data": [
+        {
+          "filename": "DG-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/957100/photos/DG-2.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "DG_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/957100/photos/DG_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 957200,
+      "stationName": "Badswat_DG_3",
+      "data": [
+        {
+          "filename": "DG-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/957200/photos/DG-3.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "DG_3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/957200/photos/DG_3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 957300,
+      "stationName": "Badswat_DG_4",
+      "data": [
+        {
+          "filename": "DG_4.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/957300/photos/DG_4.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 957400,
+      "stationName": "Badswat_WL-R_1",
+      "data": [
+        {
+          "filename": "WLR_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/957400/photos/WLR_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 957500,
+      "stationName": "Badswat_WL-R_2",
+      "data": [
+        {
+          "filename": "WLR_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/957500/photos/WLR_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 957600,
+      "stationName": "Badswat_WL-L_1",
+      "data": []
+    },
+    {
+      "stationId": 957700,
+      "stationName": "Badswat_WL-L_2",
+      "data": [
+        {
+          "filename": "WLL_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/957700/photos/WLL_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 957800,
+      "stationName": "Badswat_WL-L_3",
+      "data": [
+        {
+          "filename": "WL-L3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/957800/photos/WL-L3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 957900,
+      "stationName": "Badswat_WP_1",
+      "data": []
+    },
+    {
+      "stationId": 958000,
+      "stationName": "Badswat_WP_2",
+      "data": [
+        {
+          "filename": "WP_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/958000/photos/WP_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 958100,
+      "stationName": "Darkut_AWS_1",
+      "data": [
+        {
+          "filename": "AWS-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/958100/photos/AWS-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 958200,
+      "stationName": "Darkut_AWS_2",
+      "data": [
+        {
+          "filename": "AWS-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/958200/photos/AWS-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 958300,
+      "stationName": "Darkut_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS-H-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/958300/photos/AWS-H-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 958400,
+      "stationName": "Darkut_ARG_1",
+      "data": [
+        {
+          "filename": "ARG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/958400/photos/ARG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 958500,
+      "stationName": "Darkut_ARG_2",
+      "data": [
+        {
+          "filename": "ARG-02.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/958500/photos/ARG-02.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 958600,
+      "stationName": "Darkut_ARG_3",
+      "data": [
+        {
+          "filename": "ARG-03.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/958600/photos/ARG-03.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 958700,
+      "stationName": "Darkut_ARG_4",
+      "data": [
+        {
+          "filename": "ARG-4.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/958700/photos/ARG-4.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 958800,
+      "stationName": "Darkut_ARG_5",
+      "data": [
+        {
+          "filename": "ARG-5.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/958800/photos/ARG-5.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 958900,
+      "stationName": "Darkut_ARG_6",
+      "data": [
+        {
+          "filename": "ARG-6.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/958900/photos/ARG-6.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 959000,
+      "stationName": "Darkut_DG_1",
+      "data": [
+        {
+          "filename": "DG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/959000/photos/DG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 959100,
+      "stationName": "Darkut_DG_2",
+      "data": [
+        {
+          "filename": "DG-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/959100/photos/DG-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 959200,
+      "stationName": "Darkut_DG_3",
+      "data": [
+        {
+          "filename": "DG-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/959200/photos/DG-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 959300,
+      "stationName": "Darkut_DG_4",
+      "data": [
+        {
+          "filename": "DG-4.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/959300/photos/DG-4.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 959400,
+      "stationName": "Darkut_WL-R_1",
+      "data": [
+        {
+          "filename": "WL-R-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/959400/photos/WL-R-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 959500,
+      "stationName": "Darkut_WL-R_2",
+      "data": [
+        {
+          "filename": "WL-R-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/959500/photos/WL-R-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 959600,
+      "stationName": "Darkut_WL-L_1",
+      "data": [
+        {
+          "filename": "WL-L-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/959600/photos/WL-L-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 959700,
+      "stationName": "Darkut_WL-L_2",
+      "data": [
+        {
+          "filename": "WL-L2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/959700/photos/WL-L2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 959800,
+      "stationName": "Darkut_WL-L_3",
+      "data": [
+        {
+          "filename": "WL-L3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/959800/photos/WL-L3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 959900,
+      "stationName": "Darkut_WL-L_4",
+      "data": [
+        {
+          "filename": "WL-L4.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/959900/photos/WL-L4.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 960000,
+      "stationName": "Darkut_WP_1",
+      "data": [
+        {
+          "filename": "WP-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/960000/photos/WP-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 960100,
+      "stationName": "Darkut_WP_2",
+      "data": [
+        {
+          "filename": "WP-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/960100/photos/WP-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 960200,
+      "stationName": "Rupal_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS-H-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/960200/photos/AWS-H-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 960300,
+      "stationName": "Rupal_ARG_1",
+      "data": [
+        {
+          "filename": "ARG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/960300/photos/ARG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 960400,
+      "stationName": "Rupal_ARG_2",
+      "data": [
+        {
+          "filename": "ARG-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/960400/photos/ARG-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 960500,
+      "stationName": "Rupal_ARG_3",
+      "data": [
+        {
+          "filename": "ARG-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/960500/photos/ARG-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 960600,
+      "stationName": "Rupal_ARG_4",
+      "data": [
+        {
+          "filename": "ARG-4.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/960600/photos/ARG-4.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "RUPAL-ARG4.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/960600/photos/RUPAL-ARG4.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 960700,
+      "stationName": "Rupal_DG_1",
+      "data": [
+        {
+          "filename": "DG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/960700/photos/DG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 960800,
+      "stationName": "Rupal_DG_2",
+      "data": [
+        {
+          "filename": "DG-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/960800/photos/DG-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 960900,
+      "stationName": "Rupal_WL-R_1",
+      "data": [
+        {
+          "filename": "WL-R-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/960900/photos/WL-R-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 961000,
+      "stationName": "Rupal_WL-R_2",
+      "data": [
+        {
+          "filename": "WLR-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/961000/photos/WLR-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 961100,
+      "stationName": "Rupal_WL-L_1",
+      "data": [
+        {
+          "filename": "WL-L-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/961100/photos/WL-L-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 961200,
+      "stationName": "Rupal_WP_1",
+      "data": [
+        {
+          "filename": "WP-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/961200/photos/WP-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 961300,
+      "stationName": "Rupal_WP_2",
+      "data": [
+        {
+          "filename": "WP-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/961300/photos/WP-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 961400,
+      "stationName": "Khaplu_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS_H1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/961400/photos/AWS_H1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 961500,
+      "stationName": "Khaplu_AWS_1",
+      "data": [
+        {
+          "filename": "AWS_LMA_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/961500/photos/AWS_LMA_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 961600,
+      "stationName": "Khaplu_ARG_1",
+      "data": [
+        {
+          "filename": "ARG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/961600/photos/ARG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 961700,
+      "stationName": "Khaplu_DG_1",
+      "data": [
+        {
+          "filename": "DG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/961700/photos/DG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 961800,
+      "stationName": "Khaplu_DG_2",
+      "data": [
+        {
+          "filename": "DG.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/961800/photos/DG.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 961900,
+      "stationName": "Khaplu_WL-R_1",
+      "data": []
+    },
+    {
+      "stationId": 962100,
+      "stationName": "Khaplu_WL-L_2",
+      "data": [
+        {
+          "filename": "WLL_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/962100/photos/WLL_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 962200,
+      "stationName": "Khaplu_WL-L_3",
+      "data": [
+        {
+          "filename": "WLL_3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/962200/photos/WLL_3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 962300,
+      "stationName": "Khaplu_WP_1",
+      "data": [
+        {
+          "filename": "WP_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/962300/photos/WP_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 962400,
+      "stationName": "Khaplu_WP_2",
+      "data": [
+        {
+          "filename": "WP_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/962400/photos/WP_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 962500,
+      "stationName": "Barah_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS_H_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/962500/photos/AWS_H_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 962600,
+      "stationName": "Barah_ARG_1",
+      "data": [
+        {
+          "filename": "ARG_01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/962600/photos/ARG_01.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 962700,
+      "stationName": "Barah_ARG_2",
+      "data": [
+        {
+          "filename": "ARG_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/962700/photos/ARG_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 962800,
+      "stationName": "Barah_DG_1",
+      "data": [
+        {
+          "filename": "DG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/962800/photos/DG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 962900,
+      "stationName": "Barah_WL-R_1",
+      "data": [
+        {
+          "filename": "WLR_01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/962900/photos/WLR_01.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 963000,
+      "stationName": "Barah_WL-R_2",
+      "data": [
+        {
+          "filename": "WLR_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/963000/photos/WLR_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 963100,
+      "stationName": "Barah_WL-L_1",
+      "data": [
+        {
+          "filename": "WLL_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/963100/photos/WLL_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 963200,
+      "stationName": "Barah_WL-L_2",
+      "data": [
+        {
+          "filename": "WLL_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/963200/photos/WLL_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 963300,
+      "stationName": "Barah_WP_1",
+      "data": [
+        {
+          "filename": "WP_01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/963300/photos/WP_01.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 963400,
+      "stationName": "Barah_WP_2",
+      "data": [
+        {
+          "filename": "WP_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/963400/photos/WP_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 963500,
+      "stationName": "Ghundus_AWS-H_1",
+      "data": []
+    },
+    {
+      "stationId": 963600,
+      "stationName": "Ghundus_AWS_1",
+      "data": []
+    },
+    {
+      "stationId": 963700,
+      "stationName": "Ghundus_ARG_1",
+      "data": []
+    },
+    {
+      "stationId": 963800,
+      "stationName": "Ghundus_ARG_2",
+      "data": []
+    },
+    {
+      "stationId": 963900,
+      "stationName": "Ghundus_ARG_3",
+      "data": []
+    },
+    {
+      "stationId": 964000,
+      "stationName": "Ghundus_ARG_4",
+      "data": []
+    },
+    {
+      "stationId": 964100,
+      "stationName": "Ghundus_DG_1",
+      "data": []
+    },
+    {
+      "stationId": 964200,
+      "stationName": "Ghundus_WL-R_1",
+      "data": []
+    },
+    {
+      "stationId": 964300,
+      "stationName": "Ghundus_WL-L_1",
+      "data": []
+    },
+    {
+      "stationId": 964400,
+      "stationName": "Ghundus_WL-L_2",
+      "data": []
+    },
+    {
+      "stationId": 964500,
+      "stationName": "Ghundus_WL-L_3",
+      "data": []
+    },
+    {
+      "stationId": 964600,
+      "stationName": "Ghundus_WP_1",
+      "data": []
+    },
+    {
+      "stationId": 964700,
+      "stationName": "Ghundus_WP_2",
+      "data": []
+    },
+    {
+      "stationId": 964800,
+      "stationName": "Arkari_AWS_1",
+      "data": [
+        {
+          "filename": "IMG20250521191725.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/964800/photos/IMG20250521191725.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 964900,
+      "stationName": "Arkari_AWS-H_1",
+      "data": [
+        {
+          "filename": "IMG20250519141859.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/964900/photos/IMG20250519141859.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 965000,
+      "stationName": "Arkari_ARG_1",
+      "data": [
+        {
+          "filename": "IMG20250520100817.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965000/photos/IMG20250520100817.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "IMG20250520112358.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965000/photos/IMG20250520112358.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 965100,
+      "stationName": "Arkari_ARG_2",
+      "data": [
+        {
+          "filename": "IMG20250518094728.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965100/photos/IMG20250518094728.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "IMG20250518094804.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965100/photos/IMG20250518094804.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 965200,
+      "stationName": "Arkari_ARG_3",
+      "data": [
+        {
+          "filename": "IMG20250521095714.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965200/photos/IMG20250521095714.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 965300,
+      "stationName": "Arkari_DG_1",
+      "data": [
+        {
+          "filename": "IMG20250517165430.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965300/photos/IMG20250517165430.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 965400,
+      "stationName": "Arkari_WL-R_1",
+      "data": [
+        {
+          "filename": "IMG20250519093342.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965400/photos/IMG20250519093342.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 965500,
+      "stationName": "Arkari_WL-R_2",
+      "data": [
+        {
+          "filename": "IMG20250518172429.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965500/photos/IMG20250518172429.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 965600,
+      "stationName": "Arkari_WP_1",
+      "data": [
+        {
+          "filename": "IMG20250521191638.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965600/photos/IMG20250521191638.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "IMG20250521191700.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965600/photos/IMG20250521191700.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 965700,
+      "stationName": "Arkari_WP_2",
+      "data": [
+        {
+          "filename": "IMG20250518094923.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965700/photos/IMG20250518094923.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 965800,
+      "stationName": "Madaklasht_AWS_1",
+      "data": [
+        {
+          "filename": "AWS_LMA_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965800/photos/AWS_LMA_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 965900,
+      "stationName": "Madaklasht_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS_H1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/965900/photos/AWS_H1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 966000,
+      "stationName": "Madaklasht_AWS_2",
+      "data": [
+        {
+          "filename": "AWS_LMA_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/966000/photos/AWS_LMA_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 966100,
+      "stationName": "Madaklasht_ARG_1",
+      "data": [
+        {
+          "filename": "ARG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/966100/photos/ARG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 966200,
+      "stationName": "Madaklasht_ARG_2",
+      "data": [
+        {
+          "filename": "ARG_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/966200/photos/ARG_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 966300,
+      "stationName": "Madaklasht_ARG_3",
+      "data": [
+        {
+          "filename": "ARG_3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/966300/photos/ARG_3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 966400,
+      "stationName": "Madaklasht_DG_1",
+      "data": [
+        {
+          "filename": "DG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/966400/photos/DG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 966500,
+      "stationName": "Madaklasht_WL-R_1",
+      "data": [
+        {
+          "filename": "WLR_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/966500/photos/WLR_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 966600,
+      "stationName": "Madaklasht_WL-R_2",
+      "data": [
+        {
+          "filename": "WLR_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/966600/photos/WLR_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 966700,
+      "stationName": "Madaklasht_WL-L_1",
+      "data": [
+        {
+          "filename": "WLL_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/966700/photos/WLL_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 966800,
+      "stationName": "Madaklasht_WP_1",
+      "data": [
+        {
+          "filename": "WP_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/966800/photos/WP_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 966900,
+      "stationName": "Kumrat_AWS_1",
+      "data": [
+        {
+          "filename": "AWS_LMA.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/966900/photos/AWS_LMA.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 967000,
+      "stationName": "Kumrat_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS_HA.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/967000/photos/AWS_HA.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 967100,
+      "stationName": "Kumrat_ARG_1",
+      "data": [
+        {
+          "filename": "ARG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/967100/photos/ARG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 967200,
+      "stationName": "Kumrat_ARG_2",
+      "data": [
+        {
+          "filename": "ARG_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/967200/photos/ARG_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 967300,
+      "stationName": "Kumrat_ARG_3",
+      "data": [
+        {
+          "filename": "ARG_3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/967300/photos/ARG_3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 967400,
+      "stationName": "Kumrat_DG_1",
+      "data": [
+        {
+          "filename": "DG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/967400/photos/DG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 967500,
+      "stationName": "Kumrat_WL-R_1",
+      "data": [
+        {
+          "filename": "WLR_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/967500/photos/WLR_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 967600,
+      "stationName": "Kumrat_WL-R_2",
+      "data": [
+        {
+          "filename": "WLR_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/967600/photos/WLR_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 967700,
+      "stationName": "Kumrat_WL-R_3",
+      "data": [
+        {
+          "filename": "WLR_3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/967700/photos/WLR_3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 967800,
+      "stationName": "Kumrat_WL-L_1",
+      "data": [
+        {
+          "filename": "WLL_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/967800/photos/WLL_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 967900,
+      "stationName": "Kumrat_WL-L_2",
+      "data": [
+        {
+          "filename": "WLL_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/967900/photos/WLL_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 968000,
+      "stationName": "Kumrat_WP_1",
+      "data": [
+        {
+          "filename": "WP_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/968000/photos/WP_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 968100,
+      "stationName": "Gabral_AWS_1",
+      "data": [
+        {
+          "filename": "AWS_LMA.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/968100/photos/AWS_LMA.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 968200,
+      "stationName": "Gabral_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS_H_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/968200/photos/AWS_H_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 968300,
+      "stationName": "Gabral_AWS_2",
+      "data": [
+        {
+          "filename": "AWS_LMA_3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/968300/photos/AWS_LMA_3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 968400,
+      "stationName": "Gabral_ARG_1",
+      "data": [
+        {
+          "filename": "ARG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/968400/photos/ARG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 968500,
+      "stationName": "Gabral_ARG_2",
+      "data": [
+        {
+          "filename": "ARG_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/968500/photos/ARG_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 968600,
+      "stationName": "Gabral_ARG_3",
+      "data": [
+        {
+          "filename": "ARG_3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/968600/photos/ARG_3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 968700,
+      "stationName": "Gabral_DG_1",
+      "data": [
+        {
+          "filename": "DG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/968700/photos/DG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 968800,
+      "stationName": "Gabral_DG_2",
+      "data": [
+        {
+          "filename": "DG_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/968800/photos/DG_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 968900,
+      "stationName": "Gabral_WL-L_1",
+      "data": [
+        {
+          "filename": "WLL-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/968900/photos/WLL-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 969000,
+      "stationName": "Gabral_WL-R_1",
+      "data": [
+        {
+          "filename": "WLR_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969000/photos/WLR_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 969100,
+      "stationName": "Gabral_WL-L_2",
+      "data": [
+        {
+          "filename": "WLL_Gabral.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969100/photos/WLL_Gabral.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 969200,
+      "stationName": "Gabral_WP_1",
+      "data": [
+        {
+          "filename": "WP_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969200/photos/WP_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 969300,
+      "stationName": "Gabral_WP_2",
+      "data": [
+        {
+          "filename": "WP_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969300/photos/WP_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 969500,
+      "stationName": "Matiltan_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS-02_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969500/photos/AWS-02_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 969600,
+      "stationName": "Matiltan_ARG_1",
+      "data": [
+        {
+          "filename": "ARG-01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969600/photos/ARG-01.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG-01_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969600/photos/ARG-01_1.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "photo1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969600/photos/photo1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 969700,
+      "stationName": "Matiltan_ARG_2",
+      "data": [
+        {
+          "filename": "ARG-02.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969700/photos/ARG-02.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "WhatsApp Image 2025-07-14 at 10.24.52 AM.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969700/photos/WhatsApp%20Image%202025-07-14%20at%2010.24.52%20AM.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 969800,
+      "stationName": "Matiltan_ARG_3",
+      "data": [
+        {
+          "filename": "ARG-03.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969800/photos/ARG-03.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG-03_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969800/photos/ARG-03_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 969900,
+      "stationName": "Matiltan_DG_1",
+      "data": [
+        {
+          "filename": "DG-01_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969900/photos/DG-01_1.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "DG-01_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969900/photos/DG-01_2.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "DG-01_4.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/969900/photos/DG-01_4.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 970000,
+      "stationName": "Matiltan_DG_2",
+      "data": [
+        {
+          "filename": "DG-02.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970000/photos/DG-02.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 970100,
+      "stationName": "Matiltan_WL-R_1",
+      "data": [
+        {
+          "filename": "WLR-01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970100/photos/WLR-01.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "WLR-01_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970100/photos/WLR-01_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 970200,
+      "stationName": "Matiltan_WL-R_2",
+      "data": [
+        {
+          "filename": "WLR-02.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970200/photos/WLR-02.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "WLR-02_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970200/photos/WLR-02_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 970300,
+      "stationName": "Matiltan_WL-L_1 (Dismantled/Submerged in Lake)",
+      "data": [
+        {
+          "filename": "WLL-01_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970300/photos/WLL-01_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 970400,
+      "stationName": "Matiltan_WL-L_2",
+      "data": [
+        {
+          "filename": "WLL-02.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970400/photos/WLL-02.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "WLL-02_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970400/photos/WLL-02_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 970500,
+      "stationName": "Matiltan_WP_1",
+      "data": [
+        {
+          "filename": "WP-01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970500/photos/WP-01.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "WP-01_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970500/photos/WP-01_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 970600,
+      "stationName": "Matiltan_WP_2",
+      "data": [
+        {
+          "filename": "WP-02.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970600/photos/WP-02.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "WP-02_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/970600/photos/WP-02_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 970700,
+      "stationName": "Strangbut_AWS-H_1",
+      "data": []
+    },
+    {
+      "stationId": 970800,
+      "stationName": "Strangbut_ARG_1",
+      "data": []
+    },
+    {
+      "stationId": 970900,
+      "stationName": "Strangbut_ARG_2",
+      "data": []
+    },
+    {
+      "stationId": 971000,
+      "stationName": "Strangbut_ARG_3",
+      "data": []
+    },
+    {
+      "stationId": 971100,
+      "stationName": "Strangbut_ARG_4",
+      "data": []
+    },
+    {
+      "stationId": 971200,
+      "stationName": "Strangbut_ARG_5",
+      "data": []
+    },
+    {
+      "stationId": 971300,
+      "stationName": "Strangbut_DG_1",
+      "data": []
+    },
+    {
+      "stationId": 971400,
+      "stationName": "Strangbut_WL-R_1",
+      "data": []
+    },
+    {
+      "stationId": 971500,
+      "stationName": "Strangbut_WL-R_2",
+      "data": []
+    },
+    {
+      "stationId": 971600,
+      "stationName": "Strangbut_WL-R_3",
+      "data": []
+    },
+    {
+      "stationId": 971900,
+      "stationName": "Strangbut_WL-R_4",
+      "data": []
+    },
+    {
+      "stationId": 972000,
+      "stationName": "Strangbut_WP_1",
+      "data": []
+    },
+    {
+      "stationId": 972100,
+      "stationName": "Strangbut_WP_2",
+      "data": []
+    },
+    {
+      "stationId": 972200,
+      "stationName": "Strangbut_WP_3",
+      "data": []
+    },
+    {
+      "stationId": 972300,
+      "stationName": "Hisper-Hopper_AWS-H_1",
+      "data": []
+    },
+    {
+      "stationId": 972400,
+      "stationName": "Hisper-Hopper_ARG_1",
+      "data": [
+        {
+          "filename": "ARG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/972400/photos/ARG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 972500,
+      "stationName": "Hisper-Hopper_ARG_2",
+      "data": [
+        {
+          "filename": "ARG_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/972500/photos/ARG_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 972600,
+      "stationName": "Hisper-Hopper_ARG_3",
+      "data": []
+    },
+    {
+      "stationId": 972700,
+      "stationName": "Hisper-Hopper_ARG_4",
+      "data": [
+        {
+          "filename": "ARG-4.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/972700/photos/ARG-4.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 972800,
+      "stationName": "Hisper-Hopper_ARG_5",
+      "data": [
+        {
+          "filename": "ARG-5.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/972800/photos/ARG-5.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 972900,
+      "stationName": "Hisper-Hopper_DG_1",
+      "data": [
+        {
+          "filename": "DG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/972900/photos/DG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 973000,
+      "stationName": "Hisper-Hopper_DG_2",
+      "data": [
+        {
+          "filename": "DG-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973000/photos/DG-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 973100,
+      "stationName": "Hisper-Hopper_WL-R_1",
+      "data": [
+        {
+          "filename": "WL-R-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973100/photos/WL-R-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 973200,
+      "stationName": "Hisper-Hopper_WL-R_2",
+      "data": [
+        {
+          "filename": "WL-R-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973200/photos/WL-R-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 973300,
+      "stationName": "Hisper-Hopper_WP_1",
+      "data": [
+        {
+          "filename": "WP-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973300/photos/WP-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 973400,
+      "stationName": "Hisper-Hopper_WP_2",
+      "data": [
+        {
+          "filename": "WP-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973400/photos/WP-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 973500,
+      "stationName": "Hisper-Hopper_WP_3",
+      "data": [
+        {
+          "filename": "WP-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973500/photos/WP-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 973600,
+      "stationName": "Sishper-Ultar_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS-H-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973600/photos/AWS-H-1.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "AWS.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973600/photos/AWS.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 973700,
+      "stationName": "Sishper-Ultar_ARG_1",
+      "data": [
+        {
+          "filename": "ARG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973700/photos/ARG-1.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG_Ulter.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973700/photos/ARG_Ulter.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 973800,
+      "stationName": "Sishper-Ultar_ARG_2",
+      "data": [
+        {
+          "filename": "ARG-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973800/photos/ARG-2.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG_Mochohar.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973800/photos/ARG_Mochohar.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 973900,
+      "stationName": "Sishper-Ultar_DG_1",
+      "data": [
+        {
+          "filename": "DG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973900/photos/DG-1.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "DG.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/973900/photos/DG.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 974000,
+      "stationName": "Sishper-Ultar_WL-R_1",
+      "data": [
+        {
+          "filename": "WL-R-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/974000/photos/WL-R-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 974100,
+      "stationName": "Sishper-Ultar_WL-R_2",
+      "data": [
+        {
+          "filename": "WLR_Ulter.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/974100/photos/WLR_Ulter.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 974300,
+      "stationName": "Sishper-Ultar_WP_1",
+      "data": [
+        {
+          "filename": "WP-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/974300/photos/WP-1.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "WP_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/974300/photos/WP_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 974400,
+      "stationName": "Sishper-Ultar_WP_2",
+      "data": [
+        {
+          "filename": "WP-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/974400/photos/WP-2.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "WP_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/974400/photos/WP_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 974500,
+      "stationName": "Shimshal_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/974500/photos/AWS.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 974600,
+      "stationName": "Shimshal_ARG_1",
+      "data": [
+        {
+          "filename": "ARG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/974600/photos/ARG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 974700,
+      "stationName": "Shimshal_ARG_2",
+      "data": [
+        {
+          "filename": "ARG_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/974700/photos/ARG_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 974800,
+      "stationName": "Shimshal_ARG_3",
+      "data": [
+        {
+          "filename": "ARG_3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/974800/photos/ARG_3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 974900,
+      "stationName": "Shimshal_DG_1",
+      "data": [
+        {
+          "filename": "DG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/974900/photos/DG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 975000,
+      "stationName": "Shimshal_DG_2",
+      "data": [
+        {
+          "filename": "DG_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/975000/photos/DG_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 975100,
+      "stationName": "Shimshal_WL-R_1",
+      "data": []
+    },
+    {
+      "stationId": 975300,
+      "stationName": "Shimshal_WP_1",
+      "data": [
+        {
+          "filename": "WP.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/975300/photos/WP.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 975400,
+      "stationName": "Reshun-Booni_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS_H.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/975400/photos/AWS_H.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 975500,
+      "stationName": "Reshun-Booni_AWS_1",
+      "data": [
+        {
+          "filename": "AWS_LMA.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/975500/photos/AWS_LMA.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 975600,
+      "stationName": "Reshun-Booni_ARG_1",
+      "data": [
+        {
+          "filename": "ARG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/975600/photos/ARG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 975700,
+      "stationName": "Reshun-Booni_ARG_2",
+      "data": [
+        {
+          "filename": "ARG_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/975700/photos/ARG_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 975800,
+      "stationName": "Reshun-Booni_ARG_3",
+      "data": [
+        {
+          "filename": "ARG_3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/975800/photos/ARG_3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 975900,
+      "stationName": "Reshun-Booni_ARG_4",
+      "data": [
+        {
+          "filename": "ARG_4.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/975900/photos/ARG_4.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 976000,
+      "stationName": "Reshun-Booni_ARG_5",
+      "data": [
+        {
+          "filename": "ARG_5.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/976000/photos/ARG_5.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 976100,
+      "stationName": "Reshun-Booni_DG_1",
+      "data": [
+        {
+          "filename": "DG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/976100/photos/DG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 976200,
+      "stationName": "Reshun-Booni_WL-R_1",
+      "data": [
+        {
+          "filename": "WLR_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/976200/photos/WLR_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 976300,
+      "stationName": "Reshun-Booni_WL-R_2",
+      "data": [
+        {
+          "filename": "WLR_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/976300/photos/WLR_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 976400,
+      "stationName": "Reshun-Booni_WP_1",
+      "data": [
+        {
+          "filename": "WP_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/976400/photos/WP_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 976500,
+      "stationName": "Reshun-Booni_WP_2",
+      "data": [
+        {
+          "filename": "WP_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/976500/photos/WP_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 976600,
+      "stationName": "Arandu_AWS_1",
+      "data": [
+        {
+          "filename": "AWS_LMA_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/976600/photos/AWS_LMA_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 976700,
+      "stationName": "Arandu_ARG_1",
+      "data": [
+        {
+          "filename": "ARG_01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/976700/photos/ARG_01.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 976800,
+      "stationName": "Arandu_ARG_2",
+      "data": [
+        {
+          "filename": "ARG_02.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/976800/photos/ARG_02.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 976900,
+      "stationName": "Arandu_ARG_3",
+      "data": [
+        {
+          "filename": "ARG_03.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/976900/photos/ARG_03.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 977000,
+      "stationName": "Arandu_ARG_4",
+      "data": [
+        {
+          "filename": "ARG_04.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/977000/photos/ARG_04.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 977100,
+      "stationName": "Arandu_ARG_5",
+      "data": [
+        {
+          "filename": "ARG_05.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/977100/photos/ARG_05.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 977200,
+      "stationName": "Arandu_DG_1",
+      "data": [
+        {
+          "filename": "DG_01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/977200/photos/DG_01.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 977300,
+      "stationName": "Arandu_WL-R_1",
+      "data": [
+        {
+          "filename": "WLR_01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/977300/photos/WLR_01.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 977400,
+      "stationName": "Arandu_WL-R_2",
+      "data": [
+        {
+          "filename": "WLR_02.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/977400/photos/WLR_02.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 977500,
+      "stationName": "Arandu_WL-R_3",
+      "data": [
+        {
+          "filename": "WLR_03.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/977500/photos/WLR_03.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 977600,
+      "stationName": "Arandu_WL-R_4",
+      "data": [
+        {
+          "filename": "WLR_04.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/977600/photos/WLR_04.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 977700,
+      "stationName": "Arandu_WL-R_5",
+      "data": [
+        {
+          "filename": "WLR_05.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/977700/photos/WLR_05.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 977900,
+      "stationName": "Arandu_WP_1",
+      "data": [
+        {
+          "filename": "WP_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/977900/photos/WP_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 978000,
+      "stationName": "Arandu_WP_2",
+      "data": [
+        {
+          "filename": "WP_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978000/photos/WP_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 978100,
+      "stationName": "Arandu_WP_3",
+      "data": [
+        {
+          "filename": "WP_3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978100/photos/WP_3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 978200,
+      "stationName": "Haramosh-Khaltoro_AWS-H_1",
+      "data": []
+    },
+    {
+      "stationId": 978300,
+      "stationName": "Haramosh-Khaltoro_ARG_1",
+      "data": [
+        {
+          "filename": "ARG-1-PIC-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978300/photos/ARG-1-PIC-2.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG-1-PIC-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978300/photos/ARG-1-PIC-3.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978300/photos/ARG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 978400,
+      "stationName": "Haramosh-Khaltoro_ARG_2",
+      "data": [
+        {
+          "filename": "ARG-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978400/photos/ARG-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 978500,
+      "stationName": "Haramosh-Khaltoro_ARG_3",
+      "data": [
+        {
+          "filename": "ARG-3-PIC-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978500/photos/ARG-3-PIC-2.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978500/photos/ARG-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 978600,
+      "stationName": "Haramosh-Khaltoro_ARG_4",
+      "data": [
+        {
+          "filename": "ARG-4.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978600/photos/ARG-4.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 978700,
+      "stationName": "Haramosh-Khaltoro_ARG_5",
+      "data": [
+        {
+          "filename": "ARG-5-1-PIC.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978700/photos/ARG-5-1-PIC.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "ARG-5-2-PIC.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978700/photos/ARG-5-2-PIC.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 978800,
+      "stationName": "Haramosh-Khaltoro_DG_1",
+      "data": []
+    },
+    {
+      "stationId": 978900,
+      "stationName": "Haramosh-Khaltoro_WL-R_1",
+      "data": [
+        {
+          "filename": "WL-R-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/978900/photos/WL-R-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 979000,
+      "stationName": "Haramosh-Khaltoro_WL-R_2",
+      "data": [
+        {
+          "filename": "WL-R-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979000/photos/WL-R-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 979100,
+      "stationName": "Haramosh-Khaltoro_WL-R_3",
+      "data": [
+        {
+          "filename": "WL-R-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979100/photos/WL-R-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 979200,
+      "stationName": "Haramosh-Khaltoro_WL-L_1",
+      "data": [
+        {
+          "filename": "WL-L-1-PIC-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979200/photos/WL-L-1-PIC-1.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "WL-L-1-PIC-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979200/photos/WL-L-1-PIC-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 979300,
+      "stationName": "Haramosh-Khaltoro_WL-L_2",
+      "data": [
+        {
+          "filename": "WL-L-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979300/photos/WL-L-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 979400,
+      "stationName": "Haramosh-Khaltoro_WP_1",
+      "data": [
+        {
+          "filename": "WP-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979400/photos/WP-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 979500,
+      "stationName": "Haramosh-Khaltoro_WP_2",
+      "data": [
+        {
+          "filename": "WP-2 PIC-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979500/photos/WP-2%20PIC-2.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "WP-2PIC-1 .jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979500/photos/WP-2PIC-1%20.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 979600,
+      "stationName": "Haramosh-Khaltoro_WP_3",
+      "data": [
+        {
+          "filename": "WP-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979600/photos/WP-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 979700,
+      "stationName": "Sosat_AWS-H_1",
+      "data": [
+        {
+          "filename": "AWS-H-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979700/photos/AWS-H-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 979800,
+      "stationName": "Sosat_ARG_1",
+      "data": [
+        {
+          "filename": "ARG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979800/photos/ARG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 979900,
+      "stationName": "Sosat_ARG_2",
+      "data": [
+        {
+          "filename": "ARG-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/979900/photos/ARG-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 980000,
+      "stationName": "Sosat_ARG_3",
+      "data": [
+        {
+          "filename": "ARG-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/980000/photos/ARG-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 980100,
+      "stationName": "Sosat_DG_1",
+      "data": [
+        {
+          "filename": "DG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/980100/photos/DG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 980200,
+      "stationName": "Sosat_WL-R_1",
+      "data": [
+        {
+          "filename": "WL-R-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/980200/photos/WL-R-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 980300,
+      "stationName": "Sosat_WL-R_2",
+      "data": [
+        {
+          "filename": "WL-R-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/980300/photos/WL-R-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 980400,
+      "stationName": "Sosat_WL-R_3",
+      "data": [
+        {
+          "filename": "WL-R-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/980400/photos/WL-R-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 980500,
+      "stationName": "Sosat_WL-L_1",
+      "data": [
+        {
+          "filename": "WL-L-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/980500/photos/WL-L-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 980600,
+      "stationName": "Sosat_WL-L_2",
+      "data": [
+        {
+          "filename": "WL-L-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/980600/photos/WL-L-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 980700,
+      "stationName": "Sosat_WP_1",
+      "data": [
+        {
+          "filename": "WP-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/980700/photos/WP-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 980800,
+      "stationName": "Sosat_WP_2",
+      "data": [
+        {
+          "filename": "WP-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/980800/photos/WP-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 980900,
+      "stationName": "Kandia_AWS-H_1 (SITE NOT READY)",
+      "data": []
+    },
+    {
+      "stationId": 981000,
+      "stationName": "Kandia_AWS_1",
+      "data": [
+        {
+          "filename": "AWS_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/981000/photos/AWS_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 981100,
+      "stationName": "Kandia_ARG_1",
+      "data": [
+        {
+          "filename": "ARG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/981100/photos/ARG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 981200,
+      "stationName": "Kandia_DG_1",
+      "data": [
+        {
+          "filename": "DG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/981200/photos/DG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 981300,
+      "stationName": "Kandia_WL-R_1",
+      "data": [
+        {
+          "filename": "WLR_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/981300/photos/WLR_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 981400,
+      "stationName": "Kandia_WL-R_2",
+      "data": [
+        {
+          "filename": "WLR_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/981400/photos/WLR_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 981500,
+      "stationName": "Kandia_WL-L_1 (SITE NOT READY)",
+      "data": []
+    },
+    {
+      "stationId": 981600,
+      "stationName": "Kandia_WP_1",
+      "data": [
+        {
+          "filename": "WP_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/981600/photos/WP_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 981700,
+      "stationName": "Mankeyal_AWS_1",
+      "data": [
+        {
+          "filename": "AWS_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/981700/photos/AWS_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 981800,
+      "stationName": "Mankeyal_ARG_1",
+      "data": [
+        {
+          "filename": "ARG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/981800/photos/ARG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 981900,
+      "stationName": "Mankeyal_DG_1",
+      "data": [
+        {
+          "filename": "DG_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/981900/photos/DG_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 982000,
+      "stationName": "Mankeyal_WL-R_1",
+      "data": [
+        {
+          "filename": "WLR_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/982000/photos/WLR_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 982100,
+      "stationName": "Mankeyal_WL-R_2",
+      "data": [
+        {
+          "filename": "WLR_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/982100/photos/WLR_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 982200,
+      "stationName": "Mankeyal_WL-L_1",
+      "data": [
+        {
+          "filename": "WLL_01.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/982200/photos/WLL_01.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 982300,
+      "stationName": "Mankeyal_WP_1",
+      "data": [
+        {
+          "filename": "WP_1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/982300/photos/WP_1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 982400,
+      "stationName": "Mankeyal_WP_2",
+      "data": [
+        {
+          "filename": "WP_2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/982400/photos/WP_2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 982500,
+      "stationName": "Tattu Muthat_AWS_1",
+      "data": [
+        {
+          "filename": "AWS-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/982500/photos/AWS-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 982600,
+      "stationName": "Tattu Muthat_ARG_1",
+      "data": [
+        {
+          "filename": "ARG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/982600/photos/ARG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 982700,
+      "stationName": "Tattu Muthat_ARG_2",
+      "data": [
+        {
+          "filename": "ARG-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/982700/photos/ARG-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 982800,
+      "stationName": "Tattu Muthat_ARG_3",
+      "data": [
+        {
+          "filename": "ARG-3.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/982800/photos/ARG-3.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 982900,
+      "stationName": "Tattu Muthat_DG_1",
+      "data": [
+        {
+          "filename": "DG-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/982900/photos/DG-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 983000,
+      "stationName": "Tattu Muthat_WL-R_1",
+      "data": [
+        {
+          "filename": "WL-R-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/983000/photos/WL-R-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 983100,
+      "stationName": "Tattu Muthat_WL-L_1",
+      "data": [
+        {
+          "filename": "WL-L-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/983100/photos/WL-L-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 983200,
+      "stationName": "Tattu Muthat_WL-L_2",
+      "data": [
+        {
+          "filename": "WL-L-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/983200/photos/WL-L-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 983300,
+      "stationName": "Tattu Muthat_WP_1",
+      "data": [
+        {
+          "filename": "WP-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/983300/photos/WP-1.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 983400,
+      "stationName": "Tattu Muthat_WP_2",
+      "data": [
+        {
+          "filename": "WP-2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/983400/photos/WP-2.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 983500,
+      "stationName": "Parashing_AWS_1",
+      "data": [
+        {
+          "filename": "2.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/983500/photos/2.jpg?width=1400&height=1120"
+        },
+        {
+          "filename": "AWS-01_Lazan.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/983500/photos/AWS-01_Lazan.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 983600,
+      "stationName": "Parashing_AWS_2",
+      "data": [
+        {
+          "filename": "AWS-02 Allah Wali Lake.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/983600/photos/AWS-02%20Allah%20Wali%20Lake.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 983700,
+      "stationName": "Parashing_ARG_1",
+      "data": [
+        {
+          "filename": "ARG_01_Parashing.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/983700/photos/ARG_01_Parashing.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 983800,
+      "stationName": "Parashing_ARG_2",
+      "data": [
+        {
+          "filename": "ARG_02_Ramkha.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/983800/photos/ARG_02_Ramkha.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 983900,
+      "stationName": "Parashing_DG_1",
+      "data": [
+        {
+          "filename": "DG_Louse.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/983900/photos/DG_Louse.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 984000,
+      "stationName": "Parashing_WL-R_1",
+      "data": [
+        {
+          "filename": "Water Level gauge River_01_Dailoon.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/984000/photos/Water%20Level%20gauge%20River_01_Dailoon.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 984100,
+      "stationName": "Parashing_WL-R_2",
+      "data": [
+        {
+          "filename": "Water Level Gauge River_02_Thange.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/984100/photos/Water%20Level%20Gauge%20River_02_Thange.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 984200,
+      "stationName": "Parashing_WP_1",
+      "data": [
+        {
+          "filename": "Warning Post_Khangrol.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/984200/photos/Warning%20Post_Khangrol.jpg?width=1400&height=1120"
+        }
+      ]
+    },
+    {
+      "stationId": 984300,
+      "stationName": "Gulkin_AWS_1",
+      "data": [
+        {
+          "filename": "AWS-1.jpg",
+          "url": "http://115.186.56.181/datascapea/v1/stations/984300/photos/AWS-1.jpg?width=1400&height=1120"
+        }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   MapPin,
@@ -11,11 +11,13 @@ import {
   Sparkles,
   Type,
   AlertTriangle,
+  Camera,
   Image as ImageIcon,
 } from 'lucide-react';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import { inferUnit } from '@/utils/units';
 import { cn } from '@/utils/cn';
+import StationPhotoModal from './StationPhotoModal';
 
 // Feature Details — a card-based, non-tabular view of a clicked map
 // feature's properties. Three regions:
@@ -35,6 +37,56 @@ import { cn } from '@/utils/cn';
 
 export default function FeatureDetailsPanel() {
   const { selectedFeature } = useAttributeTables();
+  const [modalOpen, setModalOpen] = useState(false);
+
+  // Lazily fetch station photos when the active feature is a PMD
+  // station. The catalog tile shows a "View Image Catalog" CTA — clicking
+  // it opens the slider modal with whatever the API returned.
+  const stationId =
+    selectedFeature?.kind === 'station'
+      ? selectedFeature.feature?.properties?.stationId
+      : null;
+  const [photoState, setPhotoState] = useState({
+    stationId: null,
+    photos: [],
+    status: 'idle', // idle | loading | ready | error
+  });
+
+  useEffect(() => {
+    if (stationId == null) {
+      setPhotoState({ stationId: null, photos: [], status: 'idle' });
+      return;
+    }
+    let cancelled = false;
+    setPhotoState((prev) => ({
+      stationId,
+      photos: prev.stationId === stationId ? prev.photos : [],
+      status: 'loading',
+    }));
+    fetch(`/api/parameters/stations/${stationId}/photos`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((data) => {
+        if (cancelled) return;
+        setPhotoState({
+          stationId,
+          photos: Array.isArray(data?.photos) ? data.photos : [],
+          status: 'ready',
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPhotoState({ stationId, photos: [], status: 'error' });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stationId]);
+
+  // Reset modal whenever the user switches to a different feature.
+  useEffect(() => {
+    setModalOpen(false);
+  }, [stationId, selectedFeature?.overlayKey]);
 
   // Hooks have to run unconditionally on every render, so derive
   // everything from `selectedFeature` (or sensible fallbacks) BEFORE the
@@ -81,25 +133,31 @@ export default function FeatureDetailsPanel() {
   const { feature, kind, label, sublabel, accentColor } = selectedFeature;
   const primaryEntries = allEntries.filter(([k]) => primaryKeys.includes(k));
   const secondaryEntries = allEntries.filter(([k]) => !primaryKeys.includes(k));
+  const isStation = kind === 'station';
+  const photos = photoState.stationId === stationId ? photoState.photos : [];
+  const photosLoading = photoState.status === 'loading';
 
-  return (
-    <motion.div
-      key={selectedFeature.overlayKey + '|' + (feature?.id ?? '')}
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
-      className="flex-1 min-h-0 overflow-auto p-3"
-    >
+  const attributesBlock = (
+    <>
       <HeaderCard
         kind={kind}
         label={label}
         sublabel={sublabel}
         accentColor={accentColor}
         propertyCount={allEntries.length}
+        // The catalog tile lives in the column beside this block for
+        // stations, so suppress the duplicated attribute count chip in
+        // the header to free the space.
+        compact={isStation}
       />
 
       {primaryEntries.length > 0 && (
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div
+          className={cn(
+            'mt-3 grid gap-2 grid-cols-1',
+            isStation ? 'sm:grid-cols-2' : 'sm:grid-cols-2',
+          )}
+        >
           {primaryEntries.map(([k, v]) => (
             <PropTile key={k} k={k} v={v} accentColor={accentColor} primary />
           ))}
@@ -107,7 +165,14 @@ export default function FeatureDetailsPanel() {
       )}
 
       {secondaryEntries.length > 0 && (
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        <div
+          className={cn(
+            'mt-3 grid gap-2 grid-cols-1',
+            isStation
+              ? 'sm:grid-cols-2'
+              : 'sm:grid-cols-2 lg:grid-cols-3',
+          )}
+        >
           {secondaryEntries.map(([k, v]) => (
             <PropTile key={k} k={k} v={v} accentColor={accentColor} />
           ))}
@@ -125,7 +190,197 @@ export default function FeatureDetailsPanel() {
           </p>
         </div>
       )}
+    </>
+  );
+
+  return (
+    <motion.div
+      key={selectedFeature.overlayKey + '|' + (feature?.id ?? '')}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className={cn(
+        'flex-1 min-h-0 p-3',
+        // Stations get a static two-column layout — only the attribute
+        // side scrolls so the image catalog tile on the right stays
+        // pinned in place. Non-station features keep the original
+        // single-column scroll behaviour.
+        isStation ? 'flex flex-col overflow-hidden' : 'overflow-auto',
+      )}
+    >
+      {isStation ? (
+        <div className="flex gap-3 flex-1 min-h-0 items-start">
+          <div className="min-w-0 flex-1 self-stretch overflow-y-auto pr-1">
+            {attributesBlock}
+          </div>
+          <div className="w-[240px] shrink-0 self-start">
+            <ImageCatalogTile
+              accentColor={accentColor}
+              photos={photos}
+              loading={photosLoading}
+              onOpen={() => setModalOpen(true)}
+            />
+          </div>
+        </div>
+      ) : (
+        attributesBlock
+      )}
+
+      {isStation ? (
+        <StationPhotoModal
+          open={modalOpen && photos.length > 0}
+          onClose={() => setModalOpen(false)}
+          photos={photos}
+          stationLabel={label}
+          stationSublabel={sublabel}
+        />
+      ) : null}
     </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Image Catalog tile — square right-column CTA showing an auto-rotating
+// preview of the station's photo catalog. Carousel advances every 3 s
+// (paused for single-photo stations), clicking anywhere opens the modal
+// slider for the full lightbox view.
+// ---------------------------------------------------------------------------
+function ImageCatalogTile({ accentColor, photos, loading, onOpen }) {
+  const hasPhotos = photos.length > 0;
+  const [carouselIdx, setCarouselIdx] = useState(0);
+
+  // Single effect: reset to the first photo when the list identity
+  // changes (new station selected) and — if there's more than one —
+  // schedule the 3-second auto-advance. Earlier two-effect split had
+  // them both keyed on `photos`, so when the interval wrapped 2 → 0 it
+  // could race with the reset (which also pushed idx to 0) and the
+  // user saw an extra tick on photo #1. One effect, one interval ID,
+  // no race.
+  useEffect(() => {
+    setCarouselIdx(0);
+    if (photos.length < 2) return undefined;
+    const total = photos.length;
+    const id = setInterval(() => {
+      setCarouselIdx((i) => (i + 1) % total);
+    }, 3000);
+    return () => clearInterval(id);
+  }, [photos]);
+
+  const disabled = loading || !hasPhotos;
+
+  return (
+    <button
+      type="button"
+      onClick={hasPhotos ? onOpen : undefined}
+      disabled={disabled}
+      className={cn(
+        'group relative aspect-square w-full rounded-lg border overflow-hidden',
+        'border-day-border dark:border-night-border',
+        'bg-day-surface dark:bg-night-surface',
+        'transition-all',
+        hasPhotos
+          ? 'cursor-pointer hover:shadow-md hover:border-[#16a085]/60'
+          : 'cursor-not-allowed opacity-70',
+      )}
+      aria-label={
+        hasPhotos
+          ? `View image catalog — ${photos.length} photo${photos.length > 1 ? 's' : ''}`
+          : 'No photos available'
+      }
+    >
+      {hasPhotos ? (
+        <>
+          {/* Auto-rotating background — every photo stays mounted; only
+              the active one is opaque. Cross-fade is a single
+              opacity transition rather than mount/unmount through
+              AnimatePresence, which had a wrap-around race where the
+              exit animation visually duplicated the wrapped frame. */}
+          {photos.map((p, i) => (
+            <img
+              key={p.url}
+              src={p.url}
+              alt=""
+              draggable={false}
+              className={cn(
+                'absolute inset-0 w-full h-full object-cover',
+                'transition-opacity duration-700 ease-in-out',
+                i === carouselIdx ? 'opacity-100' : 'opacity-0',
+              )}
+            />
+          ))}
+
+          {/* Bottom gradient so the labels read against any photo. */}
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-transparent"
+          />
+
+          {/* Top-right camera badge — keeps the "this is the photo
+              catalog" affordance visible even as photos rotate. */}
+          <div
+            className="absolute top-2 right-2 w-9 h-9 rounded-lg grid place-items-center backdrop-blur-sm shadow-sm"
+            style={{
+              background: hexToRgba(accentColor, 0.85),
+              color: '#fff',
+            }}
+          >
+            <Camera className="h-4.5 w-4.5" strokeWidth={2} aria-hidden />
+          </div>
+
+          {/* Carousel position dots (top-left), only when > 1 photo. */}
+          {photos.length > 1 ? (
+            <div className="absolute top-3 left-3 flex items-center gap-1">
+              {photos.map((_, i) => (
+                <span
+                  key={i}
+                  aria-hidden
+                  className={cn(
+                    'h-1.5 rounded-full transition-all duration-300',
+                    i === carouselIdx
+                      ? 'w-4 bg-white'
+                      : 'w-1.5 bg-white/50',
+                  )}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {/* Bottom label block — single CTA line + photo count chip. */}
+          <div className="absolute left-0 right-0 bottom-0 p-3 text-left">
+            <div className="text-[13px] font-semibold text-white leading-tight">
+              View Station Images Catalog
+            </div>
+            <div
+              className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold tabular-nums"
+              style={{
+                background: hexToRgba(accentColor, 0.9),
+                color: '#fff',
+              }}
+            >
+              {photos.length} {photos.length > 1 ? 'photos' : 'photo'}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+          <div
+            className="w-14 h-14 rounded-xl grid place-items-center mb-2"
+            style={{
+              background: hexToRgba(accentColor, 0.16),
+              color: accentColor,
+            }}
+          >
+            <Camera className="h-7 w-7" strokeWidth={1.75} aria-hidden />
+          </div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-day-muted dark:text-night-muted">
+            Image Catalog
+          </div>
+          <div className="mt-0.5 text-[13px] font-semibold text-day-text dark:text-night-text leading-tight">
+            {loading ? 'Loading…' : 'No photos available'}
+          </div>
+        </div>
+      )}
+    </button>
   );
 }
 
@@ -155,7 +410,7 @@ function EmptyState() {
 // ---------------------------------------------------------------------------
 // Header card — coloured left rail, kind chip, layer label, geometry / count.
 // ---------------------------------------------------------------------------
-function HeaderCard({ kind, label, sublabel, accentColor, propertyCount }) {
+function HeaderCard({ kind, label, sublabel, accentColor, propertyCount, compact = false }) {
   const Icon = ICON_FOR_KIND[kind] ?? Layers;
   return (
     <div
@@ -203,19 +458,21 @@ function HeaderCard({ kind, label, sublabel, accentColor, propertyCount }) {
             {label}
           </h3>
         </div>
-        <div className="shrink-0 hidden sm:flex flex-col items-end">
-          <span
-            className="text-[10px] font-semibold uppercase tracking-wider text-day-muted dark:text-night-muted"
-          >
-            Attributes
-          </span>
-          <span
-            className="text-[15px] font-semibold tabular-nums"
-            style={{ color: accentColor }}
-          >
-            {propertyCount}
-          </span>
-        </div>
+        {!compact && (
+          <div className="shrink-0 hidden sm:flex flex-col items-end">
+            <span
+              className="text-[10px] font-semibold uppercase tracking-wider text-day-muted dark:text-night-muted"
+            >
+              Attributes
+            </span>
+            <span
+              className="text-[15px] font-semibold tabular-nums"
+              style={{ color: accentColor }}
+            >
+              {propertyCount}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -413,6 +670,7 @@ const ICON_FOR_KIND = {
   upload:    FileJson,
   db:        FileJson,
   raster:    ImageIcon,
+  station:   MapPin,
 };
 
 const KIND_LABEL = {
@@ -421,6 +679,7 @@ const KIND_LABEL = {
   upload:    'Uploaded Layer',
   db:        'Database Layer',
   raster:    'Raster Pixel',
+  station:   'PMD Station',
 };
 
 // Pick a field icon + value-rendering hint from the key name + value shape.
