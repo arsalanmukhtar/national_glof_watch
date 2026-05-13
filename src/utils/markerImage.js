@@ -472,11 +472,20 @@ export async function buildMarkerImage(spec) {
   if (cached) return cached;
 
   // Custom uploads (.png / .webp / inline-SVG via the upload row) come
-  // through as `data:` URLs in `spec.iconId`. Route them through the
-  // direct canvas pipeline above — this avoids the SVG-in-SVG bitmap
-  // decode race that left the layer briefly invisible on every radius
-  // change.
-  if (typeof spec.iconId === 'string' && spec.iconId.startsWith('data:')) {
+  // through as `data:` URLs in `spec.iconId`. Layer-default icons
+  // shipped with the build come through as Vite-resolved asset URLs
+  // (starting with `/` or `http(s):`). Both route through the direct
+  // canvas pipeline above — this avoids the SVG-in-SVG bitmap decode
+  // race that left the layer briefly invisible on every radius change,
+  // and works the same way for bitmaps regardless of where they
+  // originated.
+  if (
+    typeof spec.iconId === 'string' &&
+    (spec.iconId.startsWith('data:') ||
+      spec.iconId.startsWith('/') ||
+      spec.iconId.startsWith('http:') ||
+      spec.iconId.startsWith('https:'))
+  ) {
     const result = await buildCustomMarkerImage(
       { ...spec, iconDataUrl: spec.iconId },
       dpr,

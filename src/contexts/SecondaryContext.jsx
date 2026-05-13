@@ -81,9 +81,26 @@ export const DEFAULT_STYLES = {
 
 const SecondaryContext = createContext(null);
 
+// Layer ids that should be toggled ON the very first time the app
+// renders — the consolidated published reference set we want users to
+// land on. Subsequent toggling is normal context state so flipping any
+// of these off persists for the session.
+const DEFAULT_VISIBLE_LAYERS = [
+  'glof_basins',
+  'akah_sensors',
+  'gmrc_wapda_stations',
+  'bri_ff_china_sensors',
+  'vulnerable_lakes_2026',
+  'vulnerable_melting_glaciers_2026',
+  'vulnerable_melting_points_2026',
+  'vulnerable_sites_2026',
+];
+
 export function SecondaryProvider({ children }) {
   // visible layers (server-side secondary schema)
-  const [visibleLayers, setVisibleLayers] = useState(() => new Set());
+  const [visibleLayers, setVisibleLayers] = useState(
+    () => new Set(DEFAULT_VISIBLE_LAYERS),
+  );
   // per-layer style overrides — keyed by layer id (region composite, secondary
   // id, or upload id). Empty by default; entries appear lazily once the user
   // tweaks something. Readers should compose with `effectiveStyle()` so they

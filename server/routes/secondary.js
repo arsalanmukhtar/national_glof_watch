@@ -27,6 +27,30 @@ const ALLOWED_LAYERS = new Set([
 
 export const secondaryRouter = express.Router();
 
+// GET /api/secondary/sensor-counts
+// Aggregate roster sizes for the four sensor networks surfaced in the
+// Stations legend. PMD comes from the public `stations` table; the
+// partner inventories live in their `secondary.*` tables. Returned as
+// one row so the client can render the legend with a single round-trip.
+// Declared BEFORE /:layer so the path segment isn't swallowed by the
+// generic FeatureCollection route below.
+secondaryRouter.get('/sensor-counts', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM stations)                          AS pmd,
+        (SELECT COUNT(*)::int FROM secondary.akah_sensors)            AS akah_sensors,
+        (SELECT COUNT(*)::int FROM secondary.bri_ff_china_sensors)    AS bri_ff_china_sensors,
+        (SELECT COUNT(*)::int FROM secondary.gmrc_wapda_stations)     AS gmrc_wapda_stations
+    `);
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(rows[0] ?? {});
+  } catch (err) {
+    console.error('GET /api/secondary/sensor-counts failed:', err);
+    res.status(500).json({ error: 'Query failed', detail: err.message });
+  }
+});
+
 // GET /api/secondary/:layer
 // Returns a GeoJSON FeatureCollection assembled inside Postgres. The
 // FeatureCollection is shaped on the server so the client can pipe the

@@ -237,11 +237,17 @@ export const EMOJI_CATEGORIES = [
   },
 ];
 
-// Resolve any `marker.icon` string to its kind + payload. Three formats
+// Resolve any `marker.icon` string to its kind + payload. Four formats
 // share the slot:
-//   • plain id (e.g. `'car'`) — a built-in lucide icon
-//   • `'emoji:🏔️'`            — a user-picked emoji glyph
-//   • `'data:image/...'`        — a user-uploaded SVG/PNG (data URL)
+//   • plain id (e.g. `'car'`)   — a built-in lucide icon
+//   • `'emoji:🏔️'`              — a user-picked emoji glyph
+//   • `'data:image/...'`          — a user-uploaded SVG/PNG (data URL)
+//   • bundled asset URL (any
+//     string starting with `/`,
+//     `http:`, or `https:`)      — an image shipped with the build,
+//                                  e.g. layer-default icons like the
+//                                  AKAH and WAPDA sensors imported
+//                                  via Vite.
 //
 // Returns `null` if the id is missing, malformed, or refers to a
 // lucide icon that's no longer in the catalog. Callers are expected
@@ -254,7 +260,16 @@ export function resolveMarkerIcon(id) {
     if (!char) return null;
     return { kind: 'emoji', char, label: char };
   }
-  if (id.startsWith('data:')) {
+  // Custom-image route — either a data URL from the upload row or a
+  // Vite-resolved bundled-asset URL. Both render through the canvas
+  // pipeline in markerImage.js, which accepts either form as the
+  // `<img>.src`.
+  if (
+    id.startsWith('data:') ||
+    id.startsWith('/') ||
+    id.startsWith('http:') ||
+    id.startsWith('https:')
+  ) {
     return { kind: 'custom', dataUrl: id, label: 'Custom icon' };
   }
   const entry = ICONS_BY_ID.get(id);

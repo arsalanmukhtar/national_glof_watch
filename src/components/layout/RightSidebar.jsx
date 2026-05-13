@@ -11,13 +11,17 @@ export default function RightSidebar({ className }) {
   const { uploads } = useSecondary();
   // Sections flagged `requiresUploads` only appear after the user has
   // uploaded a secondary file. Filter at render so the icon strip stays
-  // in sync as files are added/removed.
+  // in sync as files are added/removed. Footer-positioned sections live
+  // below the divider / report button (pure-reference panels like
+  // Sensors Info), so split them out for the JSX below.
   const sections = useMemo(
     () => MEDIA_SECTIONS.filter((s) => !s.requiresUploads || uploads.length > 0),
     [uploads.length],
   );
+  const mainSections = sections.filter((s) => s.position !== 'footer');
+  const footerSections = sections.filter((s) => s.position === 'footer');
 
-  const [activeId, setActiveId] = useState(sections[0]?.id ?? null);
+  const [activeId, setActiveId] = useState(mainSections[0]?.id ?? null);
   const active = sections.find((s) => s.id === activeId);
 
   // If the open section gets filtered out (last upload removed while the
@@ -46,7 +50,7 @@ export default function RightSidebar({ className }) {
       )}
     >
       <AnimatePresence initial={false}>
-        {active ? (
+        {active && !active.hideThreshold ? (
           <motion.div
             key="threshold"
             initial={{ height: 0, opacity: 0, marginBottom: 0 }}
@@ -62,7 +66,7 @@ export default function RightSidebar({ className }) {
 
       <div className="flex flex-row-reverse items-stretch min-h-0 flex-1">
         <div className="card-base flex flex-col items-center gap-1 p-2 w-14 shrink-0">
-          {sections.map(({ id, label, icon: Icon }) => {
+          {mainSections.map(({ id, label, icon: Icon }) => {
             const on = activeId === id;
             return (
               <Tooltip key={id} label={label} side="left">
@@ -103,6 +107,30 @@ export default function RightSidebar({ className }) {
               <FileBarChart className="h-5 w-5" />
             </motion.button>
           </Tooltip>
+
+          {footerSections.map(({ id, label, icon: Icon }) => {
+            const on = activeId === id;
+            return (
+              <Tooltip key={id} label={label} side="left">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setActiveId(on ? null : id)}
+                  aria-pressed={on}
+                  aria-label={label}
+                  className={cn(
+                    'btn-icon transition-colors',
+                    on
+                      ? 'bg-[#16a085] text-white hover:bg-[#138b72]'
+                      : 'btn-ghost',
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                </motion.button>
+              </Tooltip>
+            );
+          })}
         </div>
 
         <AnimatePresence initial={false}>

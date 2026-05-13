@@ -57,7 +57,7 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
           />
         </span>
         <span className="text-lg sm:text-xl lg:text-2xl font-semibold tracking-wide">
-          Realtime GLOF Monitoring
+          National GLOF Monitoring
         </span>
       </div>
 

@@ -8,8 +8,10 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Info,
 } from 'lucide-react';
 import { useParameter } from '@/contexts/ParameterContext';
+import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import {
   colorForReading,
   formatValue,
@@ -17,6 +19,9 @@ import {
 } from '@/config/parameterLegends';
 import { timeAgo } from '@/utils/timeAgo';
 import { cn } from '@/utils/cn';
+import akahSensorsIcon from '@/assets/images/layer-icons/akah-sensors.webp';
+import wapdaSensorsIcon from '@/assets/images/layer-icons/wapda-sensors.webp';
+import briSensorsIcon from '@/assets/images/layer-icons/bri-sensors.webp';
 
 const ELEMENT_OPTIONS = [
   { id: 'Air Temperature',          label: 'Air Temperature' },
@@ -24,6 +29,22 @@ const ELEMENT_OPTIONS = [
   { id: 'Water Level',              label: 'Water Level' },
   { id: 'Compact GAS State (WPs)',  label: 'Compact Gas State (WPs)' },
   { id: 'Istantaneous Flow',        label: 'Instantaneous Flow' },
+];
+
+// Sensor key shown when the user pops the legend in the Stations header.
+// PMD is rendered as the accent-coloured dot the map uses for parameter
+// stations; the three partner inventories show their bundled branded
+// icon so the legend mirrors what's actually drawn on the basemap.
+// `countKey` indexes into the `/api/secondary/sensor-counts` response so
+// the roster numbers update automatically when the DB is repopulated.
+// `staticCount` pins the value — used for PMD since the published roster
+// size (279) is the source of truth, not the live DB row count which
+// fluctuates with the cron's reachability.
+const SENSOR_LEGEND = [
+  { kind: 'dot',   color: '#16a085',       label: 'GLOF II PMD',           countKey: 'pmd', staticCount: 279 },
+  { kind: 'image', src: akahSensorsIcon,   label: 'AKAH Sensors',          countKey: 'akah_sensors' },
+  { kind: 'image', src: briSensorsIcon,    label: 'BRI-FF China Sensors',  countKey: 'bri_ff_china_sensors' },
+  { kind: 'image', src: wapdaSensorsIcon,  label: 'GMRC / WAPDA Stations', countKey: 'gmrc_wapda_stations' },
 ];
 
 // Bottom-right attribute table. Header is always visible (with parameter
@@ -38,9 +59,31 @@ export default function StationsTable() {
     setSelectedStation,
     disabledBinColors,
   } = useParameter();
+  const { setSelectedFeature } = useAttributeTables();
   const [open, setOpen] = useState(true);
+  const [legendOpen, setLegendOpen] = useState(false);
+  // Roster sizes for the sensor legend — populated lazily from
+  // /api/secondary/sensor-counts the first time the user opens the
+  // legend so we don't burn a request on every dashboard load.
+  const [sensorCounts, setSensorCounts] = useState(null);
   // { column: 'station' | 'value' | 'updated', direction: 'asc' | 'desc' }
   const [sort, setSort] = useState({ column: 'value', direction: 'asc' });
+
+  useEffect(() => {
+    if (!legendOpen || sensorCounts !== null) return;
+    let cancelled = false;
+    fetch('/api/secondary/sensor-counts')
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data) => {
+        if (!cancelled) setSensorCounts(data && typeof data === 'object' ? data : {});
+      })
+      .catch(() => {
+        if (!cancelled) setSensorCounts({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [legendOpen, sensorCounts]);
 
   const toggleSort = (column) => {
     setSort((prev) =>
@@ -59,15 +102,40 @@ export default function StationsTable() {
 
   const handleRowClick = (feature) => {
     const props = feature.properties ?? {};
-    // Toggle: click the same row twice → clear the selection.
-    if (selectedStation?.stationId === props.stationId) {
+    const stationId = props.stationId;
+    const sameStation = selectedStation?.stationId === stationId;
+    const overlayKey = `station:${stationId}`;
+
+    // Toggle: clicking the same row twice clears both the map ripple
+    // and the Feature Details tab. Otherwise we select the station +
+    // populate Feature Details — same shape MapPanel's onMapClick
+    // builds for station hits so the right-pane card / image catalog
+    // updates regardless of which click pathway the user came in on.
+    if (sameStation) {
       setSelectedStation(null);
+      setSelectedFeature((prev) =>
+        prev?.overlayKey === overlayKey ? null : prev,
+      );
       return;
     }
+
     setSelectedStation({
       ...props,
       lng: feature.geometry?.coordinates?.[0],
       lat: feature.geometry?.coordinates?.[1],
+    });
+    setSelectedFeature({
+      feature: {
+        type: 'Feature',
+        geometry: feature.geometry,
+        properties: { ...props },
+        id: stationId,
+      },
+      kind: 'station',
+      overlayKey,
+      label: props.stationName || `Station #${stationId}`,
+      sublabel: props.element || selected || 'PMD Station',
+      accentColor: '#16a085',
     });
   };
 
@@ -220,6 +288,20 @@ export default function StationsTable() {
         </Listbox>
         <button
           type="button"
+          onClick={() => setLegendOpen((o) => !o)}
+          className={cn(
+            'h-5 w-5 p-0 leading-none grid place-items-center rounded transition-colors',
+            legendOpen
+              ? 'text-[#16a085] bg-[#16a085]/15'
+              : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+          )}
+          aria-label={legendOpen ? 'Hide sensors legend' : 'Show sensors legend'}
+          aria-expanded={legendOpen}
+        >
+          <Info className="h-3.5 w-3.5 block" strokeWidth={1.75} />
+        </button>
+        <button
+          type="button"
           onClick={() => setOpen((o) => !o)}
           className="h-5 w-5 inline-flex items-center justify-center rounded text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg"
           aria-label={open ? 'Collapse table' : 'Expand table'}
@@ -231,6 +313,66 @@ export default function StationsTable() {
           )}
         </button>
       </div>
+
+      <AnimatePresence initial={false}>
+        {legendOpen && (
+          <motion.div
+            key="legend"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="overflow-hidden border-b border-day-border dark:border-night-border"
+          >
+            <div className="px-2.5 py-2 space-y-1.5">
+              {SENSOR_LEGEND.map((item) => {
+                const rawCount =
+                  typeof item.staticCount === 'number'
+                    ? item.staticCount
+                    : sensorCounts?.[item.countKey];
+                const hasCount = typeof rawCount === 'number';
+                const loading =
+                  typeof item.staticCount !== 'number' && sensorCounts === null;
+                return (
+                  <div key={item.label} className="flex items-center gap-2">
+                    <span className="h-5 w-5 inline-flex items-center justify-center shrink-0">
+                      {item.kind === 'image' ? (
+                        <img
+                          src={item.src}
+                          alt=""
+                          className="h-5 w-5 object-contain"
+                          draggable={false}
+                        />
+                      ) : (
+                        <span
+                          aria-hidden
+                          className="h-3 w-3 rounded-full border border-slate-900/40 dark:border-white/30"
+                          style={{ backgroundColor: item.color }}
+                        />
+                      )}
+                    </span>
+                    <span className="text-[12px] text-day-text dark:text-night-text truncate">
+                      {item.label}
+                    </span>
+                    <span
+                      className={cn(
+                        'ml-auto inline-flex items-center justify-center min-w-[28px]',
+                        'px-1.5 py-0.5 rounded-full text-[10.5px] font-semibold tabular-nums',
+                        loading
+                          ? 'bg-day-bg dark:bg-night-bg text-day-muted dark:text-night-muted'
+                          : 'bg-[#16a085]/15 text-[#16a085] dark:bg-[#16a085]/20',
+                      )}
+                      aria-label={hasCount ? `${rawCount} stations` : 'Loading count'}
+                    >
+                      {loading ? '…' : hasCount ? rawCount : '—'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence initial={false}>
         {open && (

@@ -538,6 +538,65 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Tab auto-switcher — listens to the PMD selection state and flips the
+// chart tab on the *edges* of that state (false → true triggers an
+// auto-switch in, true → false snaps back). Critical invariant: the
+// effect only acts on transitions, never on the steady state, so any
+// tab change the user has made manually in between is preserved.
+//
+// Rules:
+//   • When a station is freshly selected AND the user is currently on
+//     the default 'lakesArea' tab, switch them to 'pmd'. If they're
+//     anywhere else (because they manually picked a different tab),
+//     don't touch — that was their choice.
+//   • When the selection clears AND the user is still on the tab we
+//     auto-switched them into ('pmd'), snap back to the origin tab
+//     ('lakesArea'). If they've manually moved off 'pmd' since, leave
+//     them where they are.
+//   • Steady-state re-renders (selecting another station while
+//     already on PMD, or the user manually picking a tab while a
+//     selection exists) all run through the effect but hit the
+//     "no transition" branch and do nothing.
+// ---------------------------------------------------------------------------
+function useChartTabAutoSwitch(currentTab, setTab) {
+  const { selected, selectedStation } = useParameter();
+  // Tracks the previous "is PMD data present" value so the effect can
+  // tell apart a fresh selection edge from a re-render that happens to
+  // run while a selection is already set.
+  const prevTriggeredRef = useRef(false);
+  // The tab the user was on at the moment the auto-switch fired —
+  // remembered so we know where to return them once the selection
+  // clears. Reset after a successful return so the next cycle starts
+  // fresh.
+  const autoOriginRef = useRef(null);
+
+  useEffect(() => {
+    const triggered = Boolean(selected && selectedStation);
+    const wasTriggered = prevTriggeredRef.current;
+
+    if (triggered && !wasTriggered) {
+      // Edge: data just appeared. Only auto-switch from the default
+      // landing tab — anywhere else is presumed to be the user's
+      // deliberate choice.
+      if (currentTab === 'lakesArea') {
+        autoOriginRef.current = currentTab;
+        setTab('pmd');
+      }
+    } else if (!triggered && wasTriggered) {
+      // Edge: data just cleared. Snap back only if the user is still
+      // on the tab we auto-switched them into; otherwise they've
+      // manually moved on and we should respect that.
+      if (currentTab === 'pmd' && autoOriginRef.current) {
+        setTab(autoOriginRef.current);
+        autoOriginRef.current = null;
+      }
+    }
+
+    prevTriggeredRef.current = triggered;
+  }, [selected, selectedStation, currentTab, setTab]);
+}
+
 export default function ChartsRow() {
   const { theme } = useTheme();
   // Tab state lives in AttributeTablesContext so the Dashboard can also
@@ -545,6 +604,12 @@ export default function ChartsRow() {
   // restoring it on switch back.
   const { chartTab: tab, setChartTab: setTab } = useAttributeTables();
   const expanded = tab === 'attributes';
+
+  // Auto-switch the chart tab when a PMD station gets selected on the
+  // map, and snap back to Lakes Area when it's deselected — but only
+  // on *transitions* of the selection state, so manual tab switching
+  // is never overridden.
+  useChartTabAutoSwitch(tab, setTab);
 
   return (
     <motion.div

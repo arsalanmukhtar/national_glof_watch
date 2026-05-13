@@ -239,6 +239,11 @@ export default function MapPanel({ className, onMapReady }) {
   // without re-creating the listener on every visibility change.
   const desiredOverlaysRef = useRef(desiredOverlays);
   desiredOverlaysRef.current = desiredOverlays;
+  // Same pattern for the persisted style overrides — the style.load
+  // handler needs to read the latest seeded values without being torn
+  // down/recreated every time the user tweaks a layer's style.
+  const secondaryStylesRef = useRef(secondaryStyles);
+  secondaryStylesRef.current = secondaryStyles;
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -334,6 +339,10 @@ export default function MapPanel({ className, onMapReady }) {
       const f = e.features?.[0];
       if (!f) return;
       // Toggle: clicking the same dot twice clears the selection.
+      // Feature Details is populated by the map-wide handler below
+      // (which queries stations + overlays together and applies the
+      // Point > Line > Polygon priority) — keeping the two paths in one
+      // place avoids polygon overlays clobbering a station click.
       setSelectedStation((prev) =>
         prev?.stationId === f.properties.stationId
           ? null
@@ -397,35 +406,77 @@ export default function MapPanel({ className, onMapReady }) {
             !id.endsWith(':label') &&
             !id.endsWith(':heatmap'),
         );
-      if (overlayLayerIds.length === 0) return;
 
-      const hits = map.queryRenderedFeatures(e.point, {
-        layers: overlayLayerIds,
-      });
+      // Include the PMD parameter-station layer in the priority pool so
+      // a station drawn on top of a polygon still wins for Feature
+      // Details. The station layer ID isn't `overlay:`-prefixed so it
+      // wouldn't be picked up by the filter above.
+      const queryLayers = [...overlayLayerIds];
+      if (map.getLayer(STATIONS_LAYER)) queryLayers.push(STATIONS_LAYER);
 
-      // Vector overlays take priority — they're drawn on top of rasters
-      // and are usually the more meaningful click target. Raster pixel
-      // sampling is the fall-through when the click landed on bare
-      // raster (or empty basemap covered by a raster).
-      if (hits.length > 0) {
-        const top = hits[0];
-        const parsed = parseOverlayLayerId(top.layer.id);
-        if (!parsed) return;
-        const meta = describeOverlay(parsed, secondaryLayers, secondaryStyles);
-        setSelectedFeature({
-          feature: {
-            type: 'Feature',
-            geometry: top.geometry,
-            properties: { ...top.properties },
-            id: top.id,
-          },
-          kind: parsed.kind,
-          overlayKey: parsed.overlayKey,
-          label: meta.label,
-          sublabel: meta.sublabel,
-          accentColor: meta.accentColor,
+      if (queryLayers.length > 0) {
+        const hits = map.queryRenderedFeatures(e.point, {
+          layers: queryLayers,
         });
-        return;
+
+        // Geometry priority: Point > Line > Polygon. When multiple
+        // overlays are toggled on, the topmost point still beats any
+        // line / polygon under the cursor — matches what the user
+        // expects when they tap a dot drawn over a basin polygon.
+        const bestHit = pickByGeometryPriority(hits);
+
+        if (bestHit) {
+          // PMD station hit — separate kind + accent + toggle so the
+          // Feature Details tab clears when the same station is
+          // clicked twice (matching `selectedStation`'s toggle).
+          if (bestHit.layer.id === STATIONS_LAYER) {
+            const stationId = bestHit.properties.stationId;
+            const overlayKey = `station:${stationId}`;
+            setSelectedFeature((prev) =>
+              prev?.overlayKey === overlayKey
+                ? null
+                : {
+                    feature: {
+                      type: 'Feature',
+                      geometry: bestHit.geometry,
+                      properties: { ...bestHit.properties },
+                      id: stationId,
+                    },
+                    kind: 'station',
+                    overlayKey,
+                    label:
+                      bestHit.properties.stationName ||
+                      `Station #${stationId}`,
+                    sublabel:
+                      bestHit.properties.element || 'PMD Station',
+                    accentColor: '#16a085',
+                  },
+            );
+            return;
+          }
+
+          const parsed = parseOverlayLayerId(bestHit.layer.id);
+          if (!parsed) return;
+          const meta = describeOverlay(
+            parsed,
+            secondaryLayers,
+            secondaryStyles,
+          );
+          setSelectedFeature({
+            feature: {
+              type: 'Feature',
+              geometry: bestHit.geometry,
+              properties: { ...bestHit.properties },
+              id: bestHit.id,
+            },
+            kind: parsed.kind,
+            overlayKey: parsed.overlayKey,
+            label: meta.label,
+            sublabel: meta.sublabel,
+            accentColor: meta.accentColor,
+          });
+          return;
+        }
       }
 
       // No overlay under the click — try raster pixel lookup. The ref
@@ -643,30 +694,42 @@ export default function MapPanel({ className, onMapReady }) {
       for (const entry of resolved) {
         if (!entry) continue;
         const geometry = detectGeometry(entry.data) || entry.o.geometry;
-        ensureOverlay(map, entry.o.key, geometry, entry.data, entry.o.style);
-        tracked.add(entry.o.key);
-      }
 
-      // Data-driven seed for layers with default symbology configured
-      // (currently the four GLOF reference layers). Once data lands we
-      // can compute the right `categories` / `rangeMin`/`rangeMax` and
-      // push them onto the user's style override so the layer paints
-      // distinct colors immediately. Idempotent — skips when the
-      // override already has the seeded fields, so a user reset will
-      // naturally re-seed on the next reconcile.
-      for (const entry of resolved) {
-        if (!entry) continue;
-        const key = entry.o.key;
-        if (!key.startsWith('secondary:')) continue;
-        const layerId = key.slice('secondary:'.length);
-        const def = LAYER_DEFAULT_SYMBOLOGY[layerId];
-        if (!def) continue;
-        const partial = computeDefaultSymbologySeed(
-          def,
-          entry.data,
-          secondaryStyles[layerId],
-        );
-        if (partial) setLayerStyle(layerId, partial);
+        // Data-driven seed for layers with default symbology
+        // configured (currently the four GLOF reference layers). Done
+        // INLINE — before calling ensureOverlay — so the first paint
+        // already carries the seeded categories / rangeMin / rangeMax
+        // instead of waiting for the next render cycle. Without this,
+        // the layer painted with the bare base style on the first
+        // toggle and only got its categorical colors after a toggle
+        // off + on, because the re-render path that picked up the
+        // seeded override fired after Mapbox had already committed
+        // the first paint.
+        //
+        // `setLayerStyle` still runs to persist the seed on the
+        // SecondaryContext store so subsequent toggles + the style
+        // panel start from the populated values. Both calls are
+        // idempotent thanks to `computeDefaultSymbologySeed`'s
+        // already-seeded check.
+        let style = entry.o.style;
+        if (entry.o.key.startsWith('secondary:')) {
+          const layerId = entry.o.key.slice('secondary:'.length);
+          const def = LAYER_DEFAULT_SYMBOLOGY[layerId];
+          if (def) {
+            const partial = computeDefaultSymbologySeed(
+              def,
+              entry.data,
+              secondaryStyles[layerId],
+            );
+            if (partial) {
+              style = { ...style, ...partial };
+              setLayerStyle(layerId, partial);
+            }
+          }
+        }
+
+        ensureOverlay(map, entry.o.key, geometry, entry.data, style);
+        tracked.add(entry.o.key);
       }
     };
 
@@ -704,7 +767,28 @@ export default function MapPanel({ className, onMapReady }) {
       for (const entry of resolved) {
         if (!entry) continue;
         const geometry = detectGeometry(entry.data) || entry.o.geometry;
-        ensureOverlay(map, entry.o.key, geometry, entry.data, entry.o.style);
+        // Mirror the inline-seed pattern from the reconcile effect so
+        // basemap swaps that happen before the override has been
+        // persisted still paint with the right symbology on the first
+        // re-apply. setLayerStyle here also flushes the override into
+        // the context for any future toggles.
+        let style = entry.o.style;
+        if (entry.o.key.startsWith('secondary:')) {
+          const layerId = entry.o.key.slice('secondary:'.length);
+          const def = LAYER_DEFAULT_SYMBOLOGY[layerId];
+          if (def) {
+            const partial = computeDefaultSymbologySeed(
+              def,
+              entry.data,
+              secondaryStylesRef.current?.[layerId],
+            );
+            if (partial) {
+              style = { ...style, ...partial };
+              setLayerStyle(layerId, partial);
+            }
+          }
+        }
+        ensureOverlay(map, entry.o.key, geometry, entry.data, style);
         map._renderedOverlays.add(entry.o.key);
       }
     };
@@ -935,6 +1019,30 @@ function removeStationLayers(map) {
 // ---------------------------------------------------------------------------
 
 const OVERLAY_PREFIX = 'overlay:';
+
+// Pick the highest-priority hit from a Mapbox queryRenderedFeatures
+// result: Point > Line > Polygon. Within a bucket, preserves the
+// original (top-down) ordering so the topmost feature of the same
+// geometry type still wins. Returning early on the first point match
+// avoids walking the whole list when a point is already the winner.
+function pickByGeometryPriority(hits) {
+  if (!hits || hits.length === 0) return null;
+  let firstLine = null;
+  let firstPolygon = null;
+  for (const h of hits) {
+    const t = h.geometry?.type;
+    if (t === 'Point' || t === 'MultiPoint') return h;
+    if (!firstLine && (t === 'LineString' || t === 'MultiLineString')) {
+      firstLine = h;
+    } else if (
+      !firstPolygon &&
+      (t === 'Polygon' || t === 'MultiPolygon')
+    ) {
+      firstPolygon = h;
+    }
+  }
+  return firstLine || firstPolygon || null;
+}
 
 // Parse a Mapbox overlay layer id (`overlay:region:badswat::lake:fill`)
 // back into the source descriptor we composed in `desiredOverlays`.

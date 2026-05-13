@@ -1,15 +1,25 @@
 import { useState } from 'react';
-import { AlertTriangle, Film, Palette, Sheet } from 'lucide-react';
+import { AlertTriangle, BookType, Film, Palette, Sheet } from 'lucide-react';
 import { motion } from 'framer-motion';
 import VideosPanel from '@/components/dashboard/VideoPanels';
 import AlertsPanel from '@/components/dashboard/AlertsPanel';
 import AttributeTablePanel from '@/components/dashboard/AttributeTablePanel';
 import LayerStyleConfigPanel from '@/components/dashboard/LayerStyleConfigPanel';
+import SensorsInfoPanel from '@/components/dashboard/SensorsInfoPanel';
 import { useSecondary } from '@/contexts/SecondaryContext';
 import { cn } from '@/utils/cn';
 
 // `requiresUploads: true` hides the section in containers (RightSidebar /
 // MediaSwitcher) until the user has uploaded at least one secondary file.
+//
+// `position: 'footer'` pins the section under the divider in the right
+// sidebar (below the report button) and hides it from the mobile tab
+// strip — used for reference / documentation panels that aren't tied to
+// the live map context.
+//
+// `hideThreshold: true` suppresses the ThresholdStationsCard above the
+// panel for sections that are pure reference / documentation, not tied
+// to the live station feed.
 export const MEDIA_SECTIONS = [
   {
     id: 'style',
@@ -31,15 +41,25 @@ export const MEDIA_SECTIONS = [
     requiresUploads: true,
     render: () => <AttributeTablePanel />,
   },
+  {
+    id: 'sensors-info',
+    label: 'Sensors Info',
+    icon: BookType,
+    position: 'footer',
+    hideThreshold: true,
+    render: () => <SensorsInfoPanel />,
+  },
 ];
 
 export default function MediaSwitcher({ initial = 'videos', className }) {
   const [activeId, setActiveId] = useState(initial);
   const { uploads } = useSecondary();
   // Sections marked requiresUploads only surface once the user has actually
-  // uploaded a file in the Secondary panel.
+  // uploaded a file in the Secondary panel. Footer-positioned sections
+  // (e.g. sensors-info) belong to the desktop right sidebar only — keeping
+  // them out of the mobile tab strip stops the bar from overflowing.
   const sections = MEDIA_SECTIONS.filter(
-    (s) => !s.requiresUploads || uploads.length > 0,
+    (s) => s.position !== 'footer' && (!s.requiresUploads || uploads.length > 0),
   );
   const active = sections.find((s) => s.id === activeId) ?? sections[0];
 
