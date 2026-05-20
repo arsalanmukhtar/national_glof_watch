@@ -681,7 +681,10 @@ function Tabs({ tab, onChange }) {
             className={cn(
               'relative px-3 py-1.5 text-[13px] font-medium transition-colors',
               active
-                ? 'text-[#16a085]'
+                // High-contrast active label — bright white in dark
+                // mode, the darkest text in light mode. The teal
+                // underline below still marks which tab is selected.
+                ? 'text-day-text dark:text-white font-semibold'
                 : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
             )}
           >
@@ -689,7 +692,7 @@ function Tabs({ tab, onChange }) {
             {active && (
               <motion.span
                 layoutId="charts-tab-underline"
-                className="absolute left-2 right-2 -bottom-px h-[2px] rounded-full bg-[#16a085]"
+                className="absolute left-2 right-2 -bottom-px h-[2px] rounded-full bg-[#84cc16]"
                 transition={{ duration: 0.2 }}
               />
             )}
@@ -716,8 +719,8 @@ function Tabs({ tab, onChange }) {
               aria-label="Restore map view"
               className={cn(
                 'inline-flex h-7 w-7 items-center justify-center rounded-md',
-                'text-[#16a085] bg-[#16a085]/15 border border-[#16a085]/40',
-                'hover:bg-[#16a085]/25 hover:border-[#16a085]/60',
+                'text-[#84cc16] bg-[#84cc16]/15 border border-[#84cc16]/40',
+                'hover:bg-[#84cc16]/25 hover:border-[#84cc16]/60',
                 'transition-colors',
               )}
             >
@@ -787,7 +790,7 @@ function PmdTrendPanel({ theme }) {
   }, [selected, stationId, days]);
 
   const unit = PARAMETER_LEGENDS[selected]?.unit ?? '';
-  const fallbackLine = selected ? colorFor(selected) : '#16a085';
+  const fallbackLine = selected ? colorFor(selected) : '#84cc16';
   const fillAlpha = theme === 'night' ? 0.22 : 0.14;
   const fallbackFill =
     theme === 'night'
@@ -1032,14 +1035,14 @@ function BucketToggle({ value, onChange, disabled }) {
             className={cn(
               'relative px-2.5 py-1 text-[12px] font-medium rounded transition-colors',
               active
-                ? 'text-white'
+                ? 'text-[#1a2e05]'
                 : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
             )}
           >
             {active && (
               <motion.span
                 layoutId="bucket-toggle-pill"
-                className="absolute inset-0 rounded bg-[#16a085]"
+                className="absolute inset-0 rounded bg-[#84cc16]"
                 transition={{ duration: 0.18 }}
               />
             )}
@@ -1114,7 +1117,7 @@ function CustomDaysInput({ value, onChange, disabled }) {
           className={cn(
             'w-9 bg-transparent outline-none text-center',
             'text-day-text dark:text-night-text',
-            'focus:ring-1 focus:ring-[#16a085] rounded',
+            'focus:ring-1 focus:ring-[#84cc16] rounded',
             '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
           )}
         />
@@ -1175,13 +1178,13 @@ function LakesPanel({ theme }) {
         {
           label: yLabel || 'Series',
           data: values,
-          borderColor: '#16a085',
+          borderColor: '#84cc16',
           backgroundColor:
             theme === 'night'
-              ? 'rgba(22, 160, 133, 0.22)'
-              : 'rgba(22, 160, 133, 0.14)',
-          pointBackgroundColor: '#16a085',
-          pointBorderColor: '#16a085',
+              ? 'rgba(132, 204, 22, 0.22)'
+              : 'rgba(132, 204, 22, 0.14)',
+          pointBackgroundColor: '#84cc16',
+          pointBorderColor: '#84cc16',
           pointRadius: values.length > 200 ? 0 : 3,
           pointHoverRadius: 5,
           borderWidth: 1.75,
@@ -1614,7 +1617,7 @@ function renderLakesAreaTooltip(context, getTooltipEl, { unit }) {
   const dp = tooltip.dataPoints[0];
   const ds = chart.data?.datasets?.[dp.datasetIndex];
   const labels = chart.data?.labels || [];
-  const color = dp.dataset?.borderColor || dp.dataset?.backgroundColor || '#16a085';
+  const color = dp.dataset?.borderColor || dp.dataset?.backgroundColor || '#84cc16';
   const district = ds?._district ?? '';
   const lake = ds?.label ?? '';
   const year = String(labels[dp.dataIndex] ?? '');
@@ -1719,7 +1722,7 @@ function escapeHtml(s) {
 // solid line color so the chart area tint matches the parameter's palette.
 function hexToRgba(hex, alpha) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex ?? '');
-  if (!m) return `rgba(22, 160, 133, ${alpha})`;
+  if (!m) return `rgba(132, 204, 22, ${alpha})`;
   const r = parseInt(m[1], 16);
   const g = parseInt(m[2], 16);
   const b = parseInt(m[3], 16);

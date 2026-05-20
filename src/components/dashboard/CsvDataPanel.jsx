@@ -135,8 +135,8 @@ export default function CsvDataPanel() {
           'inline-flex items-center justify-center gap-2 rounded-md px-3 py-2',
           'text-[13px] font-semibold transition-colors',
           intakeOpen
-            ? 'bg-[#138b72] text-white'
-            : 'bg-[#16a085] text-white hover:bg-[#138b72]',
+            ? 'bg-[#65a30d] text-white'
+            : 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
         )}
       >
         <FilePlus2 className="h-4 w-4" />
@@ -249,7 +249,7 @@ function IntakeMethodPicker({ method, onChange }) {
             className={cn(
               'flex flex-col items-start gap-1 rounded-md border px-2 py-2 text-left transition-colors',
               on
-                ? 'bg-[#16a085]/10 border-[#16a085]/50 text-[#16a085]'
+                ? 'bg-[#84cc16]/10 border-[#84cc16]/50 text-[#84cc16]'
                 : 'border-day-border dark:border-night-border text-day-muted dark:text-night-muted hover:border-day-text/40 dark:hover:border-night-text/40',
             )}
           >
@@ -303,17 +303,17 @@ function UploadDrop({ busy, onFile }) {
         className={cn(
           'w-full flex flex-col items-center justify-center gap-1.5',
           'rounded-md border-2 border-dashed px-3 py-5 text-center cursor-pointer',
-          'transition-colors focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+          'transition-colors focus:outline-none focus:ring-2 focus:ring-[#84cc16]/40',
           'disabled:cursor-not-allowed disabled:opacity-60',
           dragOver
-            ? 'border-[#16a085] bg-[#16a085]/5'
-            : 'border-day-border dark:border-night-border hover:border-[#16a085]/60 hover:bg-[#16a085]/5',
+            ? 'border-[#84cc16] bg-[#84cc16]/5'
+            : 'border-day-border dark:border-night-border hover:border-[#84cc16]/60 hover:bg-[#84cc16]/5',
         )}
       >
         <Upload className="h-5 w-5 text-day-muted dark:text-night-muted" />
         <span className="text-[12px] text-day-text dark:text-night-text">
           Drop a .csv file or{' '}
-          <span className="font-semibold text-[#16a085]">
+          <span className="font-semibold text-[#84cc16]">
             {busy ? 'reading…' : 'click to browse'}
           </span>
         </span>
@@ -352,7 +352,7 @@ function PasteEditor({ busy, onCommit }) {
           'bg-day-bg dark:bg-night-bg',
           'border-day-border dark:border-night-border',
           'text-day-text dark:text-night-text',
-          'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+          'focus:outline-none focus:ring-2 focus:ring-[#84cc16]/40',
         )}
       />
       <button
@@ -361,7 +361,7 @@ function PasteEditor({ busy, onCommit }) {
         onClick={() => onCommit(text)}
         className={cn(
           'btn-base btn-sm w-full',
-          'bg-[#16a085] text-white hover:bg-[#138b72]',
+          'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
           'disabled:cursor-not-allowed disabled:opacity-50',
         )}
       >
@@ -396,7 +396,7 @@ function UrlIntake({ busy, onCommit }) {
             'bg-day-bg dark:bg-night-bg',
             'border border-day-border dark:border-night-border',
             'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
-            'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+            'focus:outline-none focus:ring-2 focus:ring-[#84cc16]/40',
           )}
         />
       </div>
@@ -406,7 +406,7 @@ function UrlIntake({ busy, onCommit }) {
         onClick={() => onCommit(url)}
         className={cn(
           'btn-base btn-sm w-full',
-          'bg-[#16a085] text-white hover:bg-[#138b72]',
+          'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
           'disabled:cursor-not-allowed disabled:opacity-50',
         )}
       >
@@ -427,7 +427,7 @@ function DatasetRow({ dataset, active, onSelect, onRemove }) {
       className={cn(
         'flex items-center gap-1 rounded-md border px-2 py-1.5 transition-colors',
         active
-          ? 'border-[#16a085]/40 bg-[#16a085]/15'
+          ? 'border-[#84cc16]/40 bg-[#84cc16]/15'
           : 'border-day-border dark:border-night-border',
       )}
     >
@@ -440,7 +440,7 @@ function DatasetRow({ dataset, active, onSelect, onRemove }) {
         <FileSpreadsheet
           className={cn(
             'h-3.5 w-3.5 shrink-0',
-            active ? 'text-[#16a085]' : 'text-brand-700 dark:text-brand-200',
+            active ? 'text-[#84cc16]' : 'text-brand-700 dark:text-brand-200',
           )}
         />
         <span className="truncate text-[13px] text-day-text dark:text-night-text">
@@ -564,7 +564,7 @@ function AxisPicker({ label, value, onChange, options, types }) {
             'bg-day-bg dark:bg-night-bg',
             'border border-day-border dark:border-night-border',
             'text-day-text dark:text-night-text',
-            'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+            'focus:outline-none focus:ring-2 focus:ring-[#84cc16]/40',
             'disabled:opacity-50',
           )}
         >
@@ -677,7 +677,7 @@ function FiltersConfig({ dataset, onChange }) {
           'inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[12px]',
           'border border-dashed border-day-border dark:border-night-border',
           'text-day-muted dark:text-night-muted',
-          'hover:text-[#16a085] hover:border-[#16a085]/60 transition-colors',
+          'hover:text-[#84cc16] hover:border-[#84cc16]/60 transition-colors',
           'disabled:cursor-not-allowed disabled:opacity-50',
         )}
       >

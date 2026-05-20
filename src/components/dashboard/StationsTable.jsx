@@ -1,51 +1,105 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Listbox, Transition } from '@headlessui/react';
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
-  Check,
   ChevronDown,
   ChevronUp,
   Info,
 } from 'lucide-react';
 import { useParameter } from '@/contexts/ParameterContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
+import { useSecondary } from '@/contexts/SecondaryContext';
 import {
   colorForReading,
   formatValue,
   PARAMETER_LEGENDS,
 } from '@/config/parameterLegends';
+import { effectiveStyle } from '@/utils/layerStyle';
+import { resolveMarkerIcon } from '@/config/markerIcons';
 import { timeAgo } from '@/utils/timeAgo';
 import { cn } from '@/utils/cn';
-import akahSensorsIcon from '@/assets/images/layer-icons/akah-sensors.webp';
-import wapdaSensorsIcon from '@/assets/images/layer-icons/wapda-sensors.webp';
-import briSensorsIcon from '@/assets/images/layer-icons/bri-sensors.webp';
-
-const ELEMENT_OPTIONS = [
-  { id: 'Air Temperature',          label: 'Air Temperature' },
-  { id: 'Total Rain',               label: 'Total Rain' },
-  { id: 'Water Level',              label: 'Water Level' },
-  { id: 'Compact GAS State (WPs)',  label: 'Compact Gas State (WPs)' },
-  { id: 'Istantaneous Flow',        label: 'Instantaneous Flow' },
-];
 
 // Sensor key shown when the user pops the legend in the Stations header.
 // PMD is rendered as the accent-coloured dot the map uses for parameter
-// stations; the three partner inventories show their bundled branded
-// icon so the legend mirrors what's actually drawn on the basemap.
+// stations; the three partner inventories carry a `layerId` so their
+// legend glyph is resolved live from the layer's effective style — the
+// legend then tracks whatever icon / colour the user sets in the Layer
+// Style panel instead of being pinned to the bundled default.
 // `countKey` indexes into the `/api/secondary/sensor-counts` response so
 // the roster numbers update automatically when the DB is repopulated.
 // `staticCount` pins the value — used for PMD since the published roster
 // size (279) is the source of truth, not the live DB row count which
 // fluctuates with the cron's reachability.
 const SENSOR_LEGEND = [
-  { kind: 'dot',   color: '#16a085',       label: 'GLOF II PMD',           countKey: 'pmd', staticCount: 279 },
-  { kind: 'image', src: akahSensorsIcon,   label: 'AKAH Sensors',          countKey: 'akah_sensors' },
-  { kind: 'image', src: briSensorsIcon,    label: 'BRI-FF China Sensors',  countKey: 'bri_ff_china_sensors' },
-  { kind: 'image', src: wapdaSensorsIcon,  label: 'GMRC / WAPDA Stations', countKey: 'gmrc_wapda_stations' },
+  { kind: 'dot',   color: '#84cc16',                   label: 'GLOF II PMD',           countKey: 'pmd', staticCount: 279 },
+  { kind: 'layer', layerId: 'akah_sensors',            label: 'AKAH Sensors',          countKey: 'akah_sensors' },
+  { kind: 'layer', layerId: 'bri_ff_china_sensors',    label: 'BRI-FF China Sensors',  countKey: 'bri_ff_china_sensors' },
+  { kind: 'layer', layerId: 'gmrc_wapda_stations',     label: 'GMRC / WAPDA Stations', countKey: 'gmrc_wapda_stations' },
 ];
+
+// Renders the legend glyph for one sensor row. PMD is a fixed accent
+// dot; the partner layers resolve their marker from the layer's live
+// effective style so a change in the Layer Style panel (icon swap,
+// colour, shape) is mirrored here immediately.
+function LegendSymbol({ item, secondaryStyles }) {
+  if (item.kind === 'dot') {
+    return (
+      <span
+        aria-hidden
+        className="h-3 w-3 rounded-full border border-slate-900/40 dark:border-white/30"
+        style={{ backgroundColor: item.color }}
+      />
+    );
+  }
+
+  const style = effectiveStyle(
+    item.layerId,
+    'point',
+    secondaryStyles[item.layerId],
+  );
+  const marker = style.marker ?? {};
+  const resolved = resolveMarkerIcon(marker.icon);
+  const iconColor = style.fillColor ?? '#84cc16';
+  const shapeBg = marker.backgroundColor || style.fillColor || '#84cc16';
+
+  if (resolved?.kind === 'custom') {
+    return (
+      <img
+        src={resolved.dataUrl}
+        alt=""
+        className="h-5 w-5 object-contain"
+        draggable={false}
+      />
+    );
+  }
+  if (resolved?.kind === 'emoji') {
+    return <span className="text-[15px] leading-none">{resolved.char}</span>;
+  }
+  if (resolved?.kind === 'lucide') {
+    const Icon = resolved.Component;
+    return (
+      <Icon
+        className="h-4 w-4"
+        style={{ color: iconColor }}
+        strokeWidth={2}
+        aria-hidden
+      />
+    );
+  }
+  // No icon — render the marker shape, or a fallback accent dot.
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'h-3 w-3 border border-slate-900/40 dark:border-white/30',
+        marker.shape === 'square' ? 'rounded-[2px]' : 'rounded-full',
+      )}
+      style={{ backgroundColor: shapeBg }}
+    />
+  );
+}
 
 // Bottom-right attribute table. Header is always visible (with parameter
 // dropdown + collapse toggle); body collapses via the chevron. Row click
@@ -53,13 +107,13 @@ const SENSOR_LEGEND = [
 export default function StationsTable() {
   const {
     selected,
-    setSelected,
     stations,
     selectedStation,
     setSelectedStation,
     disabledBinColors,
   } = useParameter();
   const { setSelectedFeature } = useAttributeTables();
+  const { styles: secondaryStyles } = useSecondary();
   const [open, setOpen] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
   // Roster sizes for the sensor legend — populated lazily from
@@ -135,7 +189,7 @@ export default function StationsTable() {
       overlayKey,
       label: props.stationName || `Station #${stationId}`,
       sublabel: props.element || selected || 'PMD Station',
-      accentColor: '#16a085',
+      accentColor: '#84cc16',
     });
   };
 
@@ -184,8 +238,6 @@ export default function StationsTable() {
   }, [stations, sort, disabledBinColors, selected]);
 
   const unitForSelected = PARAMETER_LEGENDS[selected]?.unit ?? '';
-  const selectedLabel =
-    ELEMENT_OPTIONS.find((o) => o.id === selected)?.label ?? null;
 
   return (
     <motion.div
@@ -202,103 +254,25 @@ export default function StationsTable() {
         <h3 className="text-[13px] font-semibold text-day-text dark:text-night-text">
           Stations
         </h3>
-        <Listbox value={selected ?? ''} onChange={(v) => setSelected(v || null)}>
-          <div className="relative ml-auto">
-            <Listbox.Button
-              className={cn(
-                'flex items-center gap-1.5 text-[12px] rounded px-2 py-1 cursor-pointer min-w-[120px]',
-                'bg-day-bg dark:bg-night-bg text-day-text dark:text-night-text',
-                'border border-day-border dark:border-night-border',
-                'hover:bg-white dark:hover:bg-night-surface transition-colors',
-                'focus:outline-none focus:ring-1 focus:ring-[#16a085]',
-              )}
-              aria-label="Select parameter"
-            >
-              <span className="truncate">
-                {selectedLabel ?? (
-                  <span className="text-day-muted dark:text-night-muted">
-                    Select parameter…
-                  </span>
-                )}
-              </span>
-              <ChevronDown
-                className="ml-auto h-3 w-3 shrink-0 text-day-muted dark:text-night-muted"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-            </Listbox.Button>
-            <Transition
-              as={Fragment}
-              enter="transition ease-out duration-150"
-              enterFrom="opacity-0 translate-y-1"
-              enterTo="opacity-100 translate-y-0"
-              leave="transition ease-in duration-100"
-              leaveFrom="opacity-100"
-              leaveTo="opacity-0"
-            >
-              <Listbox.Options
-                className={cn(
-                  'absolute right-0 mt-1 w-[160px] rounded-md py-1 z-20',
-                  'bg-white dark:bg-night-surface',
-                  'border border-day-border dark:border-night-border',
-                  'shadow-lg focus:outline-none text-[12px]',
-                )}
-              >
-                {ELEMENT_OPTIONS.map((o) => (
-                  <Listbox.Option
-                    key={o.id}
-                    value={o.id}
-                    className={({ active }) =>
-                      cn(
-                        'flex items-center gap-2 px-2.5 py-1 cursor-pointer select-none',
-                        active
-                          ? 'bg-brand-100 text-brand-900 dark:bg-[#16a085]/20 dark:text-night-text'
-                          : 'text-day-text dark:text-night-text',
-                      )
-                    }
-                  >
-                    {({ selected: isSelected }) => (
-                      <>
-                        <span
-                          className={cn(
-                            'h-3 w-3 inline-flex items-center justify-center shrink-0',
-                            isSelected
-                              ? 'text-[#16a085]'
-                              : 'opacity-0',
-                          )}
-                          aria-hidden
-                        >
-                          <Check className="h-3 w-3" strokeWidth={2.5} />
-                        </span>
-                        <span
-                          className={cn(
-                            'truncate',
-                            isSelected && 'font-medium',
-                          )}
-                        >
-                          {o.label}
-                        </span>
-                      </>
-                    )}
-                  </Listbox.Option>
-                ))}
-              </Listbox.Options>
-            </Transition>
-          </div>
-        </Listbox>
         <button
           type="button"
           onClick={() => setLegendOpen((o) => !o)}
           className={cn(
-            'h-5 w-5 p-0 leading-none grid place-items-center rounded transition-colors',
+            'ml-auto relative h-5 w-5 p-0 rounded transition-colors',
             legendOpen
-              ? 'text-[#16a085] bg-[#16a085]/15'
+              ? 'text-[#84cc16]'
               : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
           )}
           aria-label={legendOpen ? 'Hide sensors legend' : 'Show sensors legend'}
           aria-expanded={legendOpen}
         >
-          <Info className="h-3.5 w-3.5 block" strokeWidth={1.75} />
+          {/* Absolute inset-0 + m-auto centres the fixed-size icon
+              exactly inside the 20x20 button regardless of any flex /
+              grid quirk in the header row. */}
+          <Info
+            className="absolute inset-0 m-auto h-3.5 w-3.5"
+            strokeWidth={1.75}
+          />
         </button>
         <button
           type="button"
@@ -336,31 +310,21 @@ export default function StationsTable() {
                 return (
                   <div key={item.label} className="flex items-center gap-2">
                     <span className="h-5 w-5 inline-flex items-center justify-center shrink-0">
-                      {item.kind === 'image' ? (
-                        <img
-                          src={item.src}
-                          alt=""
-                          className="h-5 w-5 object-contain"
-                          draggable={false}
-                        />
-                      ) : (
-                        <span
-                          aria-hidden
-                          className="h-3 w-3 rounded-full border border-slate-900/40 dark:border-white/30"
-                          style={{ backgroundColor: item.color }}
-                        />
-                      )}
+                      <LegendSymbol
+                        item={item}
+                        secondaryStyles={secondaryStyles}
+                      />
                     </span>
                     <span className="text-[12px] text-day-text dark:text-night-text truncate">
                       {item.label}
                     </span>
                     <span
                       className={cn(
-                        'ml-auto inline-flex items-center justify-center min-w-[28px]',
+                        'ml-auto inline-flex items-center justify-center w-11 shrink-0',
                         'px-1.5 py-0.5 rounded-full text-[10.5px] font-semibold tabular-nums',
                         loading
                           ? 'bg-day-bg dark:bg-night-bg text-day-muted dark:text-night-muted'
-                          : 'bg-[#16a085]/15 text-[#16a085] dark:bg-[#16a085]/20',
+                          : 'bg-[#84cc16] text-[#1a2e05]',
                       )}
                       aria-label={hasCount ? `${rawCount} stations` : 'Loading count'}
                     >
@@ -436,7 +400,7 @@ export default function StationsTable() {
                           className={cn(
                             'cursor-pointer border-b border-day-border/60 dark:border-night-border/60 last:border-b-0',
                             active
-                              ? 'bg-brand-100 dark:bg-[#16a085]/20'
+                              ? 'bg-brand-100 dark:bg-[#84cc16]/20'
                               : 'hover:bg-day-bg dark:hover:bg-night-bg',
                           )}
                         >
@@ -488,7 +452,7 @@ function SortableTh({ column, sort, onToggle, className, children }) {
         onClick={() => onToggle(column)}
         className={cn(
           'inline-flex items-center gap-1 hover:text-day-text dark:hover:text-night-text transition-colors',
-          active && 'text-[#16a085]',
+          active && 'text-[#84cc16]',
         )}
       >
         <span className="truncate">{children}</span>

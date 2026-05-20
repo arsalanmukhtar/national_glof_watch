@@ -99,8 +99,8 @@ const ACCEPTED_TYPES = '.geojson,.json,application/geo+json,application/json,.zi
 //              contain, so non-square uploads still fit the chip.
 function MarkerSwatch({ style, marker }) {
   const resolved = resolveMarkerIcon(marker.icon);
-  const fill = style.fillColor || '#16a085';
-  const stroke = style.strokeColor || '#0f7560';
+  const fill = style.fillColor || '#84cc16';
+  const stroke = style.strokeColor || '#4d7c0f';
   const bg = marker.backgroundColor || fill;
   const sameBg = bg.replace(/^#/, '').toLowerCase() === fill.replace(/^#/, '').toLowerCase();
   const iconColor = sameBg ? autoContrast(bg) : fill;
@@ -353,7 +353,7 @@ function LayerLegend({ id, geometry }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-col items-center gap-0.5">
             <span
-              className="rounded-full bg-[#16a085]"
+              className="rounded-full bg-[#84cc16]"
               style={{ width: cap(style.sizeMin), height: cap(style.sizeMin) }}
             />
             <span className="text-[10px] tabular-nums text-day-muted dark:text-night-muted">
@@ -363,7 +363,7 @@ function LayerLegend({ id, geometry }) {
           <div className="flex-1 h-px bg-day-border dark:bg-night-border" />
           <div className="flex flex-col items-center gap-0.5">
             <span
-              className="rounded-full bg-[#16a085]"
+              className="rounded-full bg-[#84cc16]"
               style={{ width: cap(style.sizeMax), height: cap(style.sizeMax) }}
             />
             <span className="text-[10px] tabular-nums text-day-muted dark:text-night-muted">
@@ -460,7 +460,7 @@ function LayerRow({
       className={cn(
         'rounded-md border transition-colors',
         on
-          ? 'border-[#16a085]/40 bg-[#16a085]/15 dark:bg-[#16a085]/25'
+          ? 'border-[#84cc16]/40 bg-[#84cc16]/15 dark:bg-[#84cc16]/25'
           : 'border-day-border dark:border-night-border',
       )}
     >
@@ -502,8 +502,8 @@ function LayerRow({
             className={cn(
               'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
               tableOpen
-                ? 'bg-[#16a085]/15 text-[#16a085]'
-                : 'text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10',
+                ? 'bg-[#84cc16]/15 text-[#84cc16]'
+                : 'text-day-muted dark:text-night-muted hover:text-[#84cc16] hover:bg-[#84cc16]/10',
             )}
           >
             <TableProperties className="h-3.5 w-3.5" aria-hidden />
@@ -514,7 +514,7 @@ function LayerRow({
           onClick={handleZoom}
           title={`Zoom to ${label}`}
           aria-label={`Zoom to ${label}`}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10 transition-colors"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-day-muted dark:text-night-muted hover:text-[#84cc16] hover:bg-[#84cc16]/10 transition-colors"
         >
           <Shrink className="h-3.5 w-3.5" aria-hidden />
         </button>
@@ -532,7 +532,7 @@ function LayerRow({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden border-t border-[#16a085]/25 dark:border-[#16a085]/30"
+            className="overflow-hidden border-t border-[#84cc16]/25 dark:border-[#84cc16]/30"
           >
             <LayerLegend id={id} geometry={geometry} />
           </motion.div>
@@ -687,8 +687,8 @@ function UploadZone() {
           limitReached
             ? 'border-red-500/80 bg-red-500/10 dark:bg-red-500/15 cursor-not-allowed'
             : dragging
-              ? 'border-[#16a085] bg-[#16a085]/5'
-              : 'border-day-border dark:border-night-border hover:border-[#16a085] hover:bg-[#16a085]/5',
+              ? 'border-[#84cc16] bg-[#84cc16]/5'
+              : 'border-day-border dark:border-night-border hover:border-[#84cc16] hover:bg-[#84cc16]/5',
         )}
       >
         <FileUp
@@ -696,7 +696,7 @@ function UploadZone() {
             'h-7 w-7 transition-colors',
             limitReached
               ? 'text-red-600 dark:text-red-400'
-              : 'text-day-muted dark:text-night-muted group-hover:text-[#16a085]',
+              : 'text-day-muted dark:text-night-muted group-hover:text-[#84cc16]',
             busy && 'animate-pulse',
           )}
         />
@@ -715,7 +715,7 @@ function UploadZone() {
               : (
                 <>
                   Drop file here, or{' '}
-                  <span className="text-[#16a085] underline-offset-2 group-hover:underline">
+                  <span className="text-[#84cc16] underline-offset-2 group-hover:underline">
                     browse
                   </span>
                 </>
@@ -851,8 +851,8 @@ export default function SecondaryPanel({ compact = false }) {
                 aria-label="Browse database tables"
                 className={cn(
                   'inline-flex h-6 w-6 items-center justify-center rounded-md',
-                  'text-[#16a085]',
-                  'hover:bg-[#16a085] hover:text-white',
+                  'text-[#84cc16]',
+                  'hover:bg-[#84cc16] hover:text-[#1a2e05]',
                   'transition-colors',
                 )}
               >
@@ -872,7 +872,7 @@ export default function SecondaryPanel({ compact = false }) {
               'flex items-center gap-1.5 px-2 py-1.5 rounded-md',
               'bg-day-bg dark:bg-night-bg',
               'border border-day-border dark:border-night-border',
-              'focus-within:border-[#16a085] focus-within:ring-1 focus-within:ring-[#16a085]/40',
+              'focus-within:border-[#84cc16] focus-within:ring-1 focus-within:ring-[#84cc16]/40',
               'transition-colors',
             )}
           >
@@ -926,7 +926,7 @@ export default function SecondaryPanel({ compact = false }) {
           {filteredDbLayers.length > 0 && (
             <>
               <div className="flex items-center gap-1.5 px-1 mt-2 mb-1">
-                <Database className="h-3 w-3 text-[#16a085]" />
+                <Database className="h-3 w-3 text-[#84cc16]" />
                 <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-day-muted dark:text-night-muted">
                   From Database
                 </span>
@@ -977,9 +977,9 @@ export default function SecondaryPanel({ compact = false }) {
             onClick={() => setDbModalOpen(true)}
             className={cn(
               'group inline-flex flex-1 items-center justify-center gap-1.5',
-              'rounded-md border border-[#16a085]/40 hover:border-[#16a085]',
+              'rounded-md border border-[#84cc16]/40 hover:border-[#84cc16]',
               'px-2.5 py-1 text-[12px] font-medium',
-              'text-[#16a085] hover:bg-[#16a085]/10 transition-colors',
+              'text-[#84cc16] hover:bg-[#84cc16]/10 transition-colors',
             )}
           >
             <Server className="h-3.5 w-3.5 shrink-0" />

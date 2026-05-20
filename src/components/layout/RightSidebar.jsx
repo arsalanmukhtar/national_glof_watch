@@ -80,7 +80,7 @@ export default function RightSidebar({ className }) {
                   className={cn(
                     'btn-icon transition-colors',
                     on
-                      ? 'bg-[#16a085] text-white hover:bg-[#138b72]'
+                      ? 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]'
                       : 'btn-ghost',
                   )}
                 >
@@ -122,7 +122,7 @@ export default function RightSidebar({ className }) {
                   className={cn(
                     'btn-icon transition-colors',
                     on
-                      ? 'bg-[#16a085] text-white hover:bg-[#138b72]'
+                      ? 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]'
                       : 'btn-ghost',
                   )}
                 >

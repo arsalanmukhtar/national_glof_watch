@@ -26,7 +26,7 @@ function GeomGlyph({ bucket }) {
     bucket === 'point' ? CircleDot
     : bucket === 'line' ? Slash
     : Square;
-  return <Icon className="h-3 w-3 text-[#16a085]" aria-hidden />;
+  return <Icon className="h-3 w-3 text-[#84cc16]" aria-hidden />;
 }
 
 function fmtCount(n) {
@@ -176,7 +176,7 @@ export default function BrowseDatabaseModal({ open, onClose }) {
     >
       <div className="flex flex-col gap-3">
         <div className="flex items-start gap-2 text-[13px] text-day-muted dark:text-night-muted">
-          <Database className="h-4 w-4 shrink-0 mt-0.5 text-[#16a085]" />
+          <Database className="h-4 w-4 shrink-0 mt-0.5 text-[#84cc16]" />
           <span>
             Pick one or more spatial tables from the connected PostGIS
             database to load as map layers. Only point, line, and polygon
@@ -211,7 +211,7 @@ export default function BrowseDatabaseModal({ open, onClose }) {
                       className={cn(
                         'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[13px] transition-colors',
                         on
-                          ? 'bg-[#16a085]/15 text-day-text dark:text-night-text'
+                          ? 'bg-[#84cc16]/15 text-day-text dark:text-night-text'
                           : 'hover:bg-day-bg dark:hover:bg-night-bg text-day-text dark:text-night-text',
                       )}
                     >
@@ -219,7 +219,7 @@ export default function BrowseDatabaseModal({ open, onClose }) {
                         className={cn(
                           'h-3.5 w-3.5 shrink-0',
                           on
-                            ? 'text-[#16a085]'
+                            ? 'text-[#84cc16]'
                             : 'text-day-muted dark:text-night-muted',
                         )}
                       />
@@ -278,7 +278,7 @@ export default function BrowseDatabaseModal({ open, onClose }) {
                         isLoaded
                           ? 'opacity-50 cursor-not-allowed'
                           : isSelected
-                            ? 'bg-[#16a085]/15'
+                            ? 'bg-[#84cc16]/15'
                             : 'hover:bg-day-bg dark:hover:bg-night-bg',
                       )}
                     >
@@ -286,14 +286,14 @@ export default function BrowseDatabaseModal({ open, onClose }) {
                         className={cn(
                           'inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors',
                           isLoaded
-                            ? 'bg-[#16a085] border-[#16a085]'
+                            ? 'bg-[#84cc16] border-[#84cc16]'
                             : isSelected
-                              ? 'bg-[#16a085] border-[#16a085]'
+                              ? 'bg-[#84cc16] border-[#84cc16]'
                               : 'border-day-border dark:border-night-border',
                         )}
                       >
                         {(isSelected || isLoaded) && (
-                          <CheckCircle2 className="h-3 w-3 text-white" strokeWidth={3} />
+                          <CheckCircle2 className="h-3 w-3 text-[#1a2e05]" strokeWidth={3} />
                         )}
                       </span>
                       <span className="flex-1 min-w-0 truncate text-[13px] text-day-text dark:text-night-text">
@@ -307,7 +307,7 @@ export default function BrowseDatabaseModal({ open, onClose }) {
                         {fmtCount(t.count)}
                       </span>
                       {isLoaded && (
-                        <span className="text-[10px] uppercase tracking-wider text-[#16a085]">
+                        <span className="text-[10px] uppercase tracking-wider text-[#84cc16]">
                           loaded
                         </span>
                       )}
@@ -334,7 +334,7 @@ export default function BrowseDatabaseModal({ open, onClose }) {
 
         {busy && (
           <div className="flex items-center gap-2 text-[12px] text-day-muted dark:text-night-muted">
-            <Loader2 className="h-3 w-3 animate-spin text-[#16a085]" />
+            <Loader2 className="h-3 w-3 animate-spin text-[#84cc16]" />
             Loading {progress.done} / {progress.total}…
           </div>
         )}

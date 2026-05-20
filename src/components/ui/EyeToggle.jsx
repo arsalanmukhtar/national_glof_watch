@@ -17,7 +17,7 @@ export default function EyeToggle({ checked, onChange, label, className }) {
       className={cn(
         'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
         checked
-          ? 'text-[#16a085] hover:bg-[#16a085]/10'
+          ? 'text-[#84cc16] hover:bg-[#84cc16]/10'
           : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
         className,
       )}

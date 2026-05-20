@@ -78,7 +78,7 @@ function ShrinkButton({ onClick, label }) {
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10 transition-colors"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-day-muted dark:text-night-muted hover:text-[#84cc16] hover:bg-[#84cc16]/10 transition-colors"
     >
       <Shrink className="h-3.5 w-3.5" aria-hidden />
     </motion.button>
@@ -86,7 +86,7 @@ function ShrinkButton({ onClick, label }) {
 }
 
 // Sibling to ShrinkButton — opens this layer's attribute table in the
-// chart panel's "Attributes Table" tab. Stays highlighted (#16a085 bg)
+// chart panel's "Attributes Table" tab. Stays highlighted (#84cc16 bg)
 // while its table is open so the user can see at a glance which rows
 // have an attribute view active.
 function AttrTableButton({ open, onClick, label }) {
@@ -101,8 +101,8 @@ function AttrTableButton({ open, onClick, label }) {
       className={cn(
         'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors',
         open
-          ? 'bg-[#16a085]/15 text-[#16a085]'
-          : 'text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10',
+          ? 'bg-[#84cc16]/15 text-[#84cc16]'
+          : 'text-day-muted dark:text-night-muted hover:text-[#84cc16] hover:bg-[#84cc16]/10',
       )}
     >
       <TableProperties className="h-3.5 w-3.5" aria-hidden />
@@ -293,7 +293,7 @@ function RiskZonesRow({ regionId }) {
           onClick={handleParentToggle}
           aria-expanded={open}
           aria-label={open ? 'Collapse risk levels' : 'Expand risk levels'}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-day-muted dark:text-night-muted hover:text-[#16a085] hover:bg-[#16a085]/10 transition-colors"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-day-muted dark:text-night-muted hover:text-[#84cc16] hover:bg-[#84cc16]/10 transition-colors"
         >
           <ChevronDown
             className={cn(

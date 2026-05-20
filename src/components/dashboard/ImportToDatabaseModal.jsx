@@ -312,7 +312,7 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
                       onChange={(e) => updateColumn(idx, { include: e.target.checked })}
                       disabled={phase === 'running'}
                       aria-label={`Include ${col.source}`}
-                      className="h-3.5 w-3.5 accent-[#16a085] cursor-pointer"
+                      className="h-3.5 w-3.5 accent-[#84cc16] cursor-pointer"
                     />
                   </td>
                   <td className="px-2 py-1 font-mono text-[12px] text-day-text dark:text-night-text truncate max-w-[160px]" title={col.source}>
@@ -356,7 +356,7 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
                 phase === 'error'
                   ? 'text-red-600 dark:text-red-400'
                   : phase === 'done'
-                    ? 'text-[#16a085]'
+                    ? 'text-[#84cc16]'
                     : 'text-day-text dark:text-night-text',
               )}
             >
@@ -377,7 +377,7 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
             <motion.div
               className={cn(
                 'h-full rounded-full',
-                phase === 'error' ? 'bg-red-500' : 'bg-[#16a085]',
+                phase === 'error' ? 'bg-red-500' : 'bg-[#84cc16]',
               )}
               animate={{ width: `${Math.max(progress * 100, phase === 'running' ? 4 : 0)}%` }}
               transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
@@ -402,7 +402,7 @@ export default function ImportToDatabaseModal({ open, onClose, upload }) {
           disabled={!canSubmit || phase === 'done'}
           className={cn(
             'btn-base btn-md',
-            'bg-[#16a085] text-white hover:bg-[#138b72]',
+            'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
             'disabled:cursor-not-allowed disabled:opacity-50',
           )}
         >

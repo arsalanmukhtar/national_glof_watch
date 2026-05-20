@@ -14,7 +14,7 @@ export function DocsSection({ id, title, eyebrow, children }) {
   return (
     <section id={id} className="scroll-mt-24 pb-12">
       {eyebrow && (
-        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#16a085] mb-2">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#84cc16] mb-2">
           {eyebrow}
         </div>
       )}
@@ -72,7 +72,7 @@ export function Kbd({ children }) {
 // kind/category markers, etc.
 const PILL_TONES = {
   default: 'bg-day-bg dark:bg-night-bg text-day-text dark:text-night-text border-day-border dark:border-night-border',
-  brand:   'bg-[#16a085]/15 text-[#16a085] border-[#16a085]/40',
+  brand:   'bg-[#84cc16]/15 text-[#84cc16] border-[#84cc16]/40',
   warn:    'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40',
   risk:    'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/40',
   ok:      'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/40',
@@ -236,7 +236,7 @@ export function StatGrid({ items }) {
 export function FeatureCard({ icon: Icon, title, anchor, children }) {
   const inner = (
     <>
-      <div className="w-9 h-9 rounded-md flex items-center justify-center bg-[#16a085]/15 text-[#16a085] mb-3">
+      <div className="w-9 h-9 rounded-md flex items-center justify-center bg-[#84cc16]/15 text-[#84cc16] mb-3">
         <Icon className="w-4.5 h-4.5" strokeWidth={2.25} aria-hidden />
       </div>
       <h4 className="text-[14px] font-semibold text-day-text dark:text-night-text mb-1">
@@ -255,7 +255,7 @@ export function FeatureCard({ icon: Icon, title, anchor, children }) {
           'block rounded-lg border p-4 transition-all',
           'bg-day-surface dark:bg-night-surface',
           'border-day-border dark:border-night-border',
-          'hover:border-[#16a085]/50 hover:shadow-sm',
+          'hover:border-[#84cc16]/50 hover:shadow-sm',
         )}
       >
         {inner}

@@ -61,7 +61,7 @@ export default function GeeImageryPanel() {
               'bg-day-bg dark:bg-night-bg',
               'border border-day-border dark:border-night-border',
               'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
-              'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+              'focus:outline-none focus:ring-2 focus:ring-[#84cc16]/40',
             )}
           />
         </label>
@@ -70,7 +70,7 @@ export default function GeeImageryPanel() {
           disabled={!projectId.trim()}
           className={cn(
             'btn-base btn-sm w-full mt-1.5',
-            'bg-[#16a085] text-white hover:bg-[#138b72]',
+            'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
             'disabled:cursor-not-allowed disabled:opacity-50',
           )}
         >
@@ -119,7 +119,7 @@ export default function GeeImageryPanel() {
           className={cn(
             'flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-[11.5px]',
             hasGeometry
-              ? 'border-[#16a085]/40 bg-[#16a085]/10 text-[#16a085]'
+              ? 'border-[#84cc16]/40 bg-[#84cc16]/10 text-[#84cc16]'
               : 'border-day-border dark:border-night-border text-day-muted dark:text-night-muted',
           )}
         >
@@ -178,7 +178,7 @@ export default function GeeImageryPanel() {
                 'bg-day-bg dark:bg-night-bg',
                 'border border-day-border dark:border-night-border',
                 'text-day-text dark:text-night-text',
-                'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+                'focus:outline-none focus:ring-2 focus:ring-[#84cc16]/40',
               )}
             />
           </label>
@@ -194,7 +194,7 @@ export default function GeeImageryPanel() {
                 onChange={(e) =>
                   setRange((r) => ({ ...r, start: e.target.value }))
                 }
-                className="w-full px-2 py-1.5 rounded-md text-[12px] bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border text-day-text dark:text-night-text focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+                className="w-full px-2 py-1.5 rounded-md text-[12px] bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border text-day-text dark:text-night-text focus:outline-none focus:ring-2 focus:ring-[#84cc16]/40"
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -207,7 +207,7 @@ export default function GeeImageryPanel() {
                 onChange={(e) =>
                   setRange((r) => ({ ...r, end: e.target.value }))
                 }
-                className="w-full px-2 py-1.5 rounded-md text-[12px] bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border text-day-text dark:text-night-text focus:outline-none focus:ring-2 focus:ring-[#16a085]/40"
+                className="w-full px-2 py-1.5 rounded-md text-[12px] bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border text-day-text dark:text-night-text focus:outline-none focus:ring-2 focus:ring-[#84cc16]/40"
               />
             </label>
           </div>
@@ -228,7 +228,7 @@ export default function GeeImageryPanel() {
             max={100}
             value={cloudPct}
             onChange={(e) => setCloudPct(Number(e.target.value))}
-            className="w-full h-1 rounded-full appearance-none bg-day-border dark:bg-night-border accent-[#16a085] cursor-pointer"
+            className="w-full h-1 rounded-full appearance-none bg-day-border dark:bg-night-border accent-[#84cc16] cursor-pointer"
           />
         </label>
       </Section>
@@ -247,7 +247,7 @@ export default function GeeImageryPanel() {
                 className={cn(
                   'flex flex-col items-start gap-0.5 rounded-md border px-2 py-1.5 text-left transition-colors',
                   on
-                    ? 'bg-[#16a085]/10 border-[#16a085]/50 text-[#16a085]'
+                    ? 'bg-[#84cc16]/10 border-[#84cc16]/50 text-[#84cc16]'
                     : 'border-day-border dark:border-night-border text-day-text dark:text-night-text hover:border-day-text/40 dark:hover:border-night-text/40',
                 )}
               >
@@ -269,7 +269,7 @@ export default function GeeImageryPanel() {
         disabled={!hasGeometry || (mode === 'single' ? !singleDate : !(range.start && range.end))}
         className={cn(
           'btn-base btn-md w-full',
-          'bg-[#16a085] text-white hover:bg-[#138b72]',
+          'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
           'disabled:cursor-not-allowed disabled:opacity-50',
         )}
       >
@@ -298,7 +298,7 @@ function DrawToolButton({ label, Icon, active, danger, onClick }) {
         active
           ? danger
             ? 'bg-red-500/10 border-red-500/40 text-red-500 dark:text-red-400'
-            : 'bg-[#16a085]/10 border-[#16a085]/40 text-[#16a085]'
+            : 'bg-[#84cc16]/10 border-[#84cc16]/40 text-[#84cc16]'
           : 'border-day-border dark:border-night-border text-day-muted dark:text-night-muted hover:border-day-text/40 dark:hover:border-night-text/40',
       )}
     >
@@ -318,7 +318,7 @@ function ModeButton({ label, hint, active, onClick }) {
       className={cn(
         'flex flex-col items-start gap-0.5 rounded-md border px-2 py-2 text-left transition-colors',
         active
-          ? 'bg-[#16a085]/10 border-[#16a085]/50 text-[#16a085]'
+          ? 'bg-[#84cc16]/10 border-[#84cc16]/50 text-[#84cc16]'
           : 'border-day-border dark:border-night-border text-day-muted dark:text-night-muted hover:border-day-text/40 dark:hover:border-night-text/40',
       )}
     >

@@ -8,7 +8,7 @@ export const PARAMETER_COLORS = {
   'Istantaneous Flow': '#10b981',        // emerald-500
 };
 
-export const DEFAULT_PARAMETER_COLOR = '#16a085';
+export const DEFAULT_PARAMETER_COLOR = '#84cc16';
 
 export function colorFor(element) {
   return PARAMETER_COLORS[element] ?? DEFAULT_PARAMETER_COLOR;

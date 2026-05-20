@@ -54,7 +54,7 @@ export default function BasemapSwitcher({
           className={cn(
             'inline-flex items-center justify-center h-6 w-6 rounded transition-colors',
             expanded
-              ? 'bg-[#16a085] text-white'
+              ? 'bg-[#84cc16] text-[#1a2e05]'
               : 'text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg',
           )}
         >
@@ -113,7 +113,7 @@ export default function BasemapSwitcher({
                     className={cn(
                       'inline-flex items-center gap-1 h-6 px-2 rounded text-[12px] font-medium transition-colors whitespace-nowrap',
                       on
-                        ? 'bg-[#16a085] text-white'
+                        ? 'bg-[#84cc16] text-[#1a2e05]'
                         : 'text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg',
                     )}
                   >

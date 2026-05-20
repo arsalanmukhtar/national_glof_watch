@@ -17,7 +17,7 @@ function Stat({ value, label }) {
     <span
       className={cn(
         'inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded',
-        'bg-[#16a085]/15 text-[#16a085] dark:bg-[#16a085]/20',
+        'bg-[#84cc16]/15 text-[#84cc16] dark:bg-[#84cc16]/20',
         'text-[11.5px] font-semibold tabular-nums leading-none',
       )}
     >
@@ -45,7 +45,7 @@ function P({ children }) {
 
 function SubHead({ children }) {
   return (
-    <h4 className="text-[11.5px] font-semibold uppercase tracking-wide text-[#16a085]">
+    <h4 className="text-[11.5px] font-semibold uppercase tracking-wide text-[#84cc16]">
       {children}
     </h4>
   );
@@ -56,7 +56,7 @@ function Bullet({ children }) {
     <li className="text-[12px] leading-relaxed text-day-text/90 dark:text-night-text/90 pl-3 relative">
       <span
         aria-hidden
-        className="absolute left-0 top-[0.55em] h-1 w-1 rounded-full bg-[#16a085]"
+        className="absolute left-0 top-[0.55em] h-1 w-1 rounded-full bg-[#84cc16]"
       />
       {children}
     </li>
@@ -79,7 +79,7 @@ function InventoryRow({ name, gb, kp, total }) {
       <td className="py-1.5 px-1 text-[11.5px] text-right tabular-nums text-day-muted dark:text-night-muted">
         {kp}
       </td>
-      <td className="py-1.5 px-2 text-[11.5px] text-right tabular-nums font-semibold text-[#16a085]">
+      <td className="py-1.5 px-2 text-[11.5px] text-right tabular-nums font-semibold text-[#84cc16]">
         {total}
       </td>
     </tr>
@@ -527,7 +527,7 @@ export default function SensorsInfoPanel() {
             'border border-day-border dark:border-night-border',
             'text-day-text dark:text-night-text',
             'placeholder:text-day-muted dark:placeholder:text-night-muted',
-            'focus:outline-none focus:ring-1 focus:ring-[#16a085]',
+            'focus:outline-none focus:ring-1 focus:ring-[#84cc16]',
           )}
         />
         {query ? (

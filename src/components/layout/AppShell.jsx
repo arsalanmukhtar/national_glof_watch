@@ -13,8 +13,8 @@ import SecondaryPanel from '@/components/dashboard/SecondaryPanel';
 function MobileSection({ icon: Icon, title, children, last }) {
   return (
     <section className={last ? '' : 'mb-5'}>
-      <header className="mb-3 pb-2 flex items-center gap-2 border-b-2 border-[#16a085]/40">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-[#16a085]/15 text-[#16a085]">
+      <header className="mb-3 pb-2 flex items-center gap-2 border-b-2 border-[#84cc16]/40">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-[#84cc16]/15 text-[#84cc16]">
           <Icon className="h-4 w-4" aria-hidden />
         </span>
         <h3 className="text-[15px] font-semibold tracking-tight text-day-text dark:text-night-text">

@@ -103,8 +103,8 @@ function FilePicker({ uploads, selectedId, onSelect }) {
                 className={cn(
                   'shrink-0 w-[180px] snap-start inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium border transition-colors',
                   isSelected
-                    ? 'bg-[#16a085] text-white border-[#16a085] shadow-sm'
-                    : 'bg-slate-100 dark:bg-night-bg text-day-text dark:text-night-text border-day-border dark:border-night-border hover:border-[#16a085]/60',
+                    ? 'bg-[#84cc16] text-[#1a2e05] border-[#84cc16] shadow-sm'
+                    : 'bg-slate-100 dark:bg-night-bg text-day-text dark:text-night-text border-day-border dark:border-night-border hover:border-[#84cc16]/60',
                 )}
               >
                 <Icon
@@ -318,7 +318,7 @@ export default function AttributeTablePanel() {
                           'inline-flex items-center gap-1 px-2.5 py-2 w-full transition-colors',
                           numeric ? 'justify-end flex-row-reverse' : 'justify-start',
                           isSorted
-                            ? 'text-[#16a085]'
+                            ? 'text-[#84cc16]'
                             : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
                         )}
                       >
@@ -363,11 +363,11 @@ export default function AttributeTablePanel() {
                       // just-clicked row stays visibly anchored after
                       // the cursor moves on.
                       isFocused
-                        ? 'bg-[#16a085]/25 dark:bg-[#16a085]/30'
+                        ? 'bg-[#84cc16]/25 dark:bg-[#84cc16]/30'
                         : i % 2 === 1
                           ? 'bg-slate-100 dark:bg-slate-800/60'
                           : 'bg-transparent',
-                      !isFocused && 'hover:bg-[#16a085]/15 dark:hover:bg-[#16a085]/20',
+                      !isFocused && 'hover:bg-[#84cc16]/15 dark:hover:bg-[#84cc16]/20',
                     )}
                   >
                     {columns.map(({ key, numeric }) => {
@@ -409,7 +409,7 @@ export default function AttributeTablePanel() {
           onClick={() => setImportOpen(true)}
           className={cn(
             'btn-base btn-md w-full',
-            'bg-[#16a085] text-white hover:bg-[#138b72]',
+            'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
             'disabled:cursor-not-allowed disabled:opacity-50',
           )}
         >

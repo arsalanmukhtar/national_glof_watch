@@ -90,7 +90,7 @@ export default function DocsPage() {
           <DocsTOC active={activeId} activeParent={activeParent} />
           <div className="min-w-0 flex-1">
             <header className="mb-8">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#16a085] mb-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#84cc16] mb-2">
                 Operator's Manual
               </div>
               <h1 className="text-[34px] sm:text-[40px] font-semibold leading-tight tracking-tight text-day-text dark:text-night-text">
@@ -135,14 +135,14 @@ function DocsTOC({ active, activeParent }) {
                   className={cn(
                     'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors',
                     isParent
-                      ? 'text-[#16a085] bg-[#16a085]/10'
+                      ? 'text-[#84cc16] bg-[#84cc16]/10'
                       : 'text-day-text dark:text-night-text hover:bg-day-surface/70 dark:hover:bg-night-surface/70',
                   )}
                 >
                   <ChevronRight
                     className={cn(
                       'w-3 h-3 transition-transform',
-                      isParent && 'rotate-90 text-[#16a085]',
+                      isParent && 'rotate-90 text-[#84cc16]',
                     )}
                     aria-hidden
                   />
@@ -159,7 +159,7 @@ function DocsTOC({ active, activeParent }) {
                             className={cn(
                               'block rounded-md px-2 py-1 text-[12.5px] transition-colors',
                               isActive
-                                ? 'text-[#16a085] font-semibold'
+                                ? 'text-[#84cc16] font-semibold'
                                 : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
                             )}
                           >

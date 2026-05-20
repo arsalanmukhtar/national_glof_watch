@@ -241,7 +241,7 @@ export default function StationPhotoModal({
                             'shrink-0 h-14 w-20 rounded-md overflow-hidden',
                             'border-2 transition-all',
                             active
-                              ? 'border-[#16a085] shadow-md scale-[1.02]'
+                              ? 'border-[#84cc16] shadow-md scale-[1.02]'
                               : 'border-transparent opacity-70 hover:opacity-100',
                           )}
                           aria-label={`Show photo ${i + 1}`}

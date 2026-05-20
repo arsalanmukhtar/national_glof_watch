@@ -166,7 +166,7 @@ export default function ParametersPanel() {
           disabled={isBusy}
           className={cn(
             'btn-base btn-sm w-full',
-            'bg-[#16a085] text-white hover:bg-[#138b72]',
+            'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
             'disabled:cursor-wait',
           )}
         >

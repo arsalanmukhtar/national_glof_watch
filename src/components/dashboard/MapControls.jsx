@@ -387,7 +387,7 @@ function CtrlButton({ children, onClick, label, active = false }) {
       className={cn(
         'h-7 w-7 inline-flex items-center justify-center transition-colors',
         active
-          ? 'bg-[#16a085] text-white'
+          ? 'bg-[#84cc16] text-[#1a2e05]'
           : 'text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg',
       )}
     >

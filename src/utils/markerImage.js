@@ -405,9 +405,9 @@ async function buildCustomMarkerImage(spec, dpr, cssSize, pxSize, cacheKey) {
 
   const hasShape = spec.shape === 'circle' || spec.shape === 'square';
   if (hasShape) {
-    const bg = spec.backgroundColor || spec.fillColor || '#16a085';
+    const bg = spec.backgroundColor || spec.fillColor || '#84cc16';
     ctx.fillStyle = bg;
-    ctx.strokeStyle = spec.strokeColor || '#0f7560';
+    ctx.strokeStyle = spec.strokeColor || '#4d7c0f';
     ctx.lineWidth = sw;
     if (spec.shape === 'circle') {
       ctx.beginPath();
@@ -500,8 +500,8 @@ export async function buildMarkerImage(spec) {
   const svg = buildMarkerSvg({
     shape: spec.shape || 'none',
     iconId: spec.iconId || null,
-    fillColor: spec.fillColor || '#16a085',
-    strokeColor: spec.strokeColor || '#0f7560',
+    fillColor: spec.fillColor || '#84cc16',
+    strokeColor: spec.strokeColor || '#4d7c0f',
     strokeWidth: spec.strokeWidth ?? 1.5,
     // backgroundColor only matters when a shape is set; the SVG
     // builder falls back to fillColor when null so the legacy

@@ -85,7 +85,7 @@ const REGION_LAYER_COLORS = {
 };
 
 export function regionLayerColor(layerKey) {
-  return REGION_LAYER_COLORS[layerKey] ?? '#16a085';
+  return REGION_LAYER_COLORS[layerKey] ?? '#84cc16';
 }
 
 // Best-effort geometry detection for region layers, used so MapPanel can

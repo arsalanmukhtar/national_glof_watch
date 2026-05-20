@@ -449,7 +449,7 @@ export default function MapPanel({ className, onMapReady }) {
                       `Station #${stationId}`,
                     sublabel:
                       bestHit.properties.element || 'PMD Station',
-                    accentColor: '#16a085',
+                    accentColor: '#84cc16',
                   },
             );
             return;
@@ -1124,7 +1124,7 @@ function describeOverlay(parsed, secondaryLayers, secondaryStyles) {
     const def = SECONDARY_LAYERS.find((l) => l.id === parsed.secondaryId);
     const accent = secondaryStyles?.[parsed.secondaryId]?.fillColor
       ?? secondaryStyles?.[parsed.secondaryId]?.strokeColor
-      ?? '#16a085';
+      ?? '#84cc16';
     return {
       label:       def?.label ?? humanizeId(parsed.secondaryId),
       sublabel:    def?.geometry ? KIND_GEOMETRY_LABEL[def.geometry] ?? null : null,
@@ -1137,10 +1137,10 @@ function describeOverlay(parsed, secondaryLayers, secondaryStyles) {
     return {
       label:       meta?.label ?? humanizeId(id),
       sublabel:    meta?.geometry ? KIND_GEOMETRY_LABEL[meta.geometry] ?? null : null,
-      accentColor: secondaryStyles?.[id]?.fillColor ?? '#16a085',
+      accentColor: secondaryStyles?.[id]?.fillColor ?? '#84cc16',
     };
   }
-  return { label: 'Feature', sublabel: null, accentColor: '#16a085' };
+  return { label: 'Feature', sublabel: null, accentColor: '#84cc16' };
 }
 
 const KIND_GEOMETRY_LABEL = {
@@ -1179,7 +1179,7 @@ function buildRasterFeatureSpec(hit) {
   // brand teal as a neutral default (we don't have a colormap → solid
   // colour helper plumbed in here).
   const accentColor =
-    (hit.mode === 'classified' && hit.matchedClass?.color) || '#16a085';
+    (hit.mode === 'classified' && hit.matchedClass?.color) || '#84cc16';
   return {
     feature: {
       type: 'Feature',
@@ -1267,8 +1267,8 @@ async function ensureMarkerImage(map, key, style, imageRadius) {
   const spec = {
     shape: marker.shape || 'none',
     iconId: marker.icon || null,
-    fillColor: style?.fillColor || '#16a085',
-    strokeColor: style?.strokeColor || '#0f7560',
+    fillColor: style?.fillColor || '#84cc16',
+    strokeColor: style?.strokeColor || '#4d7c0f',
     strokeWidth: style?.strokeWidth ?? 1.5,
     backgroundColor: marker.backgroundColor || null,
     // When the layer's size is zoom-driven, the caller passes the

@@ -79,7 +79,7 @@ export default function MediaSwitcher({ initial = 'videos', className }) {
               className={cn(
                 'flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded transition-colors',
                 on
-                  ? 'bg-[#16a085] text-white shadow-sm'
+                  ? 'bg-[#84cc16] text-[#1a2e05] shadow-sm'
                   : 'text-day-text dark:text-night-text hover:bg-day-surface dark:hover:bg-night-surface',
               )}
             >

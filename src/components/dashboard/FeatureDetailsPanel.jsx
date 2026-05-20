@@ -279,7 +279,7 @@ function ImageCatalogTile({ accentColor, photos, loading, onOpen }) {
         'bg-day-surface dark:bg-night-surface',
         'transition-all',
         hasPhotos
-          ? 'cursor-pointer hover:shadow-md hover:border-[#16a085]/60'
+          ? 'cursor-pointer hover:shadow-md hover:border-[#84cc16]/60'
           : 'cursor-not-allowed opacity-70',
       )}
       aria-label={
@@ -391,9 +391,9 @@ function EmptyState() {
   return (
     <div className="h-full flex flex-col items-center justify-center text-center px-6">
       <div className="relative mb-3">
-        <div className="absolute inset-0 rounded-full bg-[#16a085]/10 blur-xl" />
+        <div className="absolute inset-0 rounded-full bg-[#84cc16]/10 blur-xl" />
         <div className="relative w-12 h-12 rounded-full flex items-center justify-center bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border">
-          <MapPin className="w-5 h-5 text-[#16a085]" aria-hidden />
+          <MapPin className="w-5 h-5 text-[#84cc16]" aria-hidden />
         </div>
       </div>
       <h3 className="text-[13.5px] font-semibold text-day-text dark:text-night-text">
@@ -726,9 +726,9 @@ function formatNumber(n) {
 }
 
 function hexToRgba(hex, alpha) {
-  if (!hex) return `rgba(22, 160, 133, ${alpha})`;
+  if (!hex) return `rgba(132, 204, 22, ${alpha})`;
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!m) return `rgba(22, 160, 133, ${alpha})`;
+  if (!m) return `rgba(132, 204, 22, ${alpha})`;
   const r = parseInt(m[1], 16);
   const g = parseInt(m[2], 16);
   const b = parseInt(m[3], 16);

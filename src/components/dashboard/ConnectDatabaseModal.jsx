@@ -307,7 +307,7 @@ export default function ConnectDatabaseModal({ open, onClose }) {
                 className={cn(
                   'relative flex items-start gap-2 px-3 py-2 rounded text-left transition-colors',
                   active
-                    ? 'bg-[#16a085] text-white shadow-sm'
+                    ? 'bg-[#84cc16] text-[#1a2e05] shadow-sm'
                     : 'text-day-text dark:text-night-text hover:bg-day-bg/60 dark:hover:bg-night-bg/60',
                 )}
               >
@@ -395,7 +395,7 @@ export default function ConnectDatabaseModal({ open, onClose }) {
                   'absolute right-1.5 top-1/2 -translate-y-1/2',
                   'inline-flex h-7 w-7 items-center justify-center rounded-md',
                   'text-day-muted dark:text-night-muted',
-                  'hover:text-[#16a085] hover:bg-[#16a085]/10 transition-colors',
+                  'hover:text-[#84cc16] hover:bg-[#84cc16]/10 transition-colors',
                   'disabled:opacity-50 disabled:cursor-not-allowed',
                 )}
               >
@@ -414,7 +414,7 @@ export default function ConnectDatabaseModal({ open, onClose }) {
             checked={form.ssl}
             onChange={(e) => update('ssl', e.target.checked)}
             disabled={phase === 'running'}
-            className="h-3.5 w-3.5 accent-[#16a085] cursor-pointer"
+            className="h-3.5 w-3.5 accent-[#84cc16] cursor-pointer"
           />
           Connect over SSL (recommended for non-LAN servers)
         </label>
@@ -485,7 +485,7 @@ export default function ConnectDatabaseModal({ open, onClose }) {
                 phase === 'error'
                   ? 'text-red-600 dark:text-red-400'
                   : phase === 'done'
-                    ? 'text-[#16a085]'
+                    ? 'text-[#84cc16]'
                     : 'text-day-text dark:text-night-text',
               )}
             >
@@ -514,7 +514,7 @@ export default function ConnectDatabaseModal({ open, onClose }) {
             <motion.div
               className={cn(
                 'h-full rounded-full',
-                phase === 'error' ? 'bg-red-500' : 'bg-[#16a085]',
+                phase === 'error' ? 'bg-red-500' : 'bg-[#84cc16]',
               )}
               animate={{
                 width: `${Math.max(progress * 100, phase === 'running' ? 4 : 0)}%`,
@@ -541,7 +541,7 @@ export default function ConnectDatabaseModal({ open, onClose }) {
           disabled={!canSubmit || phase === 'done'}
           className={cn(
             'btn-base btn-md',
-            'bg-[#16a085] text-white hover:bg-[#138b72]',
+            'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
             'disabled:cursor-not-allowed disabled:opacity-50',
           )}
         >

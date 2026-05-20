@@ -108,7 +108,7 @@ export default function MapGeocoder({ map }) {
           'flex items-center gap-2 px-2.5 py-1.5 rounded-md shadow-sm',
           'bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm',
           'border border-day-border dark:border-night-border',
-          'focus-within:ring-1 focus-within:ring-[#16a085]',
+          'focus-within:ring-1 focus-within:ring-[#84cc16]',
         )}
       >
         <Search
@@ -167,13 +167,13 @@ export default function MapGeocoder({ map }) {
                 onClick={() => handleSelect(f)}
                 className={cn(
                   'flex items-start gap-2 px-2.5 py-1.5 text-[13px] cursor-pointer',
-                  'hover:bg-brand-100 dark:hover:bg-[#16a085]/20',
+                  'hover:bg-brand-100 dark:hover:bg-[#84cc16]/20',
                   'text-day-text dark:text-night-text',
                   'border-b border-day-border/60 dark:border-night-border/60 last:border-b-0',
                 )}
               >
                 <MapPin
-                  className="h-3.5 w-3.5 mt-0.5 shrink-0 text-[#16a085]"
+                  className="h-3.5 w-3.5 mt-0.5 shrink-0 text-[#84cc16]"
                   strokeWidth={1.75}
                 />
                 <div className="min-w-0 flex-1">

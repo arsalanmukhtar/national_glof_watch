@@ -204,7 +204,7 @@ export function paintExprsFor(style, geometry) {
   // Build the "color" value used by Simple, with overrides for Categories /
   // Color range. Size has its own override path below.
   if (geometry === 'point') {
-    let circleColor = style.fillColor ?? '#16a085';
+    let circleColor = style.fillColor ?? '#84cc16';
     if (style.type === 'categories') circleColor = categoriesExpr(style, circleColor);
     else if (style.type === 'colorRange') circleColor = colorRangeExpr(style, circleColor);
 
@@ -272,7 +272,7 @@ export function paintExprsFor(style, geometry) {
         'circle-radius': radius,
         'circle-color': circleColor,
         'circle-opacity': zoomedOrLiteral(style, 'fillOpacity', style.fillOpacity ?? 0.85),
-        'circle-stroke-color': style.strokeColor ?? '#0f7560',
+        'circle-stroke-color': style.strokeColor ?? '#4d7c0f',
         'circle-stroke-width': zoomedOrLiteral(style, 'strokeWidth', style.strokeWidth ?? 1.5),
         'circle-stroke-opacity': style.strokeOpacity ?? 1,
       },
@@ -280,7 +280,7 @@ export function paintExprsFor(style, geometry) {
   }
 
   if (geometry === 'line') {
-    let color = style.color ?? '#16a085';
+    let color = style.color ?? '#84cc16';
     if (style.type === 'categories') color = categoriesExpr(style, color);
     else if (style.type === 'colorRange') color = colorRangeExpr(style, color);
 
@@ -299,7 +299,7 @@ export function paintExprsFor(style, geometry) {
   }
 
   // polygon
-  let fillColor = style.fillColor ?? '#16a085';
+  let fillColor = style.fillColor ?? '#84cc16';
   if (style.type === 'categories') fillColor = categoriesExpr(style, fillColor);
   else if (style.type === 'colorRange') fillColor = colorRangeExpr(style, fillColor);
 
@@ -310,7 +310,7 @@ export function paintExprsFor(style, geometry) {
       'fill-opacity': zoomedOrLiteral(style, 'fillOpacity', style.fillOpacity ?? 0.3),
     },
     strokePaint: {
-      'line-color': style.strokeColor ?? '#0f7560',
+      'line-color': style.strokeColor ?? '#4d7c0f',
       'line-width': zoomedOrLiteral(style, 'strokeWidth', style.strokeWidth ?? 1.5),
       'line-opacity': style.strokeOpacity ?? 1,
     },

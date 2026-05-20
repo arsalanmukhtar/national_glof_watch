@@ -196,7 +196,7 @@ function Pagination({ page, pageCount, pageSize, total, onChange }) {
         'inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors',
         'border border-day-border dark:border-night-border',
         'text-day-muted dark:text-night-muted',
-        'hover:text-[#16a085] hover:border-[#16a085]/60',
+        'hover:text-[#84cc16] hover:border-[#84cc16]/60',
         'disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-day-muted disabled:hover:border-day-border dark:disabled:hover:text-night-muted dark:disabled:hover:border-night-border',
       )}
     >
@@ -259,7 +259,7 @@ function SubTabs({ tables, activeId, onActivate, onClose }) {
             className={cn(
               'group inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-md text-[12px] font-medium border transition-colors shrink-0',
               isActive
-                ? 'bg-[#16a085]/10 border-[#16a085]/50 text-[#16a085]'
+                ? 'bg-[#84cc16]/10 border-[#84cc16]/50 text-[#84cc16]'
                 : 'border-day-border dark:border-night-border text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text hover:border-day-text/40 dark:hover:border-night-text/40',
             )}
           >
@@ -290,7 +290,7 @@ function SubTabs({ tables, activeId, onActivate, onClose }) {
 function KindDot({ kind }) {
   const color =
     kind === 'parameter'
-      ? '#16a085'
+      ? '#84cc16'
       : kind === 'risk'
         ? '#ef4444'
         : '#3b82f6';
@@ -347,9 +347,9 @@ function TableView({
                     key={c}
                     onClick={() => onSort(c)}
                     className={cn(
-                      'px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap select-none cursor-pointer hover:text-[#16a085]',
+                      'px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap select-none cursor-pointer hover:text-[#84cc16]',
                       sorted
-                        ? 'text-[#16a085]'
+                        ? 'text-[#84cc16]'
                         : 'text-day-muted dark:text-night-muted',
                     )}
                   >
@@ -369,7 +369,7 @@ function TableView({
                 className={cn(
                   'border-b border-day-border/60 dark:border-night-border/60',
                   'odd:bg-day-bg/30 dark:odd:bg-night-bg/30',
-                  'hover:bg-[#16a085]/10 transition-colors',
+                  'hover:bg-[#84cc16]/10 transition-colors',
                 )}
               >
                 <td className="px-2 py-1 text-day-muted dark:text-night-muted">
@@ -407,7 +407,7 @@ function SearchInput({ value, onChange }) {
           'bg-day-bg dark:bg-night-bg',
           'border border-day-border dark:border-night-border',
           'text-day-text dark:text-night-text placeholder:text-day-muted dark:placeholder:text-night-muted',
-          'focus:outline-none focus:ring-2 focus:ring-[#16a085]/40',
+          'focus:outline-none focus:ring-2 focus:ring-[#84cc16]/40',
         )}
       />
     </div>

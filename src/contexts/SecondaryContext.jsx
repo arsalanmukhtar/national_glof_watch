@@ -37,14 +37,14 @@ export const SECONDARY_LAYERS = [
   { id: 'vulnerable_sites_2026',              label: 'Vulnerable Sites (2026)',            geometry: 'point',   table: 'secondary.vulnerable_sites_2026' },
 ];
 
-// Sensible defaults per geometry type. The accent color (#16a085) keeps
+// Sensible defaults per geometry type. The accent color (#84cc16) keeps
 // uploaded layers visually consistent with the rest of the app's UI.
 export const DEFAULT_STYLES = {
   point: {
     radius: 6,
-    fillColor: '#16a085',
+    fillColor: '#84cc16',
     fillOpacity: 0.85,
-    strokeColor: '#0f7560',
+    strokeColor: '#4d7c0f',
     strokeWidth: 1.5,
     strokeOpacity: 1,
     // Marker symbology — when `marker.shape !== 'none'` OR `marker.icon`
@@ -65,15 +65,15 @@ export const DEFAULT_STYLES = {
     },
   },
   line: {
-    color: '#16a085',
+    color: '#84cc16',
     width: 2,
     opacity: 1,
     dashed: false,
   },
   polygon: {
-    fillColor: '#16a085',
+    fillColor: '#84cc16',
     fillOpacity: 0.3,
-    strokeColor: '#0f7560',
+    strokeColor: '#4d7c0f',
     strokeWidth: 1.5,
     strokeOpacity: 1,
   },

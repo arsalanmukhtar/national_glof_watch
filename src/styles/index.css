@@ -61,7 +61,7 @@
   .btn-sm         { @apply text-xs px-3 py-1.5; }
   .btn-md         { @apply text-sm px-4 py-2; }
   .btn-lg         { @apply text-base px-5 py-2.5; }
-  .btn-primary    { @apply btn-base bg-[#16a085] text-white hover:bg-[#138b72] active:bg-[#0f7560] shadow-sm; }
+  .btn-primary    { @apply btn-base bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d] active:bg-[#4d7c0f] shadow-sm; }
   .btn-secondary  { @apply btn-base bg-brand-100 text-brand-800 hover:bg-brand-200 dark:bg-brand-800/30 dark:text-brand-100 dark:hover:bg-brand-800/50; }
   .btn-light      { @apply btn-base bg-white text-day-text hover:bg-slate-50 border border-day-border dark:bg-night-surface dark:text-night-text dark:border-night-border dark:hover:bg-night-bg; }
   .btn-dark       { @apply btn-base bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600; }
@@ -86,7 +86,7 @@
 
   /* Title bar */
   /* Deep emerald/jade — alpine-valley palette that ties to the teal
-     `#16a085` UI accent without being literal ice-blue. Day uses the
+     `#84cc16` UI accent without being literal ice-blue. Day uses the
      darkest emerald so it pops against the light body; night lifts
      one stop so it stays visible against the dark-slate body. */
   .titlebar       { @apply fixed top-0 left-0 right-0 z-50 h-16 bg-emerald-950 dark:bg-emerald-900 text-white shadow-titlebar flex items-center px-4 sm:px-6; }
@@ -105,10 +105,10 @@
      prose. Block-level card-shaped anchors (FeatureCard, etc.) wrap
      their own children and so don't match the selector; they keep just
      the hover-border treatment they already define. */
-  .prose-doc code        { @apply px-1.5 py-0.5 rounded bg-day-bg dark:bg-night-bg text-[12.5px] font-mono text-[#16a085] border border-day-border dark:border-night-border; }
+  .prose-doc code        { @apply px-1.5 py-0.5 rounded bg-day-bg dark:bg-night-bg text-[12.5px] font-mono text-[#84cc16] border border-day-border dark:border-night-border; }
   .prose-doc strong      { @apply font-semibold text-day-text dark:text-night-text; }
   .prose-doc :is(p, li, h1, h2, h3, h4, h5, h6) a {
-    @apply text-[#16a085] underline decoration-dotted underline-offset-2 hover:opacity-80;
+    @apply text-[#84cc16] underline decoration-dotted underline-offset-2 hover:opacity-80;
   }
 }
 
@@ -118,7 +118,7 @@
   height: 10px;
   width: 10px;
   border-radius: 9999px;
-  background-color: #16a085;
+  background-color: #84cc16;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   border: 0;
@@ -130,7 +130,7 @@
   height: 10px;
   width: 10px;
   border-radius: 9999px;
-  background-color: #16a085;
+  background-color: #84cc16;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
   border: 0;
