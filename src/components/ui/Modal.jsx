@@ -3,12 +3,18 @@ import { Dialog, Transition } from '@headlessui/react';
 import { X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
+// A dialog with three regions: a pinned header, a scrollable body, and an
+// optional pinned footer. The panel is height-clamped to 90vh so a tall
+// body scrolls inside the modal instead of pushing the footer off-screen
+// (or overlapping it).
 export default function Modal({
   open,
   onClose,
   title,
   children,
+  footer,
   className,
+  bodyClassName,
   size = 'md',
 }) {
   const sizeClass = {
@@ -46,12 +52,13 @@ export default function Modal({
           >
             <Dialog.Panel
               className={cn(
-                'w-full card-base p-5 shadow-panel',
+                'w-full card-base shadow-panel flex flex-col max-h-[90vh]',
                 sizeClass,
                 className,
               )}
             >
-              <div className="flex items-start justify-between gap-4 mb-3">
+              {/* Header — pinned */}
+              <div className="flex items-start justify-between gap-4 px-5 pt-5 pb-3 shrink-0">
                 {title ? (
                   <Dialog.Title className="text-base font-semibold">
                     {title}
@@ -62,13 +69,30 @@ export default function Modal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="btn-icon btn-ghost"
+                  className="btn-icon btn-ghost -mr-1.5 -mt-1.5"
                   aria-label="Close"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div>{children}</div>
+
+              {/* Body — scrolls when the content is taller than the panel */}
+              <div
+                className={cn(
+                  'px-5 min-h-0 overflow-y-auto',
+                  footer ? 'pb-4' : 'pb-5',
+                  bodyClassName,
+                )}
+              >
+                {children}
+              </div>
+
+              {/* Footer — pinned */}
+              {footer ? (
+                <div className="shrink-0 px-5 py-3.5 border-t border-day-border dark:border-night-border">
+                  {footer}
+                </div>
+              ) : null}
             </Dialog.Panel>
           </Transition.Child>
         </div>

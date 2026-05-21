@@ -167,12 +167,43 @@ export default function BrowseDatabaseModal({ open, onClose }) {
 
   const selectionCount = selected.size;
 
+  const footer = (
+    <div className="flex items-center gap-2">
+      <span className="text-[12px] text-day-muted dark:text-night-muted">
+        {selectionCount === 0
+          ? 'No tables selected'
+          : `${selectionCount} table${selectionCount === 1 ? '' : 's'} selected`}
+      </span>
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={busy}
+        className="btn-light btn-md ml-auto"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        onClick={handleLoad}
+        disabled={busy || selectionCount === 0}
+        className="btn-primary btn-md inline-flex items-center gap-1.5"
+      >
+        <Database className="h-3.5 w-3.5" />
+        Load{' '}
+        {selectionCount > 0
+          ? `${selectionCount} layer${selectionCount === 1 ? '' : 's'}`
+          : 'layers'}
+      </button>
+    </div>
+  );
+
   return (
     <Modal
       open={open}
       onClose={busy ? () => {} : onClose}
       title="Browse Database"
       size="xl"
+      footer={footer}
     >
       <div className="flex flex-col gap-3">
         <div className="flex items-start gap-2 text-[13px] text-day-muted dark:text-night-muted">
@@ -338,31 +369,6 @@ export default function BrowseDatabaseModal({ open, onClose }) {
             Loading {progress.done} / {progress.total}…
           </div>
         )}
-
-        <div className="flex items-center gap-2 pt-1">
-          <span className="text-[12px] text-day-muted dark:text-night-muted">
-            {selectionCount === 0
-              ? 'No tables selected'
-              : `${selectionCount} table${selectionCount === 1 ? '' : 's'} selected`}
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="btn-light btn-md ml-auto"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleLoad}
-            disabled={busy || selectionCount === 0}
-            className="btn-primary btn-md inline-flex items-center gap-1.5"
-          >
-            <Database className="h-3.5 w-3.5" />
-            Load {selectionCount > 0 ? `${selectionCount} layer${selectionCount === 1 ? '' : 's'}` : 'layers'}
-          </button>
-        </div>
       </div>
     </Modal>
   );

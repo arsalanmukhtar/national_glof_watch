@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   CloudDownload,
   FileSpreadsheet,
   Grid3x3,
+  HardDriveDownload,
   Layers,
   Shapes,
   SlidersHorizontal,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
 import CsvDataPanel from '@/components/dashboard/CsvDataPanel';
+import ExportLayersModal from '@/components/dashboard/ExportLayersModal';
 import GeeImageryPanel from '@/components/dashboard/GeeImageryPanel';
 import LayerMenu from '@/components/dashboard/LayerMenu';
 import ParametersPanel from '@/components/dashboard/ParametersPanel';
@@ -81,13 +83,16 @@ const SECTIONS = [
 
 // Icon strip — one row per top-level mode. Order mirrors the sidebar
 // reading order the user asked for: Primary, Secondary, CSV, Raster,
-// GEE.
+// GEE. `Export` is an action (opens a modal), not a panel toggle, and
+// is set off by a divider.
+const EXPORT_ID = 'export';
 const ICON_BUTTONS = [
   { id: 'primary',  label: 'Primary Layers',   icon: Layers },
   { id: SECONDARY_ID, label: 'Secondary Layers', icon: Shapes },
   { id: CSV_ID,     label: 'CSV Data',         icon: FileSpreadsheet },
   { id: RASTER_ID,  label: 'Raster Layers',    icon: Grid3x3 },
   { id: GEE_ID,     label: 'GEE Imagery',      icon: CloudDownload },
+  { id: EXPORT_ID,  label: 'Export Layers',    icon: HardDriveDownload },
 ];
 
 export default function LeftSidebar({ className }) {
@@ -95,6 +100,8 @@ export default function LeftSidebar({ className }) {
   const [activeIds, setActiveIds] = useState(
     () => new Set(['parameters', 'layers']),
   );
+  // Export is a modal, not a sidebar panel.
+  const [exportOpen, setExportOpen] = useState(false);
 
   const toggleIconButton = (id) => {
     setActiveIds((prev) => {
@@ -128,6 +135,7 @@ export default function LeftSidebar({ className }) {
   };
 
   const isIconOn = (id) => {
+    if (id === EXPORT_ID) return exportOpen;
     if (id === 'primary') return PRIMARY_IDS.some((pid) => activeIds.has(pid));
     return activeIds.has(id);
   };
@@ -155,24 +163,31 @@ export default function LeftSidebar({ className }) {
         {ICON_BUTTONS.map(({ id, label, icon: Icon }) => {
           const on = isIconOn(id);
           return (
-            <Tooltip key={id} label={label} side="right">
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => toggleIconButton(id)}
-                aria-pressed={on}
-                aria-label={label}
-                className={cn(
-                  'btn-icon transition-colors',
-                  on
-                    ? 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]'
-                    : 'btn-ghost',
-                )}
-              >
-                <Icon className="h-5 w-5" />
-              </motion.button>
-            </Tooltip>
+            <Fragment key={id}>
+              {id === EXPORT_ID && (
+                <div className="my-1 h-px w-7 bg-day-border dark:bg-night-border" />
+              )}
+              <Tooltip label={label} side="right">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() =>
+                    id === EXPORT_ID ? setExportOpen(true) : toggleIconButton(id)
+                  }
+                  aria-pressed={on}
+                  aria-label={label}
+                  className={cn(
+                    'btn-icon transition-colors',
+                    on
+                      ? 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]'
+                      : 'btn-ghost',
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                </motion.button>
+              </Tooltip>
+            </Fragment>
           );
         })}
       </div>
@@ -243,6 +258,11 @@ export default function LeftSidebar({ className }) {
           </motion.div>
         ) : null}
       </AnimatePresence>
+
+      <ExportLayersModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+      />
     </aside>
   );
 }
