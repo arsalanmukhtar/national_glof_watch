@@ -10,6 +10,8 @@ const ParameterContext = createContext(null);
 
 export function ParameterProvider({ children }) {
   const [selected, setSelected] = useState(null);
+  // Full element catalog from the backend: [{ name, unit, stationCount }].
+  const [elements, setElements] = useState([]);
   // statuses: { [element]: { lastFetchedAt: ISO|null, stationCount: number } }
   const [statuses, setStatuses] = useState({});
   // currently-refreshing element id, or 'ALL' for refresh-all, else null
@@ -18,29 +20,40 @@ export function ParameterProvider({ children }) {
   const [selectedStation, setSelectedStation] = useState(null);
   // GeoJSON features for the active parameter — shared by MapPanel + StationsTable
   const [stations, setStations] = useState([]);
-  // Set of bin colors the user has hidden via the legend; map circles +
-  // attribute-table rows both filter against it.
-  const [disabledBinColors, setDisabledBinColors] = useState(() => new Set());
+  // Set of alert-state keys the user has hidden via the legend; map
+  // circles + attribute-table rows both filter against it.
+  const [disabledStates, setDisabledStates] = useState(() => new Set());
 
   const select = useCallback((id) => {
     setSelected((prev) => (prev === id ? null : id));
   }, []);
 
-  const toggleBin = useCallback((color) => {
-    setDisabledBinColors((prev) => {
+  const toggleState = useCallback((stateId) => {
+    setDisabledStates((prev) => {
       const next = new Set(prev);
-      if (next.has(color)) next.delete(color);
-      else next.add(color);
+      if (next.has(stateId)) next.delete(stateId);
+      else next.add(stateId);
       return next;
     });
   }, []);
 
   // Whenever the active parameter changes, clear the highlighted station
-  // and reset the legend's disabled bins (each parameter has its own legend).
+  // and reset the legend's hidden states.
   useEffect(() => {
     setSelectedStation(null);
-    setDisabledBinColors(new Set());
+    setDisabledStates(new Set());
   }, [selected]);
+
+  const loadElements = useCallback(async () => {
+    try {
+      const res = await fetch('/api/parameters/elements');
+      if (!res.ok) return;
+      const data = await res.json();
+      setElements(Array.isArray(data?.elements) ? data.elements : []);
+    } catch {
+      /* swallow — UI keeps the previous catalog */
+    }
+  }, []);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -70,43 +83,56 @@ export function ParameterProvider({ children }) {
     }
   }, []);
 
-  const refresh = useCallback(
-    async (element) => {
-      if (!element) return;
-      setBusy(element);
-      try {
-        const res = await fetch(
-          `/api/parameters/${encodeURIComponent(element)}/store`,
-          { method: 'POST' },
-        );
-        if (!res.ok) throw new Error(`Refresh failed (${res.status})`);
-        const data = await res.json();
-        setStatuses((prev) => ({
-          ...prev,
-          [element]: {
-            lastFetchedAt: data.fetchedAt ?? new Date().toISOString(),
-            stationCount: data.stationsUpserted ?? prev[element]?.stationCount ?? 0,
-          },
-        }));
-        await loadStations(element);
-      } finally {
-        setBusy((b) => (b === element ? null : b));
-      }
-    },
-    [loadStations],
-  );
-
   const refreshAll = useCallback(async () => {
     setBusy('ALL');
     try {
       const res = await fetch('/api/parameters/refresh-all', { method: 'POST' });
       if (!res.ok) throw new Error(`Refresh-all failed (${res.status})`);
       await loadStatus();
+      await loadElements();
       await loadStations(selected);
     } finally {
       setBusy((b) => (b === 'ALL' ? null : b));
     }
-  }, [loadStatus, loadStations, selected]);
+  }, [loadStatus, loadElements, loadStations, selected]);
+
+  // Per-element refresh runs the same full v3 value cycle (the v3 pipeline
+  // is per-station, not per-element) — just badged to the chosen element.
+  const refresh = useCallback(
+    async (element) => {
+      if (!element) return;
+      setBusy(element);
+      try {
+        const res = await fetch('/api/parameters/refresh-all', {
+          method: 'POST',
+        });
+        if (!res.ok) throw new Error(`Refresh failed (${res.status})`);
+        await loadStatus();
+        await loadStations(element);
+      } finally {
+        setBusy((b) => (b === element ? null : b));
+      }
+    },
+    [loadStatus, loadStations],
+  );
+
+  // Decoded alert thresholds for one element instance — used by the
+  // Feature Details threshold table. Returns null on any failure so the
+  // caller can render an "unavailable" note without crashing.
+  const fetchThresholds = useCallback(async (elementId) => {
+    if (elementId == null) return null;
+    try {
+      const res = await fetch(`/api/parameters/element/${elementId}/thresholds`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    loadElements();
+  }, [loadElements]);
 
   useEffect(() => {
     loadStatus();
@@ -116,12 +142,24 @@ export function ParameterProvider({ children }) {
     loadStations(selected);
   }, [selected, loadStations]);
 
+  // If the catalog reloads and the selected element is gone, clear it.
+  useEffect(() => {
+    if (
+      selected &&
+      elements.length > 0 &&
+      !elements.some((e) => e.name === selected)
+    ) {
+      setSelected(null);
+    }
+  }, [elements, selected]);
+
   return (
     <ParameterContext.Provider
       value={{
         selected,
         select,
         setSelected,
+        elements,
         statuses,
         refresh,
         refreshAll,
@@ -129,8 +167,9 @@ export function ParameterProvider({ children }) {
         selectedStation,
         setSelectedStation,
         stations,
-        disabledBinColors,
-        toggleBin,
+        disabledStates,
+        toggleState,
+        fetchThresholds,
       }}
     >
       {children}

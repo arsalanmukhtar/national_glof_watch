@@ -1,58 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import {
-  Activity,
-  CloudRain,
-  Gauge,
-  RefreshCw,
-  TableProperties,
-  Thermometer,
-  Waves,
-} from 'lucide-react';
+import { RefreshCw, Search, TableProperties } from 'lucide-react';
 import { useParameter } from '@/contexts/ParameterContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
+import { colorFor, withAlpha, textOn } from '@/config/parameterColors';
 import { timeAgo } from '@/utils/timeAgo';
 import { cn } from '@/utils/cn';
-
-// IDs match the PMD `element=` query param exactly (including the
-// "Istantaneous" misspelling that the upstream endpoint preserves).
-const PARAMETERS = [
-  {
-    id: 'Air Temperature',
-    label: 'Air Temperature',
-    icon: Thermometer,
-    on:  'bg-orange-500 text-white border-orange-500 shadow-sm',
-    off: 'bg-orange-500/10 text-orange-700 border-orange-500/40 hover:bg-orange-500/15 dark:text-orange-300 dark:bg-orange-500/15 dark:border-orange-500/50 dark:hover:bg-orange-500/25',
-  },
-  {
-    id: 'Total Rain',
-    label: 'Total Rain',
-    icon: CloudRain,
-    on:  'bg-blue-500 text-white border-blue-500 shadow-sm',
-    off: 'bg-blue-500/10 text-blue-700 border-blue-500/40 hover:bg-blue-500/15 dark:text-blue-300 dark:bg-blue-500/15 dark:border-blue-500/50 dark:hover:bg-blue-500/25',
-  },
-  {
-    id: 'Water Level',
-    label: 'Water Level',
-    icon: Waves,
-    on:  'bg-cyan-500 text-white border-cyan-500 shadow-sm',
-    off: 'bg-cyan-500/10 text-cyan-700 border-cyan-500/40 hover:bg-cyan-500/15 dark:text-cyan-300 dark:bg-cyan-500/15 dark:border-cyan-500/50 dark:hover:bg-cyan-500/25',
-  },
-  {
-    id: 'Compact GAS State (WPs)',
-    label: 'Compact Gas State (WPs)',
-    icon: Gauge,
-    on:  'bg-violet-500 text-white border-violet-500 shadow-sm',
-    off: 'bg-violet-500/10 text-violet-700 border-violet-500/40 hover:bg-violet-500/15 dark:text-violet-300 dark:bg-violet-500/15 dark:border-violet-500/50 dark:hover:bg-violet-500/25',
-  },
-  {
-    id: 'Istantaneous Flow',
-    label: 'Instantaneous Flow',
-    icon: Activity,
-    on:  'bg-emerald-500 text-white border-emerald-500 shadow-sm',
-    off: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/40 hover:bg-emerald-500/15 dark:text-emerald-300 dark:bg-emerald-500/15 dark:border-emerald-500/50 dark:hover:bg-emerald-500/25',
-  },
-];
 
 function useTick(intervalMs = 30_000) {
   const [, setTick] = useState(0);
@@ -63,15 +16,26 @@ function useTick(intervalMs = 30_000) {
 }
 
 export default function ParametersPanel() {
-  const { selected, select, statuses, refresh, refreshAll, busy } = useParameter();
+  const { selected, select, elements, statuses, refresh, refreshAll, busy } =
+    useParameter();
   const { toggleTable, isOpen } = useAttributeTables();
   useTick(); // re-render every 30s so the time-ago label stays fresh
+
+  const [query, setQuery] = useState('');
+
+  // The catalog is large (20-40+ elements) — filter inline; no debounce
+  // needed at this size.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return elements;
+    return elements.filter((e) => e.name.toLowerCase().includes(q));
+  }, [elements, query]);
 
   const targetElement = selected;
   const targetStatus = targetElement ? statuses[targetElement] : null;
 
   // When nothing is selected, surface the freshest fetched_at across all elements.
-  const overallLastFetched = (() => {
+  const overallLastFetched = useMemo(() => {
     let latest = null;
     for (const v of Object.values(statuses)) {
       if (!v?.lastFetchedAt) continue;
@@ -80,7 +44,7 @@ export default function ParametersPanel() {
       }
     }
     return latest;
-  })();
+  }, [statuses]);
 
   const displayLastFetched = targetElement
     ? targetStatus?.lastFetchedAt
@@ -93,72 +57,143 @@ export default function ParametersPanel() {
   };
 
   const isBusy =
-    (targetElement && busy === targetElement) || (!targetElement && busy === 'ALL');
+    (targetElement && busy === targetElement) ||
+    (!targetElement && busy === 'ALL');
 
   return (
-    <div className="flex flex-col gap-1">
-      {PARAMETERS.map(({ id, label, icon: Icon, on, off }) => {
-        const active = selected === id;
-        const tableId = `param:${id}`;
-        const tableOpen = isOpen(tableId);
-        return (
-          <div
-            key={id}
-            className={cn(
-              'group flex items-stretch rounded-md border text-[14px] font-medium overflow-hidden transition-colors',
-              active ? on : off,
-            )}
-          >
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.98 }}
-              onClick={() => select(id)}
-              aria-pressed={active}
-              className="flex-1 inline-flex items-center gap-2 px-2.5 py-1.5 text-left min-w-0"
-            >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{label}</span>
-              {active && (
-                <span
-                  aria-hidden
-                  className="ml-auto h-2 w-2 rounded-full bg-white shadow-sm ring-1 ring-white/40"
-                />
-              )}
-            </motion.button>
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.92 }}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleTable({
-                  id: tableId,
-                  kind: 'parameter',
-                  element: id,
-                  label,
-                });
-              }}
-              aria-pressed={tableOpen}
-              aria-label={
-                tableOpen ? `Close ${label} attributes` : `Open ${label} attributes`
-              }
-              title={
-                tableOpen ? `Close ${label} attributes` : `Open ${label} attributes`
-              }
-              className={cn(
-                'inline-flex shrink-0 items-center justify-center px-2 transition-colors',
-                'border-l border-current/30',
-                tableOpen
-                  ? 'bg-white/30 dark:bg-white/15'
-                  : 'hover:bg-white/15 dark:hover:bg-white/10',
-              )}
-            >
-              <TableProperties className="h-3.5 w-3.5" />
-            </motion.button>
-          </div>
-        );
-      })}
+    <div className="flex flex-col gap-2">
+      {/* Search */}
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-day-muted dark:text-night-muted"
+          aria-hidden
+        />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search elements…"
+          className="input-base input-search py-1.5 text-[13px]"
+        />
+      </div>
 
-      <div className="mt-1.5 pt-2 border-t border-day-border dark:border-night-border flex flex-col gap-1">
+      {/* Element list — owns its own bounded scroll (the sidebar section
+          does not scroll). */}
+      <div className="flex flex-col gap-1 max-h-[280px] overflow-y-auto pr-0.5">
+        {elements.length === 0 && (
+          <p className="px-1 py-3 text-center text-[12px] text-day-muted dark:text-night-muted">
+            Loading elements…
+          </p>
+        )}
+        {elements.length > 0 && filtered.length === 0 && (
+          <p className="px-1 py-3 text-center text-[12px] text-day-muted dark:text-night-muted">
+            No elements match “{query}”
+          </p>
+        )}
+        {filtered.map(({ name, stationCount }) => {
+          const active = selected === name;
+          const tableId = `param:${name}`;
+          const tableOpen = isOpen(tableId);
+          const color = colorFor(name);
+          const textColor = textOn(color);
+          return (
+            <motion.div
+              key={name}
+              initial={false}
+              animate={{
+                backgroundColor: active ? color : withAlpha(color, 0.12),
+                borderColor: active ? color : withAlpha(color, 0.4),
+              }}
+              whileHover={
+                active ? undefined : { backgroundColor: withAlpha(color, 0.24) }
+              }
+              transition={{ duration: 0.15 }}
+              className={cn(
+                'group flex shrink-0 items-stretch rounded-md border text-[13px] font-medium overflow-hidden',
+                'text-day-text dark:text-night-text',
+              )}
+              style={active ? { color: textColor } : undefined}
+            >
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.98 }}
+                onClick={() => select(name)}
+                aria-pressed={active}
+                className="flex-1 inline-flex items-center gap-2 px-2.5 py-1.5 text-left min-w-0"
+              >
+                <span className="flex-1 truncate">{name}</span>
+                {active && (
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 shrink-0 rounded-full bg-white shadow-sm ring-1 ring-white/40"
+                  />
+                )}
+                <span
+                  className={cn(
+                    'shrink-0 rounded px-1.5 py-0.5 text-[10px] tabular-nums font-semibold',
+                    !active &&
+                      'bg-day-bg text-day-muted dark:bg-night-bg dark:text-night-muted',
+                  )}
+                  style={
+                    active
+                      ? { backgroundColor: 'rgba(0,0,0,0.18)', color: textColor }
+                      : undefined
+                  }
+                  title={`${stationCount} station${stationCount === 1 ? '' : 's'}`}
+                >
+                  {stationCount}
+                </span>
+              </motion.button>
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.92 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleTable({
+                    id: tableId,
+                    kind: 'parameter',
+                    element: name,
+                    label: name,
+                  });
+                }}
+                aria-pressed={tableOpen}
+                aria-label={
+                  tableOpen
+                    ? `Close ${name} attributes`
+                    : `Open ${name} attributes`
+                }
+                title={
+                  tableOpen
+                    ? `Close ${name} attributes`
+                    : `Open ${name} attributes`
+                }
+                className={cn(
+                  'inline-flex shrink-0 items-center justify-center px-2 border-l transition-colors',
+                  active
+                    ? tableOpen
+                      ? 'bg-black/20'
+                      : 'hover:bg-black/10'
+                    : cn(
+                        'border-day-border dark:border-night-border',
+                        tableOpen
+                          ? 'bg-[#84cc16]/25 text-[#3f6212] dark:text-[#a3e635]'
+                          : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+                      ),
+                )}
+                style={
+                  active
+                    ? { borderColor: 'rgba(0,0,0,0.2)', color: textColor }
+                    : undefined
+                }
+              >
+                <TableProperties className="h-3.5 w-3.5" />
+              </motion.button>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      <div className="mt-0.5 pt-2 border-t border-day-border dark:border-night-border flex flex-col gap-1">
         <motion.button
           type="button"
           whileTap={{ scale: 0.98 }}

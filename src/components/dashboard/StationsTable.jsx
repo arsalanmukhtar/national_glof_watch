@@ -11,11 +11,8 @@ import {
 import { useParameter } from '@/contexts/ParameterContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import { useSecondary } from '@/contexts/SecondaryContext';
-import {
-  colorForReading,
-  formatValue,
-  PARAMETER_LEGENDS,
-} from '@/config/parameterLegends';
+import { formatValue } from '@/config/parameterLegends';
+import { classifyState, stateRank } from '@/config/alertStates';
 import { effectiveStyle } from '@/utils/layerStyle';
 import { resolveMarkerIcon } from '@/config/markerIcons';
 import { timeAgo } from '@/utils/timeAgo';
@@ -110,7 +107,7 @@ export default function StationsTable() {
     stations,
     selectedStation,
     setSelectedStation,
-    disabledBinColors,
+    disabledStates,
   } = useParameter();
   const { setSelectedFeature } = useAttributeTables();
   const { styles: secondaryStyles } = useSecondary();
@@ -189,21 +186,25 @@ export default function StationsTable() {
       overlayKey,
       label: props.stationName || `Station #${stationId}`,
       sublabel: props.element || selected || 'PMD Station',
-      accentColor: '#84cc16',
+      accentColor: classifyState(props.stateId).color,
     });
   };
 
-  // Sort by the active column, then drop any stations whose bin color is
+  // Sort by the active column, then drop any stations whose alert state is
   // currently toggled off in the legend (so the table mirrors what's
   // visible on the map). Bad/missing values always sink so live stations
   // stay near the top regardless of direction.
   const sortedStations = useMemo(() => {
     const dir = sort.direction === 'asc' ? 1 : -1;
+    const stateOf = (f) => classifyState(f.properties?.stateId);
     const cmp = (a, b) => {
       if (sort.column === 'station') {
         const an = (a.properties?.stationName ?? '').toString();
         const bn = (b.properties?.stationName ?? '').toString();
         return an.localeCompare(bn) * dir;
+      }
+      if (sort.column === 'state') {
+        return (stateRank(stateOf(a).id) - stateRank(stateOf(b).id)) * dir;
       }
       if (sort.column === 'updated') {
         const at = parseTs(a.properties?.lastUpdate);
@@ -226,18 +227,14 @@ export default function StationsTable() {
       return (av - bv) * dir;
     };
     const sorted = [...stations].sort(cmp);
-    if (!disabledBinColors || disabledBinColors.size === 0) return sorted;
-    return sorted.filter((f) => {
-      const c = colorForReading(
-        selected,
-        f.properties?.value,
-        f.properties?.lastUpdate,
-      );
-      return !disabledBinColors.has(c);
-    });
-  }, [stations, sort, disabledBinColors, selected]);
+    if (!disabledStates || disabledStates.size === 0) return sorted;
+    return sorted.filter((f) => !disabledStates.has(stateOf(f).id));
+  }, [stations, sort, disabledStates]);
 
-  const unitForSelected = PARAMETER_LEGENDS[selected]?.unit ?? '';
+  // Unit comes from the live feature payload — works for every element,
+  // including ones with no hand-authored legend.
+  const unitForSelected =
+    stations.find((f) => f.properties?.unit)?.properties.unit ?? '';
 
   return (
     <motion.div
@@ -245,12 +242,12 @@ export default function StationsTable() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
       className={cn(
-        'absolute right-2 bottom-2 z-10 w-[340px] rounded-md shadow-md overflow-hidden',
+        'absolute right-2 bottom-2 z-10 w-[410px] rounded-md shadow-md overflow-hidden',
         'bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm',
         'border border-day-border dark:border-night-border',
       )}
     >
-      <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-day-border dark:border-night-border">
+      <div className="flex items-center gap-2 px-2 py-1.5 border-b border-day-border dark:border-night-border">
         <h3 className="text-[13px] font-semibold text-day-text dark:text-night-text">
           Stations
         </h3>
@@ -261,7 +258,7 @@ export default function StationsTable() {
             'ml-auto relative h-5 w-5 p-0 rounded transition-colors',
             legendOpen
               ? 'text-[#84cc16]'
-              : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+              : 'text-day-muted dark:text-night-muted',
           )}
           aria-label={legendOpen ? 'Hide sensors legend' : 'Show sensors legend'}
           aria-expanded={legendOpen}
@@ -277,7 +274,7 @@ export default function StationsTable() {
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="h-5 w-5 inline-flex items-center justify-center rounded text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg"
+          className="h-5 w-5 inline-flex items-center justify-center rounded text-day-muted dark:text-night-muted"
           aria-label={open ? 'Collapse table' : 'Expand table'}
         >
           {open ? (
@@ -358,16 +355,24 @@ export default function StationsTable() {
               </p>
             ) : (
               <div className="max-h-[200px] overflow-y-auto">
-                <table className="w-full text-[12px] table-fixed">
+                <table className="w-full text-[11px] table-fixed">
                   <thead className="sticky top-0 bg-day-bg/95 dark:bg-night-bg/95 backdrop-blur-sm border-b border-day-border dark:border-night-border">
                     <tr className="text-day-muted dark:text-night-muted">
                       <SortableTh
                         column="station"
                         sort={sort}
                         onToggle={toggleSort}
-                        className="w-[50%]"
+                        className="w-[36%]"
                       >
                         Station
+                      </SortableTh>
+                      <SortableTh
+                        column="state"
+                        sort={sort}
+                        onToggle={toggleSort}
+                        className="w-[82px]"
+                      >
+                        State
                       </SortableTh>
                       <SortableTh
                         column="value"
@@ -380,7 +385,7 @@ export default function StationsTable() {
                         column="updated"
                         sort={sort}
                         onToggle={toggleSort}
-                        className="w-[88px]"
+                        className="w-[78px]"
                       >
                         Updated
                       </SortableTh>
@@ -390,7 +395,7 @@ export default function StationsTable() {
                     {sortedStations.map((f) => {
                       const p = f.properties ?? {};
                       const id = p.stationId;
-                      const color = colorForReading(selected, p.value, p.lastUpdate);
+                      const st = classifyState(p.stateId);
                       const active = selectedStation?.stationId === id;
                       return (
                         <tr
@@ -404,22 +409,27 @@ export default function StationsTable() {
                               : 'hover:bg-day-bg dark:hover:bg-night-bg',
                           )}
                         >
-                          <td className="px-2.5 py-1 truncate">
-                            <span className="inline-flex items-center gap-1.5">
+                          <td className="px-2 py-1 truncate">
+                            <span className="truncate text-day-text dark:text-night-text">
+                              {p.stationName || `#${id}`}
+                            </span>
+                          </td>
+                          <td className="px-2 py-1">
+                            <span className="inline-flex items-center gap-1.5 min-w-0">
                               <span
                                 aria-hidden
                                 className="h-2 w-2 rounded-full shrink-0 border border-slate-900/40 dark:border-white/30"
-                                style={{ backgroundColor: color }}
+                                style={{ backgroundColor: st.color }}
                               />
                               <span className="truncate text-day-text dark:text-night-text">
-                                {p.stationName || `#${id}`}
+                                {st.id === 'nodata' ? 'No data' : st.label}
                               </span>
                             </span>
                           </td>
-                          <td className="px-2.5 py-1 text-day-text dark:text-night-text font-medium truncate">
-                            {formatValue(selected, p.value, p.unit)}
+                          <td className="px-2 py-1 text-day-text dark:text-night-text font-medium truncate">
+                            {formatValue(p.value, p.unit)}
                           </td>
-                          <td className="px-2.5 py-1 text-day-muted dark:text-night-muted truncate">
+                          <td className="px-2 py-1 text-day-muted dark:text-night-muted truncate">
                             {timeAgo(p.lastUpdate)}
                           </td>
                         </tr>
@@ -445,17 +455,17 @@ function SortableTh({ column, sort, onToggle, className, children }) {
       aria-sort={
         active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'
       }
-      className={cn('text-left font-medium px-2.5 py-1', className)}
+      className={cn('text-left font-medium px-2 py-1', className)}
     >
       <button
         type="button"
         onClick={() => onToggle(column)}
         className={cn(
-          'inline-flex items-center gap-1 hover:text-day-text dark:hover:text-night-text transition-colors',
+          'flex w-full min-w-0 items-center gap-1 hover:text-day-text dark:hover:text-night-text transition-colors',
           active && 'text-[#84cc16]',
         )}
       >
-        <span className="truncate">{children}</span>
+        <span className="truncate min-w-0">{children}</span>
         <Icon
           className={cn('h-3 w-3 shrink-0', !active && 'opacity-50')}
           strokeWidth={2}

@@ -1,99 +1,39 @@
-// Per-parameter legend bins. Drive both the map circle colors and the
-// bottom-left MapLegend overlay. Mirror the thresholds used in the legacy
-// EWS dashboard screenshots.
+// Trend-chart gradient stops + shared reading helpers.
+//
+// Map symbology now lives in src/config/alertStates.js (alert-state
+// classification against per-station thresholds). What remains here is
+// the per-parameter color gradient that paints the "PMD Data Trend"
+// chart line, plus the small staleness + value-formatting helpers shared
+// across the dashboard.
 
-export const STALE_COLOR = '#6b7280';        // gray-500
-export const STALE_LABEL = 'No update (> 10h)';
 export const STALE_THRESHOLD_HOURS = 10;
 const STALE_MS = STALE_THRESHOLD_HOURS * 60 * 60 * 1000;
 
-export const PARAMETER_LEGENDS = {
-  'Air Temperature': {
-    unit: '°C',
-    bins: [
-      { color: '#1d4ed8', label: '< 0°C',     test: (v) => v < 0 },
-      { color: '#38bdf8', label: '0 – 10°C',  test: (v) => v >= 0 && v < 10 },
-      { color: '#facc15', label: '10 – 20°C', test: (v) => v >= 10 && v < 20 },
-      { color: '#f97316', label: '20 – 30°C', test: (v) => v >= 20 && v < 30 },
-      { color: '#dc2626', label: '> 30°C',    test: (v) => v >= 30 },
-    ],
-  },
-  'Total Rain': {
-    unit: 'mm',
-    bins: [
-      { color: '#ffffff', label: '0 mm',       test: (v) => v === 0 },
-      { color: '#22c55e', label: '1 – 10 mm',  test: (v) => v > 0 && v <= 10 },
-      { color: '#3b82f6', label: '11 – 30 mm', test: (v) => v > 10 && v <= 30 },
-      { color: '#a855f7', label: '> 30 mm',    test: (v) => v > 30 },
-    ],
-  },
-  'Water Level': {
-    unit: 'm',
-    bins: [
-      { color: '#22c55e', label: 'Low',    test: (v) => v < 1 },
-      { color: '#facc15', label: 'Medium', test: (v) => v >= 1 && v < 2 },
-      { color: '#dc2626', label: 'High',   test: (v) => v >= 2 },
-    ],
-  },
-  'Istantaneous Flow': {
-    displayName: 'Instantaneous Flow',
-    unit: 'm³/s',
-    bins: [
-      { color: '#22c55e', label: '< 20 m³/s',     test: (v) => v < 20 },
-      { color: '#facc15', label: '20 – 40 m³/s',  test: (v) => v >= 20 && v <= 40 },
-      { color: '#dc2626', label: '> 40 m³/s',     test: (v) => v > 40 },
-    ],
-  },
-  'Compact GAS State (WPs)': {
-    // Upstream tags Battery Voltage readings under this element name.
-    // The bins below are voltage thresholds for typical 12 V remote-station
-    // batteries — anything below 12 V is a fading battery, 13–14 V is the
-    // normal float/operating range, > 14 V means actively charging.
-    displayName: 'Compact Gas State (WPs)',
-    unit: 'V',
-    bins: [
-      { color: '#dc2626', label: '< 12 V',     test: (v) => v < 12 },
-      { color: '#f97316', label: '12 – 13 V',  test: (v) => v >= 12 && v < 13 },
-      { color: '#22c55e', label: '13 – 14 V',  test: (v) => v >= 13 && v < 14 },
-      { color: '#3b82f6', label: '≥ 14 V',     test: (v) => v >= 14 },
-    ],
-  },
-};
-
 // Anchor stops for the chart y-axis gradient. Each stop pins a color at
-// a representative value of its bin (typically the midpoint). The chart
-// builds a CanvasGradient by mapping these into the visible y range.
+// a representative value. The chart builds a CanvasGradient by mapping
+// these into the visible y range. Only a few elements have a curated
+// gradient — every other element falls back to the brand gradient in
+// ChartsRow, so this map does not need to cover the full v3 catalog.
 export const PARAMETER_GRADIENTS = {
   'Air Temperature': [
-    { value: -5,  color: '#1d4ed8' },
-    { value: 5,   color: '#38bdf8' },
-    { value: 15,  color: '#facc15' },
-    { value: 25,  color: '#f97316' },
-    { value: 35,  color: '#dc2626' },
+    { value: -5, color: '#1d4ed8' },
+    { value: 5, color: '#38bdf8' },
+    { value: 15, color: '#facc15' },
+    { value: 25, color: '#f97316' },
+    { value: 35, color: '#dc2626' },
   ],
   'Total Rain': [
     // White is invisible against light surfaces; nudge the 0 anchor to a
     // pale gray so the line still reads when rainfall is zero.
-    { value: 0,   color: '#cbd5e1' },
-    { value: 5,   color: '#22c55e' },
-    { value: 20,  color: '#3b82f6' },
-    { value: 50,  color: '#a855f7' },
+    { value: 0, color: '#cbd5e1' },
+    { value: 5, color: '#22c55e' },
+    { value: 20, color: '#3b82f6' },
+    { value: 50, color: '#a855f7' },
   ],
   'Water Level': [
     { value: 0.5, color: '#22c55e' },
     { value: 1.5, color: '#facc15' },
     { value: 2.5, color: '#dc2626' },
-  ],
-  'Istantaneous Flow': [
-    { value: 10,  color: '#22c55e' },
-    { value: 30,  color: '#facc15' },
-    { value: 50,  color: '#dc2626' },
-  ],
-  'Compact GAS State (WPs)': [
-    { value: 11,   color: '#dc2626' },  // critical
-    { value: 12.5, color: '#f97316' },  // low
-    { value: 13.5, color: '#22c55e' },  // normal operating
-    { value: 14.5, color: '#3b82f6' },  // charging
   ],
 };
 
@@ -183,32 +123,10 @@ export function isStale(lastUpdate) {
   return Date.now() - t > STALE_MS;
 }
 
-// Resolve the right bin color for a station reading, falling back to the
-// stale gray when value is null/non-numeric or the timestamp is too old.
-export function colorForReading(element, value, lastUpdate) {
-  if (value == null || value === '') return STALE_COLOR;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return STALE_COLOR;
-  if (isStale(lastUpdate)) return STALE_COLOR;
-  const legend = PARAMETER_LEGENDS[element];
-  if (!legend) return STALE_COLOR;
-  for (const bin of legend.bins) {
-    if (bin.test(n)) return bin.color;
-  }
-  return STALE_COLOR;
-}
-
-// Human-friendly value for table cells. GAS state gets a label suffix;
-// the other elements just append their unit.
-export function formatValue(element, value, unit) {
+// Human-friendly value for table cells — appends the unit when present.
+export function formatValue(value, unit) {
   if (value == null || value === '') return '—';
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value);
-
-  const u = unit ?? PARAMETER_LEGENDS[element]?.unit ?? '';
-  return u ? `${n} ${u}` : String(n);
-}
-
-export function legendDisplayName(element) {
-  return PARAMETER_LEGENDS[element]?.displayName ?? element;
+  return unit ? `${n} ${unit}` : String(n);
 }

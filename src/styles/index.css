@@ -71,6 +71,9 @@
 
   /* Inputs */
   .input-base     { @apply w-full px-3 py-2 text-sm rounded-md bg-white border border-day-border text-day-text placeholder:text-day-muted focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-colors duration-150 dark:bg-night-surface dark:border-night-border dark:text-night-text dark:placeholder:text-night-muted; }
+  /* Pairs with a leading icon absolutely positioned at left-2.5 — widens the
+     left padding so the placeholder/text clears the icon. */
+  .input-search   { @apply pl-9; }
 
   /* Selects */
   .select-base    { @apply input-base appearance-none pr-9 cursor-pointer bg-no-repeat; }

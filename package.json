@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "db:backup": "node scripts/db/run-backup.js",
     "db:restore": "node scripts/db/run-restore.js",
+    "db:seed-elements": "node scripts/db/seed-station-elements.js",
     "deploy:promote": "bash scripts/deploy/promote.sh",
     "deploy:sync-rasters": "bash scripts/deploy/sync-rasters.sh",
     "deploy:sync-db": "bash scripts/deploy/sync-db-dump.sh",

@@ -7,7 +7,7 @@ import {
   glacierLayerSpec,
   glacierSourceSpec,
 } from '@/config/glacierLayer';
-import { colorForReading, STALE_COLOR } from '@/config/parameterLegends';
+import { classifyState, NODATA_STATE } from '@/config/alertStates';
 import {
   detectGeometry,
   fetchGeoJson,
@@ -123,8 +123,8 @@ export default function MapPanel({ className, onMapReady }) {
     stations,
     selectedStation,
     setSelectedStation,
-    disabledBinColors,
-    toggleBin,
+    disabledStates,
+    toggleState,
   } = useParameter();
   const { visibleLayers: regionVisible } = useRegionLayers();
   const {
@@ -146,27 +146,24 @@ export default function MapPanel({ className, onMapReady }) {
   isLngLatOverAnyRasterRef.current = isLngLatOverAnyRaster;
   // Ref mirror so style.load handlers + applyStationLayers can read the
   // current disabled set without re-creating callbacks on every change.
-  const disabledBinColorsRef = useRef(disabledBinColors);
-  disabledBinColorsRef.current = disabledBinColors;
+  const disabledStatesRef = useRef(disabledStates);
+  disabledStatesRef.current = disabledStates;
 
-  // Build a colored FeatureCollection from the raw context features.
-  // Each feature gets a `color` property derived from its value/lastUpdate
-  // — Mapbox reads it via ['get', 'color'] in the circle paint spec.
+  // Build a colored FeatureCollection from the raw context features. Each
+  // feature gets `state` (the alert-state key) and `color` derived from
+  // its stateId — Mapbox reads `color` via ['get','color'] for the circle
+  // paint and filters on `state` to hide toggled-off states.
   const coloredCollection = useMemo(() => {
     if (!selected || stations.length === 0) return null;
     return {
       type: 'FeatureCollection',
-      features: stations.map((f) => ({
-        ...f,
-        properties: {
-          ...f.properties,
-          color: colorForReading(
-            selected,
-            f.properties?.value,
-            f.properties?.lastUpdate,
-          ),
-        },
-      })),
+      features: stations.map((f) => {
+        const st = classifyState(f.properties?.stateId);
+        return {
+          ...f,
+          properties: { ...f.properties, state: st.id, color: st.color },
+        };
+      }),
     };
   }, [selected, stations]);
   const collectionRef = useRef(coloredCollection);
@@ -328,8 +325,8 @@ export default function MapPanel({ className, onMapReady }) {
     const onStyleLoad = () => {
       const data = collectionRef.current;
       if (data) applyStationLayers(map, data);
-      // Re-apply the bin filter after layers are re-created on style swap.
-      const filter = binFilter(disabledBinColorsRef.current);
+      // Re-apply the state filter after layers are re-created on style swap.
+      const filter = stateFilter(disabledStatesRef.current);
       for (const layerId of [STATIONS_LAYER, STATIONS_HALO_LAYER]) {
         if (map.getLayer(layerId)) map.setFilter(layerId, filter);
       }
@@ -597,17 +594,17 @@ export default function MapPanel({ className, onMapReady }) {
     };
   }, [selectedStation]);
 
-  // Push the legend's disabled-bin set as a Mapbox filter on the dot + halo
+  // Push the legend's hidden-state set as a Mapbox filter on the dot + halo
   // layers. Re-applied on style.load via the stations-style.load handler
-  // (which reads from disabledBinColorsRef).
+  // (which reads from disabledStatesRef).
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const filter = binFilter(disabledBinColors);
+    const filter = stateFilter(disabledStates);
     for (const layerId of [STATIONS_LAYER, STATIONS_HALO_LAYER]) {
       if (map.getLayer(layerId)) map.setFilter(layerId, filter);
     }
-  }, [disabledBinColors]);
+  }, [disabledStates]);
 
   // Apply basemap-opacity by iterating the live style's layers and tweaking
   // each layer's type-appropriate opacity paint property. Custom layers
@@ -865,8 +862,8 @@ export default function MapPanel({ className, onMapReady }) {
         <MapGeocoder map={mapInstance} />
         <MapControls map={mapInstance} fullscreenTarget={wrapperRef.current} />
         <MapLegend
-          disabledBinColors={disabledBinColors}
-          onToggleBin={toggleBin}
+          disabledStates={disabledStates}
+          onToggleState={toggleState}
         />
         <StationsTable />
         <RasterMapRenderer />
@@ -914,7 +911,7 @@ function applyStationLayers(map, data) {
           12, 20,
           16, 30,
         ],
-        'circle-color': ['coalesce', ['get', 'color'], STALE_COLOR],
+        'circle-color': ['coalesce', ['get', 'color'], NODATA_STATE.color],
         'circle-opacity': 0.18,
         'circle-stroke-width': 0,
       },
@@ -936,7 +933,7 @@ function applyStationLayers(map, data) {
           12, 11.25,
           16, 17.5,
         ],
-        'circle-color': ['coalesce', ['get', 'color'], STALE_COLOR],
+        'circle-color': ['coalesce', ['get', 'color'], NODATA_STATE.color],
         'circle-stroke-color': '#0f172a',
         'circle-stroke-width': 1,
       },
@@ -991,14 +988,14 @@ function applyLayerOpacity(map, layer, opacity) {
   }
 }
 
-// Build a Mapbox filter expression that excludes features whose computed
-// `color` property is in the disabled set. Returns null (no filter) when
+// Build a Mapbox filter expression that excludes features whose alert
+// `state` key is in the disabled set. Returns null (no filter) when
 // nothing is disabled.
-function binFilter(disabledBinColors) {
-  if (!disabledBinColors || disabledBinColors.size === 0) return null;
+function stateFilter(disabledStates) {
+  if (!disabledStates || disabledStates.size === 0) return null;
   return [
     '!',
-    ['in', ['get', 'color'], ['literal', [...disabledBinColors]]],
+    ['in', ['get', 'state'], ['literal', [...disabledStates]]],
   ];
 }
 

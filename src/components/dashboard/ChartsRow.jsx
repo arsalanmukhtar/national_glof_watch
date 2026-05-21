@@ -27,10 +27,7 @@ import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import { useCsvDatasets } from '@/contexts/CsvDatasetsContext';
 import { applyFilters } from '@/utils/csvParser';
 import { colorFor } from '@/config/parameterColors';
-import {
-  PARAMETER_LEGENDS,
-  buildLegendGradient,
-} from '@/config/parameterLegends';
+import { buildLegendGradient } from '@/config/parameterLegends';
 import { cn } from '@/utils/cn';
 
 ChartJS.register(
@@ -530,6 +527,11 @@ function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
       },
       y: {
         beginAtZero: false,
+        // Pad the scale 18% beyond the data min/max so the extreme-low
+        // and extreme-high pulsing markers never sit flush against the
+        // plot edge — without this, a peak/trough at the data extreme
+        // gets its dot + radar rings clipped by the chart-area bounds.
+        grace: '18%',
         grid: { color: t.grid },
         ticks: { color: t.text, font: { size: 12, weight: '600' } },
         border: { color: t.axis },
@@ -719,9 +721,7 @@ function Tabs({ tab, onChange }) {
               aria-label="Restore map view"
               className={cn(
                 'inline-flex h-7 w-7 items-center justify-center rounded-md',
-                'text-[#84cc16] bg-[#84cc16]/15 border border-[#84cc16]/40',
-                'hover:bg-[#84cc16]/25 hover:border-[#84cc16]/60',
-                'transition-colors',
+                'text-[#84cc16] transition-colors',
               )}
             >
               <Minimize2 className="h-3.5 w-3.5" />
@@ -734,7 +734,7 @@ function Tabs({ tab, onChange }) {
 }
 
 function PmdTrendPanel({ theme }) {
-  const { selected, selectedStation } = useParameter();
+  const { selected, selectedStation, elements } = useParameter();
   // Three windows over the raw 10-minute readings — no aggregation:
   //   'daily'  → last 1 day
   //   'weekly' → last 7 days
@@ -789,7 +789,9 @@ function PmdTrendPanel({ theme }) {
     };
   }, [selected, stationId, days]);
 
-  const unit = PARAMETER_LEGENDS[selected]?.unit ?? '';
+  // Unit comes from the element catalog so it is correct for every
+  // element, including ones with no hand-authored legend.
+  const unit = elements.find((e) => e.name === selected)?.unit ?? '';
   const fallbackLine = selected ? colorFor(selected) : '#84cc16';
   const fillAlpha = theme === 'night' ? 0.22 : 0.14;
   const fallbackFill =
@@ -798,20 +800,21 @@ function PmdTrendPanel({ theme }) {
       : hexToRgba(fallbackLine, 0.14);
 
   // Scriptable color: returns a vertical CanvasGradient mapped onto the
-  // legend bins for this parameter, so the line + fill literally show
-  // the color of each value range. Falls back to the solid parameter
-  // color before the chart has measured its area.
+  // legend bins for this parameter, so the line + fill literally show the
+  // color of each value range. Elements with no curated gradient fall
+  // back to a themed two-stop brand gradient; the solid color is the last
+  // resort before the chart has measured its area.
   const lineGradient = (context) => {
     const { chart } = context;
     const { ctx, chartArea, scales } = chart;
     const g = buildLegendGradient(ctx, chartArea, scales?.y, selected, 1);
-    return g ?? fallbackLine;
+    return g ?? brandGradient(ctx, chartArea, 1) ?? fallbackLine;
   };
   const fillGradient = (context) => {
     const { chart } = context;
     const { ctx, chartArea, scales } = chart;
     const g = buildLegendGradient(ctx, chartArea, scales?.y, selected, fillAlpha);
-    return g ?? fallbackFill;
+    return g ?? brandGradient(ctx, chartArea, fillAlpha) ?? fallbackFill;
   };
 
   // Pick the axis granularity from the actual data span. Single-day
@@ -1278,6 +1281,9 @@ function LakesPanel({ theme }) {
         },
         y: {
           beginAtZero: false,
+          // Headroom so extreme-low / extreme-high markers + their
+          // radar rings clear the plot-area clip at the data edges.
+          grace: '18%',
           grid: { color: t.grid },
           ticks: { color: t.text, font: { size: 12, weight: '600' } },
           title: yLabel
@@ -1727,4 +1733,15 @@ function hexToRgba(hex, alpha) {
   const g = parseInt(m[2], 16);
   const b = parseInt(m[3], 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// Vertical two-stop brand gradient — the trend chart's default for any
+// element that has no curated PARAMETER_GRADIENTS entry, so a brand-new
+// element still gets a themed line instead of a flat color.
+function brandGradient(ctx, chartArea, alpha) {
+  if (!ctx || !chartArea) return null;
+  const g = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+  g.addColorStop(0, hexToRgba('#4d7c0f', alpha));
+  g.addColorStop(1, hexToRgba('#84cc16', alpha));
+  return g;
 }

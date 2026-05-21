@@ -1,0 +1,62 @@
+[
+  {
+    "elementName": "Alarm Button",
+    "elementId": 84642,
+    "stationName": "Arkari_WP_2",
+    "stationId": 965700,
+    "decimals": 0,
+    "measUnit": "",
+    "time": null,
+    "value": null,
+    "trend": null,
+    "stateId": 40,
+    "stateDescr": "",
+    "stateTrendPeriod": 0,
+    "isQueryable": false
+  },
+  {
+    "elementName": "Battery Current",
+    "elementId": 84641,
+    "stationName": "Arkari_WP_2",
+    "stationId": 965700,
+    "decimals": 3,
+    "measUnit": "A",
+    "time": "2026-05-21T09:00:00+05:00",
+    "value": -0.038,
+    "trend": -0.064,
+    "stateId": 0,
+    "stateDescr": null,
+    "stateTrendPeriod": null,
+    "isQueryable": true
+  },
+  {
+    "elementName": "Battery Voltage",
+    "elementId": 84640,
+    "stationName": "Arkari_WP_2",
+    "stationId": 965700,
+    "decimals": 1,
+    "measUnit": "V",
+    "time": "2026-05-21T09:00:00+05:00",
+    "value": 13.0,
+    "trend": -0.2,
+    "stateId": 0,
+    "stateDescr": null,
+    "stateTrendPeriod": null,
+    "isQueryable": true
+  },
+  {
+    "elementName": "Compact GAS State",
+    "elementId": 88249,
+    "stationName": "Arkari_WP_2",
+    "stationId": 965700,
+    "decimals": 0,
+    "measUnit": "",
+    "time": "2026-05-21T00:00:00+05:00",
+    "value": 0.0,
+    "trend": null,
+    "stateId": 0,
+    "stateDescr": null,
+    "stateTrendPeriod": null,
+    "isQueryable": false
+  }
+]

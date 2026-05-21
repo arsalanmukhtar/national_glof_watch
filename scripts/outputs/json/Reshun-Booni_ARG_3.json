@@ -1,0 +1,265 @@
+{
+  "station": "Reshun-Booni_ARG_3",
+  "stationId": 975800,
+  "elementCount": 6,
+  "elements": [
+    {
+      "elementId": 82740,
+      "elementName": "Air Temperature",
+      "measUnit": "°C",
+      "decimals": 2,
+      "currentValue": 11.06,
+      "currentState": "Normal",
+      "alarms": [
+        {
+          "alarmId": 2113,
+          "alarmName": "GLOF Heat Risk - Reshun-Booni_ARG_3",
+          "type": "VALUE",
+          "trendPeriod": null,
+          "states": [
+            {
+              "label": "Normal",
+              "alertStateId": 0,
+              "operator": "range",
+              "min": -50.0,
+              "max": 17.1,
+              "condition": "-50.00 ≤ value < 17.10"
+            },
+            {
+              "label": "Warning",
+              "alertStateId": 60,
+              "operator": "range",
+              "min": 17.1,
+              "max": 21.1,
+              "condition": "17.10 ≤ value < 21.10"
+            },
+            {
+              "label": "Pre-alarm",
+              "alertStateId": 80,
+              "operator": "range",
+              "min": 21.1,
+              "max": 25.2,
+              "condition": "21.10 ≤ value < 25.20"
+            },
+            {
+              "label": "Alarm",
+              "alertStateId": 100,
+              "operator": "range",
+              "min": 25.2,
+              "max": 50.0,
+              "condition": "25.20 ≤ value < 50.00"
+            },
+            {
+              "label": "Error",
+              "alertStateId": 20,
+              "operator": "<",
+              "min": -50.0,
+              "max": null,
+              "condition": "value < -50.00"
+            },
+            {
+              "label": "Error",
+              "alertStateId": 20,
+              "operator": ">",
+              "min": 50.0,
+              "max": null,
+              "condition": "value > 50.00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "elementId": 82738,
+      "elementName": "Battery Current",
+      "measUnit": "A",
+      "decimals": 3,
+      "currentValue": 0.397,
+      "currentState": null,
+      "alarms": []
+    },
+    {
+      "elementId": 82737,
+      "elementName": "Battery Voltage",
+      "measUnit": "V",
+      "decimals": 1,
+      "currentValue": 13.0,
+      "currentState": null,
+      "alarms": [
+        {
+          "alarmId": 4,
+          "alarmName": "Voltage Value Thresholds",
+          "type": "VALUE",
+          "trendPeriod": null,
+          "states": [
+            {
+              "label": "Warning",
+              "alertStateId": 60,
+              "operator": "≥",
+              "min": 15.2,
+              "max": null,
+              "condition": "value ≥ 15.2"
+            },
+            {
+              "label": "Warning",
+              "alertStateId": 60,
+              "operator": "range",
+              "min": 12.1,
+              "max": 12.3,
+              "condition": "12.1 ≤ value < 12.3"
+            },
+            {
+              "label": "Pre-alarm",
+              "alertStateId": 80,
+              "operator": "range",
+              "min": 11.8,
+              "max": 12.1,
+              "condition": "11.8 ≤ value < 12.1"
+            },
+            {
+              "label": "Alarm",
+              "alertStateId": 100,
+              "operator": "<",
+              "min": 11.8,
+              "max": null,
+              "condition": "value < 11.8"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "elementId": 82741,
+      "elementName": "Cumulated Rain",
+      "measUnit": "mm",
+      "decimals": 1,
+      "currentValue": 0.0,
+      "currentState": null,
+      "alarms": [
+        {
+          "alarmId": 2055,
+          "alarmName": "grp",
+          "type": "VALUE",
+          "trendPeriod": null,
+          "states": [
+            {
+              "label": "Warning",
+              "alertStateId": 60,
+              "operator": "≥",
+              "min": 10.0,
+              "max": null,
+              "condition": "value ≥ 10.0"
+            }
+          ]
+        },
+        {
+          "alarmId": 6,
+          "alarmName": "Accumulated Rainfall Thresholds",
+          "type": "TREND",
+          "trendPeriod": "1h",
+          "states": [
+            {
+              "label": "Warning",
+              "alertStateId": 50,
+              "operator": "range",
+              "min": 1.0,
+              "max": 10.0,
+              "condition": "1.0 ≤ trend < 10.0"
+            },
+            {
+              "label": "Pre-alarm",
+              "alertStateId": 70,
+              "operator": "range",
+              "min": 10.0,
+              "max": 20.0,
+              "condition": "10.0 ≤ trend < 20.0"
+            },
+            {
+              "label": "Alarm",
+              "alertStateId": 90,
+              "operator": "≥",
+              "min": 20.0,
+              "max": null,
+              "condition": "trend ≥ 20.0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "elementId": 82742,
+      "elementName": "Rain Intensity",
+      "measUnit": "mm/h",
+      "decimals": 1,
+      "currentValue": 0.0,
+      "currentState": "Normal Rainfall",
+      "alarms": [
+        {
+          "alarmId": 2163,
+          "alarmName": "Rainfall Intensity Thresholds - ALL REGIONS",
+          "type": "VALUE",
+          "trendPeriod": null,
+          "states": [
+            {
+              "label": "Normal Rainfall",
+              "alertStateId": 0,
+              "operator": "range",
+              "min": 0.0,
+              "max": 2.0,
+              "condition": "0.0 ≤ value < 2.0"
+            },
+            {
+              "label": "Above Normal Warning Rainfall",
+              "alertStateId": 60,
+              "operator": "range",
+              "min": 2.0,
+              "max": 2.5,
+              "condition": "2.0 ≤ value < 2.5"
+            },
+            {
+              "label": "Extreme Rainfall Expected",
+              "alertStateId": 80,
+              "operator": "range",
+              "min": 2.5,
+              "max": 5.0,
+              "condition": "2.5 ≤ value < 5.0"
+            },
+            {
+              "label": "Extreme Rainfall",
+              "alertStateId": 100,
+              "operator": "range",
+              "min": 5.0,
+              "max": 200.0,
+              "condition": "5.0 ≤ value < 200.0"
+            },
+            {
+              "label": "Wrong Reading",
+              "alertStateId": 20,
+              "operator": "≥",
+              "min": 200.0,
+              "max": 200.0,
+              "condition": "value ≥ 200.0"
+            },
+            {
+              "label": "Wrong Reading",
+              "alertStateId": 20,
+              "operator": "<",
+              "min": 0.0,
+              "max": 200.0,
+              "condition": "value < 0.0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "elementId": 82739,
+      "elementName": "Relative Humidity",
+      "measUnit": "%",
+      "decimals": 2,
+      "currentValue": 93.89,
+      "currentState": null,
+      "alarms": []
+    }
+  ]
+}

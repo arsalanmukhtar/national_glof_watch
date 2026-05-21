@@ -13,8 +13,11 @@ import {
   AlertTriangle,
   Camera,
   Image as ImageIcon,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
+import { useParameter } from '@/contexts/ParameterContext';
+import { stateForAlertId } from '@/config/alertStates';
 import { inferUnit } from '@/utils/units';
 import { cn } from '@/utils/cn';
 import StationPhotoModal from './StationPhotoModal';
@@ -37,6 +40,7 @@ import StationPhotoModal from './StationPhotoModal';
 
 export default function FeatureDetailsPanel() {
   const { selectedFeature } = useAttributeTables();
+  const { fetchThresholds } = useParameter();
   const [modalOpen, setModalOpen] = useState(false);
 
   // Lazily fetch station photos when the active feature is a PMD
@@ -45,6 +49,12 @@ export default function FeatureDetailsPanel() {
   const stationId =
     selectedFeature?.kind === 'station'
       ? selectedFeature.feature?.properties?.stationId
+      : null;
+  // The element instance behind a clicked station — drives the threshold
+  // table fetch below.
+  const elementId =
+    selectedFeature?.kind === 'station'
+      ? selectedFeature.feature?.properties?.elementId
       : null;
   const [photoState, setPhotoState] = useState({
     stationId: null,
@@ -87,6 +97,37 @@ export default function FeatureDetailsPanel() {
   useEffect(() => {
     setModalOpen(false);
   }, [stationId, selectedFeature?.overlayKey]);
+
+  // Lazily fetch the clicked station-element's decoded alert thresholds.
+  const [thresholdState, setThresholdState] = useState({
+    elementId: null,
+    data: null,
+    status: 'idle', // idle | loading | ready | error
+  });
+
+  useEffect(() => {
+    if (elementId == null) {
+      setThresholdState({ elementId: null, data: null, status: 'idle' });
+      return undefined;
+    }
+    let cancelled = false;
+    setThresholdState((prev) => ({
+      elementId,
+      data: prev.elementId === elementId ? prev.data : null,
+      status: 'loading',
+    }));
+    fetchThresholds(elementId).then((data) => {
+      if (cancelled) return;
+      setThresholdState({
+        elementId,
+        data: data ?? null,
+        status: data ? 'ready' : 'error',
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [elementId, fetchThresholds]);
 
   // Hooks have to run unconditionally on every render, so derive
   // everything from `selectedFeature` (or sensible fallbacks) BEFORE the
@@ -212,6 +253,11 @@ export default function FeatureDetailsPanel() {
         <div className="flex gap-3 flex-1 min-h-0 items-start">
           <div className="min-w-0 flex-1 self-stretch overflow-y-auto pr-1">
             {attributesBlock}
+            <StationThresholds
+              thresholdState={thresholdState}
+              currentStateId={properties?.stateId}
+              accentColor={accentColor}
+            />
           </div>
           <div className="w-[240px] shrink-0 self-start">
             <ImageCatalogTile
@@ -381,6 +427,102 @@ function ImageCatalogTile({ accentColor, photos, loading, onOpen }) {
         </div>
       )}
     </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Station thresholds — the decoded alert bands for the clicked element,
+// one card per alarm. The band matching the station's current stateId is
+// tinted + flagged "Now".
+// ---------------------------------------------------------------------------
+function StationThresholds({ thresholdState, currentStateId, accentColor }) {
+  const { status, data } = thresholdState;
+  if (status === 'idle') return null;
+
+  if (status === 'loading') {
+    return (
+      <p className="mt-3 text-[12px] text-day-muted dark:text-night-muted">
+        Loading thresholds…
+      </p>
+    );
+  }
+
+  const alarms = data?.alarms ?? [];
+  if (status === 'error' || alarms.length === 0) {
+    return (
+      <div className="mt-3 rounded-lg border border-dashed border-day-border dark:border-night-border p-3 text-center">
+        <p className="text-[12px] text-day-muted dark:text-night-muted">
+          No alert thresholds configured for this element.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex flex-col gap-2">
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-day-muted dark:text-night-muted">
+        <ShieldAlert
+          className="w-3.5 h-3.5"
+          style={{ color: accentColor }}
+          aria-hidden
+        />
+        <span>Alert Thresholds</span>
+      </div>
+
+      {alarms.map((alarm) => (
+        <div
+          key={alarm.alarmId}
+          className="rounded-lg border border-day-border dark:border-night-border bg-day-surface dark:bg-night-surface overflow-hidden"
+        >
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-day-border dark:border-night-border">
+            <span className="truncate text-[12px] font-semibold text-day-text dark:text-night-text">
+              {alarm.alarmName || 'Alarm'}
+            </span>
+            <span className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide bg-day-bg dark:bg-night-bg text-day-muted dark:text-night-muted">
+              {alarm.type}
+              {alarm.trendPeriod ? ` · ${alarm.trendPeriod}` : ''}
+            </span>
+          </div>
+          <ul className="divide-y divide-day-border/60 dark:divide-night-border/60">
+            {alarm.states.map((s, i) => {
+              const palette = stateForAlertId(s.alertStateId);
+              const active =
+                s.alertStateId != null &&
+                currentStateId != null &&
+                Number(s.alertStateId) === Number(currentStateId);
+              return (
+                <li
+                  key={i}
+                  className="flex items-center gap-2 px-3 py-1.5"
+                  style={
+                    active
+                      ? { background: hexToRgba(palette.color, 0.16) }
+                      : undefined
+                  }
+                >
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 rounded-full shrink-0 border border-slate-900/40 dark:border-white/30"
+                    style={{ backgroundColor: palette.color }}
+                  />
+                  <span className="w-[68px] shrink-0 text-[11px] font-semibold text-day-text dark:text-night-text truncate">
+                    {s.label}
+                  </span>
+                  <span className="min-w-0 flex-1 text-[11px] tabular-nums text-day-muted dark:text-night-muted truncate">
+                    {s.condition}
+                  </span>
+                  {active && (
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide bg-day-text/15 dark:bg-white/20 text-day-text dark:text-white">
+                      Now
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </div>
   );
 }
 
