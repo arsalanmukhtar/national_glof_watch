@@ -66,12 +66,14 @@ export function effectiveStyle(id, geometry, override) {
   if (typeof id === 'string' && id.includes('::')) {
     const { layerKey } = parseRegionLayerId(id);
     const tint = regionLayerColor(layerKey);
-    if (geometry === 'line') {
-      base.color = tint;
-    } else {
-      base.fillColor = tint;
-      base.strokeColor = tint;
-    }
+    // Tint every colour field, not just the one for the `geometry` hint.
+    // MapPanel refines the real geometry from the fetched data — several
+    // region files declared as lines are actually polygons (e.g. river
+    // run-off zones) — so a geometry-conditional tint would leave the
+    // other geometry's paint falling back to the lime default.
+    base.color = tint;
+    base.fillColor = tint;
+    base.strokeColor = tint;
     if (layerKey === 'faultline') base.dashed = true;
   }
   // Layer-id-keyed default symbology — applied AFTER the region tint

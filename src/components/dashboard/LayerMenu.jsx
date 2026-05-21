@@ -6,7 +6,7 @@ import SearchBox from '@/components/ui/SearchBox';
 import Badge from '@/components/ui/Badge';
 import TruncateLabel from '@/components/ui/TruncateLabel';
 import { cn } from '@/utils/cn';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRegionLayers } from '@/contexts/RegionLayersContext';
 import { useMapView } from '@/contexts/MapContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
@@ -199,24 +199,9 @@ function RiskZonesRow({ regionId }) {
   const { zoomToRegionLayer, zoomToRegionRiskZones } = useMapView();
   const { toggleTable, isOpen } = useAttributeTables();
   const [open, setOpen] = useState(false);
-  // First time the dropdown is opened we auto-toggle every level on so
-  // the user immediately sees Low / Medium / High coloring. Subsequent
-  // opens preserve whatever the user has since toggled — only first
-  // open triggers the seed.
-  const seededRef = useRef(false);
 
   const isOn = (level) => isLayerVisible(regionId, `risk:${level}`);
 
-  useEffect(() => {
-    if (!open || seededRef.current) return;
-    seededRef.current = true;
-    for (const { id } of RISK_LEVELS) {
-      if (!isLayerVisible(regionId, `risk:${id}`)) {
-        toggleLayer(regionId, `risk:${id}`);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
   const activeCount = RISK_LEVELS.reduce(
     (acc, { id }) => acc + (isOn(id) ? 1 : 0),
     0,
@@ -243,11 +228,17 @@ function RiskZonesRow({ regionId }) {
     zoomToRegionLayer(regionId, `risk:${level}`);
   };
 
-  // Parent click: expand/collapse + frame the combined risk-zone extent
-  // so the parent toggle has the same zoom behavior as the per-level
-  // pills and ShrinkButton.
+  // The parent row is a master toggle for the whole risk-zone group:
+  // expanding turns every level on, collapsing turns every level off
+  // the map. Either way it frames the combined risk-zone extent.
   const handleParentToggle = () => {
-    setOpen((v) => !v);
+    const next = !open;
+    setOpen(next);
+    for (const { id } of RISK_LEVELS) {
+      if (isLayerVisible(regionId, `risk:${id}`) !== next) {
+        toggleLayer(regionId, `risk:${id}`);
+      }
+    }
     zoomToRegionRiskZones(regionId);
   };
 

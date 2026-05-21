@@ -18,19 +18,14 @@ import { resolveMarkerIcon } from '@/config/markerIcons';
 import { timeAgo } from '@/utils/timeAgo';
 import { cn } from '@/utils/cn';
 
-// Sensor key shown when the user pops the legend in the Stations header.
-// PMD is rendered as the accent-coloured dot the map uses for parameter
-// stations; the three partner inventories carry a `layerId` so their
-// legend glyph is resolved live from the layer's effective style — the
-// legend then tracks whatever icon / colour the user sets in the Layer
-// Style panel instead of being pinned to the bundled default.
+// Station networks shown when the user pops the legend in the Stations
+// header. Every entry carries a `layerId`, so its glyph is resolved live
+// from the layer's effective style — the legend tracks whatever icon /
+// colour is set in the Layer Style panel instead of a pinned default.
 // `countKey` indexes into the `/api/secondary/sensor-counts` response so
-// the roster numbers update automatically when the DB is repopulated.
-// `staticCount` pins the value — used for PMD since the published roster
-// size (279) is the source of truth, not the live DB row count which
-// fluctuates with the cron's reachability.
+// the roster numbers stay in sync with the database.
 const SENSOR_LEGEND = [
-  { kind: 'dot',   color: '#84cc16',                   label: 'GLOF II PMD',           countKey: 'pmd', staticCount: 279 },
+  { kind: 'layer', layerId: 'all_stations',            label: 'GLOF II PMD Stations',  countKey: 'all_stations' },
   { kind: 'layer', layerId: 'akah_sensors',            label: 'AKAH Sensors',          countKey: 'akah_sensors' },
   { kind: 'layer', layerId: 'bri_ff_china_sensors',    label: 'BRI-FF China Sensors',  countKey: 'bri_ff_china_sensors' },
   { kind: 'layer', layerId: 'gmrc_wapda_stations',     label: 'GMRC / WAPDA Stations', countKey: 'gmrc_wapda_stations' },

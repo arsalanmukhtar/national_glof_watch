@@ -22,7 +22,7 @@ export const SECONDARY_LAYERS = [
   { id: 'akah_infrastructure',                label: 'AKAH Infrastructure',                geometry: 'point',   table: 'secondary.akah_infrastructure' },
   { id: 'akah_hazard_exposure',               label: 'AKAH Hazard Exposure',               geometry: 'polygon', table: 'secondary.akah_hazard_exposure' },
   { id: 'akah_sensors',                       label: 'AKAH Sensors',                       geometry: 'point',   table: 'secondary.akah_sensors' },
-  { id: 'all_stations',                       label: 'All Stations',                       geometry: 'point',   table: 'secondary.all_stations' },
+  { id: 'all_stations',                       label: 'GLOF II PMD Stations',               geometry: 'point',   table: 'secondary.all_stations' },
   { id: 'damaged_stations',                   label: 'Damaged Stations',                   geometry: 'point',   table: 'secondary.damaged_stations' },
   { id: 'bri_ff_china_sensors',               label: 'BRI-FF China Sensors',               geometry: 'point',   table: 'secondary.bri_ff_china_sensors' },
   { id: 'gmrc_wapda_stations',                label: 'GMRC / WAPDA Stations',              geometry: 'point',   table: 'secondary.gmrc_wapda_stations' },
@@ -87,6 +87,7 @@ const SecondaryContext = createContext(null);
 // of these off persists for the session.
 const DEFAULT_VISIBLE_LAYERS = [
   'glof_basins',
+  'all_stations',
   'akah_sensors',
   'gmrc_wapda_stations',
   'bri_ff_china_sensors',
