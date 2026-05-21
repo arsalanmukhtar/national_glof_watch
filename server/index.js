@@ -82,6 +82,34 @@ async function runStoreCycle(reason = 'scheduled') {
   }
 }
 
+// Node timers store their delay in a 32-bit signed int — any value
+// above ~24.8 days (2^31-1 ms) silently clamps to 1ms, turning a
+// "monthly" interval into a tight loop. THRESHOLD_INTERVAL_MS (30 days)
+// trips exactly this. Chain setTimeout in safe-sized chunks so an
+// arbitrarily long period is honoured, then re-arm for the next one.
+const MAX_TIMER_MS = 2_147_483_647;
+
+function scheduleEvery(periodMs, fn) {
+  const arm = () => {
+    let left = periodMs;
+    const step = () => {
+      const chunk = Math.min(left, MAX_TIMER_MS);
+      left -= chunk;
+      setTimeout(
+        left > 0
+          ? step
+          : () => {
+              fn();
+              arm();
+            },
+        chunk,
+      );
+    };
+    step();
+  };
+  arm();
+}
+
 let thresholdCycleRunning = false;
 
 async function runThresholdCycle(reason = 'scheduled') {
@@ -132,7 +160,7 @@ ensureSchema()
           console.log('[server] element_thresholds empty — seeding once');
           runThresholdCycle('initial');
         }
-        setInterval(() => runThresholdCycle('scheduled'), THRESHOLD_INTERVAL_MS);
+        scheduleEvery(THRESHOLD_INTERVAL_MS, () => runThresholdCycle('scheduled'));
       }, 2000);
     });
   })
