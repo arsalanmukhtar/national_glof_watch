@@ -53,6 +53,16 @@ function resolvePythonBin() {
   return process.platform === 'win32' ? 'python.exe' : 'python';
 }
 
+// Track the child process for any pyramid build currently running on
+// a given absolute file path. The Python script opens the file via
+// `rasterio.open(path, 'r+')` which on Windows takes an exclusive
+// handle for the entire (minute-long for big rasters) build — any
+// concurrent `fs.rename` onto the same path fails with EPERM. When
+// a fresh upload lands on a path that already has a build in flight,
+// we kill the prior build (its output is about to be replaced by the
+// new bytes anyway) before attempting the rename.
+const inFlightPyramids = new Map();
+
 // Run the pyramid script for a single freshly-uploaded file. Resolves
 // `{ ok, log }` so the upload handler can include the outcome in its
 // JSON response without ever rejecting — a missing rasterio or a
@@ -65,6 +75,7 @@ async function buildPyramidsFor(filePath) {
       cwd: PROJECT_ROOT,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    inFlightPyramids.set(filePath, proc);
     let stdout = '';
     let stderr = '';
     proc.stdout.on('data', (chunk) => {
@@ -74,13 +85,39 @@ async function buildPyramidsFor(filePath) {
       stderr += chunk.toString();
     });
     proc.on('error', (err) => {
+      if (inFlightPyramids.get(filePath) === proc) {
+        inFlightPyramids.delete(filePath);
+      }
       resolve({ ok: false, log: `spawn failed: ${err.message}` });
     });
     proc.on('close', (code) => {
+      // Only clear the slot if we're still the registered build for
+      // this path — a newer upload may have killed us and registered
+      // its own replacement.
+      if (inFlightPyramids.get(filePath) === proc) {
+        inFlightPyramids.delete(filePath);
+      }
       const log = (stdout + (stderr ? `\nSTDERR:\n${stderr}` : '')).trim();
       resolve({ ok: code === 0, log });
     });
   });
+}
+
+// Terminate any pyramid build currently running on `filePath`. On
+// Windows, ChildProcess.kill maps to TerminateProcess which releases
+// file handles immediately — by the time this returns, fs.rename onto
+// the same path is unblocked. Returns true if a build was actually
+// killed.
+function killInFlightPyramid(filePath) {
+  const proc = inFlightPyramids.get(filePath);
+  if (!proc) return false;
+  try {
+    proc.kill();
+  } catch {
+    /* already dead */
+  }
+  inFlightPyramids.delete(filePath);
+  return true;
 }
 
 // Patterns we try, in order, for "did this filename embed a date?".
@@ -129,6 +166,54 @@ async function ensureDir() {
   }
 }
 
+// Atomic replace with Windows-friendly retry + copyFile fallback.
+//
+// fs.rename on Windows fails with EPERM/EBUSY/EACCES whenever either
+// side of the rename is held open without FILE_SHARE_DELETE. Common
+// causes we've actually hit here:
+//   * Our own WriteStream's file descriptor closing asynchronously
+//     after pipeline()'s 'finish' (caller should await 'close', but
+//     this retry covers timing slop).
+//   * A prior `GET /api/rasters/file/:name` whose read handle the
+//     kernel hasn't fully released yet.
+//   * Antivirus mid-scan of the freshly written temp file.
+//   * Explorer's thumbnail handler.
+//
+// Most of those clear in well under a second. When they don't, fall
+// back to copyFile + unlink — fs.copyFile uses a different share-mode
+// check than MoveFileExW(REPLACE_EXISTING) and frequently succeeds in
+// cases where rename refuses (notably when the dest is held with
+// FILE_SHARE_WRITE but not FILE_SHARE_DELETE).
+async function renameWithRetry(from, to) {
+  const delays = [25, 50, 100, 200, 400, 800, 1500];
+  let lastErr;
+  for (let i = 0; i <= delays.length; i++) {
+    try {
+      await fs.rename(from, to);
+      return;
+    } catch (err) {
+      lastErr = err;
+      const transient =
+        err.code === 'EPERM' ||
+        err.code === 'EBUSY' ||
+        err.code === 'EACCES';
+      if (!transient || i === delays.length) break;
+      await new Promise((r) => setTimeout(r, delays[i]));
+    }
+  }
+
+  // All rename retries exhausted; try the copy fallback before giving
+  // up. If copy also fails we still surface the original rename error
+  // since that's the one we tried first and best describes the lock.
+  try {
+    await fs.copyFile(from, to);
+    await fs.unlink(from).catch(() => {});
+    return;
+  } catch {
+    throw lastErr;
+  }
+}
+
 // GET /api/rasters
 //   → { dir, files: [{ name, size, mtime, parsedDate }] }
 //
@@ -174,6 +259,15 @@ rastersRouter.get('/', async (_req, res) => {
 // overwritten — same-name re-upload is read as "the user means to
 // replace the previous version".
 rastersRouter.post('/upload', async (req, res) => {
+  // A multi-hundred-MB upload over a slow link can sit on the socket
+  // for many minutes. Node/Express defaults are fine in practice, but
+  // some proxies in front impose their own idle timeouts — make the
+  // route's intent explicit so nobody up the chain decides to cut the
+  // connection mid-stream and surface a bare "Network error" in the
+  // browser.
+  req.setTimeout(0);
+  res.setTimeout(0);
+
   const rawName = String(req.query.name || '').trim();
   if (!rawName) return res.status(400).json({ error: 'Missing ?name' });
   // Strip path components — never trust the client to set directories.
@@ -185,6 +279,15 @@ rastersRouter.post('/upload', async (req, res) => {
   if (!resolved) return res.status(400).json({ error: 'Invalid filename' });
 
   await ensureDir();
+
+  // Atomic write pattern: stream to `<file>.uploading`, rename on
+  // success. createWriteStream with 'w' truncates the destination
+  // before any bytes arrive — so a half-finished upload over an
+  // existing file used to wipe the original (the user's pyramidised
+  // raster vanished the moment a re-upload was started). Writing to a
+  // temp path and renaming only on success means the real file is
+  // never touched until the upload is complete and intact.
+  const tempPath = `${resolved}.uploading`;
 
   // Track byte count and tear the connection down on overflow so the
   // attacker can't fill disk with an open-ended POST.
@@ -199,57 +302,114 @@ rastersRouter.post('/upload', async (req, res) => {
   });
 
   try {
-    await pipeline(req, createWriteStream(resolved));
+    const ws = createWriteStream(tempPath);
+    await pipeline(req, ws);
+    // pipeline resolves on the WriteStream's 'finish' event (data
+    // flushed to the OS), but the underlying file descriptor closes
+    // asynchronously after that. On Windows, renaming a file whose
+    // fd is still held — even by our own process — fails with EPERM.
+    // Wait for the explicit 'close' so the fd is released before we
+    // attempt the rename below.
+    if (!ws.closed) {
+      await new Promise((resolve) => {
+        const done = () => {
+          ws.off('close', done);
+          ws.off('error', done);
+          resolve();
+        };
+        ws.once('close', done);
+        ws.once('error', done);
+      });
+    }
     if (aborted) {
-      await fs.unlink(resolved).catch(() => {});
+      await fs.unlink(tempPath).catch(() => {});
       return res.status(413).json({ error: 'Upload exceeds 500 MB cap' });
     }
 
-    // Build overview pyramids before responding so the frontend never
-    // sees a fresh upload without them — that's exactly the case the
-    // in-browser decoder rejects with "too large to render". The
-    // script no-ops for rasters already small enough or already
-    // pyramidised, so re-uploads of the same file don't pay twice.
-    // If the script fails (e.g. rasterio not installed) we still
-    // accept the upload and log the error — the user can fix their
-    // venv and re-trigger via `python scripts/python/generate_pyramids.py`.
-    const pyramidStart = Date.now();
-    const pyramid = await buildPyramidsFor(resolved);
-    const pyramidMs = Date.now() - pyramidStart;
-    if (!pyramid.ok) {
-      console.warn(
-        `[rasters] pyramid build failed for ${baseName} (${pyramidMs} ms):\n${pyramid.log}`,
-      );
-    } else {
+    // If a previous upload's pyramid build is still running on this
+    // path, it has the file open via rasterio's r+ handle and the
+    // rename below would fail with EPERM. Kill it first — its output
+    // is moot since we're about to overwrite the file with fresh
+    // bytes anyway.
+    if (killInFlightPyramid(resolved)) {
       console.log(
-        `[rasters] pyramid build for ${baseName} ok in ${pyramidMs} ms`,
+        `[rasters] cancelled in-flight pyramid build on ${baseName} ` +
+          `to make way for re-upload`,
       );
     }
 
-    // Stat AFTER pyramid generation so the size we report includes
-    // the embedded overview IFDs.
+    // Atomic replace of the (possibly pre-existing) destination.
+    // fs.rename overwrites on POSIX and on Windows ≥10 via the
+    // underlying NTFS replace primitive; see renameWithRetry above
+    // for why this needs the Windows-friendly retry wrapper.
+    await renameWithRetry(tempPath, resolved);
+
+    // Respond as soon as the bytes are on disk. Building pyramids for
+    // a multi-gigapixel raster can take minutes — long enough to trip
+    // the HTTP idle/request timeouts in the browser, Vite's proxy, or
+    // Node itself (`server.requestTimeout` defaults to 5 min). When
+    // any of those drop the socket the XHR surfaces a bare
+    // "Network error" with no useful detail. Run the pyramid script
+    // in the background so the upload critical path stays under a
+    // second once the bytes finish landing. If the user activates a
+    // freshly uploaded raster before pyramids are ready, the in-
+    // browser decoder already prints a "too large to render — run
+    // generate_pyramids.py" hint they can retry on.
     const stat = await fs.stat(resolved);
     res.json({
       name: baseName,
       size: stat.size,
       mtime: stat.mtime.toISOString(),
       parsedDate: parseDateFromName(baseName),
-      pyramids: {
-        ok: pyramid.ok,
-        durationMs: pyramidMs,
-        // Truncate the log so the client doesn't have to deal with
-        // a multi-line wall on the wire — full output is in the
-        // server console for debugging.
-        log: pyramid.log.slice(-500),
-      },
+      pyramids: { status: 'building' },
     });
+
+    const pyramidStart = Date.now();
+    buildPyramidsFor(resolved)
+      .then((pyramid) => {
+        const ms = Date.now() - pyramidStart;
+        if (!pyramid.ok) {
+          console.warn(
+            `[rasters] pyramid build failed for ${baseName} (${ms} ms):\n${pyramid.log}`,
+          );
+        } else {
+          console.log(
+            `[rasters] pyramid build for ${baseName} ok in ${ms} ms`,
+          );
+        }
+      })
+      .catch((err) => {
+        console.warn(`[rasters] pyramid build crashed for ${baseName}:`, err);
+      });
   } catch (err) {
-    // Best-effort cleanup of a half-written file.
-    await fs.unlink(resolved).catch(() => {});
+    // Best-effort cleanup of the temp file. Never touch `resolved` —
+    // the previous version of the file (if any) is still intact.
+    await fs.unlink(tempPath).catch(() => {});
+    console.warn(
+      `[rasters] upload failed for ${baseName} after ${bytes} bytes:`,
+      err?.message || err,
+    );
     if (aborted) {
       return res.status(413).json({ error: 'Upload exceeds 500 MB cap' });
     }
-    res.status(500).json({ error: err.message || 'Upload failed' });
+    if (!res.headersSent) {
+      const code = err.code || 'UNKNOWN';
+      const locked = code === 'EPERM' || code === 'EBUSY' || code === 'EACCES';
+      // Always surface the real error code + message so we don't lose
+      // the diagnostic. The hint about uploading-from-data/rasters
+      // covers the most common cause we've actually seen — the
+      // browser holds the source open while reading bytes, so
+      // dragging a file from data/rasters/ to upload it back into
+      // data/rasters/ produces a self-conflicting rename.
+      const message = locked
+        ? `${code}: ${err.message || 'rename blocked'}. ` +
+          'If the file you dropped lives inside data/rasters/, copy ' +
+          'it to another folder first — the browser holds the source ' +
+          'file open while uploading and the server can\'t overwrite ' +
+          'the same path.'
+        : err.message || 'Upload failed';
+      res.status(500).json({ error: message });
+    }
   }
 });
 
