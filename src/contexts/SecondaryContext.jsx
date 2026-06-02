@@ -86,11 +86,9 @@ const SecondaryContext = createContext(null);
 // land on. Subsequent toggling is normal context state so flipping any
 // of these off persists for the session.
 const DEFAULT_VISIBLE_LAYERS = [
-  'glof_basins',
   'all_stations',
   'akah_sensors',
   'gmrc_wapda_stations',
-  'bri_ff_china_sensors',
   'vulnerable_lakes_2026',
   'vulnerable_melting_glaciers_2026',
   'vulnerable_melting_points_2026',

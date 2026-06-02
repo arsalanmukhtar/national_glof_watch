@@ -1042,7 +1042,11 @@ function RasterLegend({
       ) : (
         <div
           className="h-2 rounded-sm"
-          style={{ backgroundImage: gradient }}
+          style={
+            style.colormapReversed
+              ? { backgroundImage: gradient, transform: 'scaleX(-1)' }
+              : { backgroundImage: gradient }
+          }
           aria-hidden
         />
       )}

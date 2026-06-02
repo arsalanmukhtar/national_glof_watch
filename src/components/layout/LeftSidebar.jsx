@@ -4,6 +4,7 @@ import {
   CloudDownload,
   FileSpreadsheet,
   Grid3x3,
+  Hammer,
   HardDriveDownload,
   Layers,
   Shapes,
@@ -14,6 +15,7 @@ import Tooltip from '@/components/ui/Tooltip';
 import CsvDataPanel from '@/components/dashboard/CsvDataPanel';
 import ExportLayersModal from '@/components/dashboard/ExportLayersModal';
 import GeeImageryPanel from '@/components/dashboard/GeeImageryPanel';
+import GeoAnalysisPanel from '@/components/dashboard/GeoAnalysisPanel';
 import LayerMenu from '@/components/dashboard/LayerMenu';
 import ParametersPanel from '@/components/dashboard/ParametersPanel';
 import RasterLayersPanel from '@/components/dashboard/RasterLayersPanel';
@@ -27,8 +29,9 @@ const SECONDARY_ID = 'secondary';
 const CSV_ID       = 'csv';
 const RASTER_ID    = 'raster';
 const GEE_ID       = 'gee';
+const TOOLBOX_ID   = 'toolbox';
 const PRIMARY_IDS  = ['parameters', 'layers'];
-const SOLO_IDS     = [SECONDARY_ID, CSV_ID, RASTER_ID, GEE_ID];
+const SOLO_IDS     = [SECONDARY_ID, CSV_ID, RASTER_ID, GEE_ID, TOOLBOX_ID];
 
 const SECTIONS = [
   {
@@ -79,12 +82,20 @@ const SECTIONS = [
     grow: true,
     render: () => <GeeImageryPanel />,
   },
+  {
+    id: TOOLBOX_ID,
+    label: 'Geospatial Analysis Toolbox',
+    headerIcon: Hammer,
+    title: 'Toolbox',
+    grow: true,
+    render: () => <GeoAnalysisPanel />,
+  },
 ];
 
 // Icon strip — one row per top-level mode. Order mirrors the sidebar
 // reading order the user asked for: Primary, Secondary, CSV, Raster,
-// GEE. `Export` is an action (opens a modal), not a panel toggle, and
-// is set off by a divider.
+// GEE, Toolbox. `Export` is the only true action (opens a modal), set
+// off by a divider underneath the panel toggles.
 const EXPORT_ID = 'export';
 const ICON_BUTTONS = [
   { id: 'primary',  label: 'Primary Layers',   icon: Layers },
@@ -92,6 +103,7 @@ const ICON_BUTTONS = [
   { id: CSV_ID,     label: 'CSV Data',         icon: FileSpreadsheet },
   { id: RASTER_ID,  label: 'Raster Layers',    icon: Grid3x3 },
   { id: GEE_ID,     label: 'GEE Imagery',      icon: CloudDownload },
+  { id: TOOLBOX_ID, label: 'Geospatial Analysis Toolbox', icon: Hammer },
   { id: EXPORT_ID,  label: 'Export Layers',    icon: HardDriveDownload },
 ];
 
@@ -100,16 +112,17 @@ export default function LeftSidebar({ className }) {
   const [activeIds, setActiveIds] = useState(
     () => new Set(['parameters', 'layers']),
   );
-  // Export is a modal, not a sidebar panel.
+  // Export still opens a modal — Toolbox is now a sidebar SOLO panel
+  // so its own state lives in `activeIds`, not a separate flag.
   const [exportOpen, setExportOpen] = useState(false);
 
   const toggleIconButton = (id) => {
     setActiveIds((prev) => {
       const next = new Set(prev);
       if (SOLO_IDS.includes(id)) {
-        // Solo modes (Secondary / CSV / Raster / GEE) take over the
-        // sidebar — turning one on clears every other section, turning
-        // it off leaves the bar empty.
+        // Solo modes (Secondary / CSV / Raster / GEE / Toolbox) take
+        // over the sidebar — turning one on clears every other section,
+        // turning it off leaves the bar empty.
         if (next.has(id)) {
           next.delete(id);
         } else {
@@ -172,9 +185,10 @@ export default function LeftSidebar({ className }) {
                   type="button"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() =>
-                    id === EXPORT_ID ? setExportOpen(true) : toggleIconButton(id)
-                  }
+                  onClick={() => {
+                    if (id === EXPORT_ID) setExportOpen(true);
+                    else toggleIconButton(id);
+                  }}
                   aria-pressed={on}
                   aria-label={label}
                   className={cn(

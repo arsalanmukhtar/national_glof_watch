@@ -360,6 +360,10 @@ export async function decodeRasterForMap(blob, opts = {}) {
   } else {
     const cmap = COLORMAPS[opts.colormap]?.stops ?? COLORMAPS.viridis.stops;
     const range = max > min ? max - min : 1;
+    // colormapReversed flips the ramp direction (e.g. low values get the
+    // "high" colour). One toggle in the style panel — applied here so a
+    // single LUT stays the source of truth for every colormap.
+    const reversed = !!opts.colormapReversed;
     for (let i = 0; i < band.length; i++) {
       const v = band[i];
       const idx = i * 4;
@@ -372,7 +376,8 @@ export async function decodeRasterForMap(blob, opts = {}) {
         writeNoData(px, idx);
         continue;
       }
-      const t = Math.max(0, Math.min(1, (v - min) / range));
+      let t = Math.max(0, Math.min(1, (v - min) / range));
+      if (reversed) t = 1 - t;
       const ci = Math.round(t * 255) * 3;
       px[idx]     = cmap[ci];
       px[idx + 1] = cmap[ci + 1];

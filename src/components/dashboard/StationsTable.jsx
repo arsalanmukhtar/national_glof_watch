@@ -27,7 +27,6 @@ import { cn } from '@/utils/cn';
 const SENSOR_LEGEND = [
   { kind: 'layer', layerId: 'all_stations',            label: 'GLOF II PMD Stations',  countKey: 'all_stations' },
   { kind: 'layer', layerId: 'akah_sensors',            label: 'AKAH Sensors',          countKey: 'akah_sensors' },
-  { kind: 'layer', layerId: 'bri_ff_china_sensors',    label: 'BRI-FF China Sensors',  countKey: 'bri_ff_china_sensors' },
   { kind: 'layer', layerId: 'gmrc_wapda_stations',     label: 'GMRC / WAPDA Stations', countKey: 'gmrc_wapda_stations' },
 ];
 
@@ -105,7 +104,11 @@ export default function StationsTable() {
     disabledStates,
   } = useParameter();
   const { setSelectedFeature } = useAttributeTables();
-  const { styles: secondaryStyles } = useSecondary();
+  const {
+    styles: secondaryStyles,
+    visibleLayers: secondaryVisible,
+    toggleLayer: toggleSecondaryLayer,
+  } = useSecondary();
   const [open, setOpen] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
   // Roster sizes for the sensor legend — populated lazily from
@@ -299,15 +302,47 @@ export default function StationsTable() {
                 const hasCount = typeof rawCount === 'number';
                 const loading =
                   typeof item.staticCount !== 'number' && sensorCounts === null;
+                // Layer-backed rows act as toggles: clicking the row
+                // flips the secondary layer on/off on the map, mirroring
+                // the bottom-left alert-state legend's behaviour. Static
+                // entries (no layerId) stay non-interactive.
+                const layerOn = item.layerId
+                  ? secondaryVisible.has(item.layerId)
+                  : true;
+                const interactive = !!item.layerId;
+                const Row = interactive ? 'button' : 'div';
                 return (
-                  <div key={item.label} className="flex items-center gap-2">
+                  <Row
+                    key={item.label}
+                    {...(interactive
+                      ? {
+                          type: 'button',
+                          onClick: () => toggleSecondaryLayer(item.layerId),
+                          'aria-pressed': layerOn,
+                          title: layerOn
+                            ? `Hide ${item.label} on map`
+                            : `Show ${item.label} on map`,
+                        }
+                      : {})}
+                    className={cn(
+                      'w-full flex items-center gap-2 rounded transition-colors',
+                      interactive &&
+                        'px-1 -mx-1 py-0.5 -my-0.5 hover:bg-[#84cc16]/10 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#84cc16]/50',
+                      interactive && !layerOn && 'opacity-45',
+                    )}
+                  >
                     <span className="h-5 w-5 inline-flex items-center justify-center shrink-0">
                       <LegendSymbol
                         item={item}
                         secondaryStyles={secondaryStyles}
                       />
                     </span>
-                    <span className="text-[12px] text-day-text dark:text-night-text truncate">
+                    <span
+                      className={cn(
+                        'text-[12px] truncate text-day-text dark:text-night-text text-left',
+                        interactive && !layerOn && 'line-through',
+                      )}
+                    >
                       {item.label}
                     </span>
                     <span
@@ -322,7 +357,7 @@ export default function StationsTable() {
                     >
                       {loading ? '…' : hasCount ? rawCount : '—'}
                     </span>
-                  </div>
+                  </Row>
                 );
               })}
             </div>

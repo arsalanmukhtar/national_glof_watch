@@ -10,7 +10,7 @@ export const DEFAULT_MAP_CENTER = [
 ];
 
 export const DEFAULT_MAP_ZOOM = Number(env.VITE_DEFAULT_MAP_ZOOM ?? 7);
-export const DEFAULT_MAP_PITCH = Number(env.VITE_DEFAULT_MAP_PITCH ?? 60);
+export const DEFAULT_MAP_PITCH = Number(env.VITE_DEFAULT_MAP_PITCH ?? 0);
 
 export const IS_DEV = env.DEV === true;
 export const IS_PROD = env.PROD === true;

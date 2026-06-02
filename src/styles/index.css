@@ -154,6 +154,18 @@
   display: none !important;
 }
 
+/* ----------------------------------------------------------------------- */
+/* Geo-analysis draw mode — force a crosshair cursor across the whole      */
+/* map canvas while the user is drawing an AOI. Mapbox station/feature     */
+/* hover handlers set `cursor: pointer` directly on canvas.style, so the   */
+/* only reliable override is an !important rule on a wrapper class.        */
+/* ----------------------------------------------------------------------- */
+.geo-draw-active,
+.geo-draw-active .mapboxgl-canvas,
+.geo-draw-active .mapboxgl-canvas-container {
+  cursor: crosshair !important;
+}
+
 
 /* ----------------------------------------------------------------------- */
 /* Dual-rotating loader — shown over the map while a layer fetch is in     */

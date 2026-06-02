@@ -321,6 +321,14 @@ export function RasterProvider({ children }) {
     decodedRef.current.delete(id);
   }, []);
 
+  // Read-only accessor for the decoded band + bounds of a rendered
+  // group. Used by the GeoAnalysis toolbox to run zonal statistics
+  // without re-decoding the TIFF over the network. Returns null when
+  // the group hasn't been decoded yet (toggle it visible first).
+  const getGroupDecoded = useCallback((id) => {
+    return decodedRef.current.get(id) ?? null;
+  }, []);
+
   // Probe the topmost visible raster covering a given lng/lat. Returns
   // null when no raster sits under the click, or when the pixel under
   // the cursor is nodata (so the FeatureDetails panel doesn't stick a
@@ -456,6 +464,7 @@ export function RasterProvider({ children }) {
       setGroupError,
       setGroupDecoded,
       clearGroupDecoded,
+      getGroupDecoded,
       pickRasterValueAt,
       isLngLatOverAnyRaster,
     }),
@@ -480,6 +489,7 @@ export function RasterProvider({ children }) {
       setGroupError,
       setGroupDecoded,
       clearGroupDecoded,
+      getGroupDecoded,
       pickRasterValueAt,
       isLngLatOverAnyRaster,
     ],

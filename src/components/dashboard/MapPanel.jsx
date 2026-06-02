@@ -38,6 +38,7 @@ import {
 } from '@/utils/stylePalettes';
 import { buildMarkerImage } from '@/utils/markerImage';
 import { useMapView } from '@/contexts/MapContext';
+import { bboxOfGeoJson } from '@/utils/bbox';
 import BasemapSwitcher from './BasemapSwitcher';
 import MapControls from './MapControls';
 import MapGeocoder from './MapGeocoder';
@@ -46,7 +47,7 @@ import RasterMapRenderer from './RasterMapRenderer';
 import StationsTable from './StationsTable';
 import { cn } from '@/utils/cn';
 
-const DEFAULT_BASEMAP = 'satellite';
+const DEFAULT_BASEMAP = 'light';
 const STATIONS_SOURCE = 'parameter-stations';
 const STATIONS_LAYER = 'parameter-stations-circle';
 const STATIONS_HALO_LAYER = 'parameter-stations-halo';
@@ -253,6 +254,11 @@ export default function MapPanel({ className, onMapReady }) {
       // dashboard (regional layers, legend overlays) reads better on
       // Mercator. The user can flip to globe via the projection toggle.
       projection: 'mercator',
+      // Required for canvas.toDataURL() to return non-blank PNGs — the
+      // Toolbox PDF export captures the canvas after a triggerRepaint.
+      // Without this flag WebGL clears the drawing buffer after every
+      // composite and toDataURL would yield an empty image.
+      preserveDrawingBuffer: true,
       ...DEFAULT_MAP_VIEW,
     });
     mapRef.current = map;
@@ -279,6 +285,38 @@ export default function MapPanel({ className, onMapReady }) {
           .getStyle()
           .layers.find((l) => l.type === 'symbol')?.id;
         map.addLayer(glacierLayerSpec, firstSymbolId);
+      }
+    });
+
+    // Frame the map to the GLOF basins extent on first load so the
+    // dashboard always opens on the area of interest. The basemap
+    // paints at DEFAULT_MAP_VIEW first (instant) and then slides to
+    // the basin envelope; fetchGeoJson caches the response so the
+    // second visit pays almost nothing. Fires once via map.once.
+    map.once('load', async () => {
+      const url = secondaryLayerUrl('glof_basins');
+      if (!url) return;
+      try {
+        const data = await fetchGeoJson(url);
+        const bbox = bboxOfGeoJson(data);
+        if (bbox && mapRef.current) {
+          mapRef.current.fitBounds(
+            [
+              [bbox[0], bbox[1]],
+              [bbox[2], bbox[3]],
+            ],
+            {
+              padding: 40,
+              duration: 600,
+              maxZoom: 16,
+              pitch: 0,
+              bearing: 0,
+              essential: true,
+            },
+          );
+        }
+      } catch (err) {
+        console.warn('Initial fit to GLOF basins failed:', err);
       }
     });
 

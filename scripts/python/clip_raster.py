@@ -87,6 +87,54 @@ if (_rio_root / "gdal_data").is_dir():
     os.environ["GDAL_DATA"] = str(_rio_root / "gdal_data")
 
 
+def str_to_bool(s: str) -> bool:
+    """Accept the values commonly typed at a shell — true/false, yes/no,
+    1/0, on/off — for boolean flags so the user can write
+    ``--zero false`` instead of having to remember a bare ``--no-zero``."""
+    s = s.strip().lower()
+    if s in ("true", "t", "yes", "y", "1", "on"):
+        return True
+    if s in ("false", "f", "no", "n", "0", "off"):
+        return False
+    raise argparse.ArgumentTypeError(f"expected true/false, got {s!r}")
+
+
+def resolve_zero_handling(keep_zero: bool, src_nodata):
+    """Decide how to treat 0-valued pixels in the output.
+
+    Returns ``(out_nodata, rewrite_zeros_to)``:
+
+      * ``out_nodata``        — the value to write into the output
+                                profile's ``nodata`` slot.
+      * ``rewrite_zeros_to``  — if not None, every pixel equal to 0
+                                must be rewritten to this sentinel
+                                before being written to disk. ``None``
+                                means no rewrite needed.
+
+    Three cases when ``--zero false``:
+
+      (a) source has no nodata          → declare nodata=0 in the
+                                          output; existing zeros become
+                                          nodata for free, no rewrite.
+      (b) source nodata is already 0    → nothing changes.
+      (c) source nodata is something
+          else (e.g. -9999)             → keep that sentinel for the
+                                          output and rewrite any 0
+                                          pixels to it so they read as
+                                          nodata too.
+    """
+    if keep_zero:
+        return src_nodata, None
+    if src_nodata is None:
+        return 0, None
+    try:
+        if float(src_nodata) == 0.0:
+            return src_nodata, None
+    except (TypeError, ValueError):
+        pass
+    return src_nodata, src_nodata
+
+
 def auto_predictor(dtype: str) -> int:
     """Same heuristic as compress_raster.py — float types want
     predictor 3 (floating-point), integer types want 2 (horizontal
@@ -191,6 +239,7 @@ def clip_bbox(
     bbox: tuple[float, float, float, float],
     bbox_crs,
     creation_override: dict | None,
+    keep_zero: bool = True,
 ) -> None:
     """Pixel-aligned bbox crop. Window arithmetic snaps the requested
     bounds to the source's pixel grid, so no resampling — every kept
@@ -209,18 +258,25 @@ def clip_bbox(
         if win.width <= 0 or win.height <= 0:
             sys.exit("error: requested bbox does not overlap the source raster")
 
+        out_nodata, rewrite_zeros_to = resolve_zero_handling(keep_zero, src.nodata)
+
         out_transform = src.window_transform(win)
         profile = src.profile.copy()
         profile.update(
             width=int(win.width),
             height=int(win.height),
             transform=out_transform,
+            nodata=out_nodata,
         )
         profile.update(creation_override or source_creation_options(src))
 
         with rasterio.open(dst_path, "w", **profile) as dst:
             for i in range(1, src.count + 1):
-                dst.write(src.read(i, window=win), i)
+                arr = src.read(i, window=win)
+                if rewrite_zeros_to is not None:
+                    arr = arr.copy()
+                    arr[arr == 0] = rewrite_zeros_to
+                dst.write(arr, i)
             dst.update_tags(**src.tags())
             for i in range(1, src.count + 1):
                 dst.update_tags(i, **src.tags(i))
@@ -234,6 +290,7 @@ def clip_mask(
     mask_path: Path,
     all_touched: bool,
     creation_override: dict | None,
+    keep_zero: bool = True,
 ) -> None:
     """Vector polygon clip via ``rasterio.mask.mask``. Pixels outside
     every polygon are set to the source's nodata; the output extent is
@@ -241,23 +298,30 @@ def clip_mask(
     with rasterio.open(src_path) as src:
         geoms = load_mask_geometries(mask_path, src.crs)
 
+        out_nodata, rewrite_zeros_to = resolve_zero_handling(keep_zero, src.nodata)
+
+        # Use the resolved output nodata as the fill sentinel for pixels
+        # masked OUT by the vector geometry too — that way the whole
+        # output reads with a single, consistent nodata value.
+        fill_value = out_nodata if out_nodata is not None else 0
         out_image, out_transform = rio_mask(
             src,
             geoms,
             crop=True,
             all_touched=all_touched,
-            # Use the source's nodata as the fill so masked-out pixels
-            # round-trip cleanly. If the source has no nodata we fall
-            # back to 0, which is the GDAL default and what most
-            # downstream tools expect.
-            nodata=src.nodata if src.nodata is not None else 0,
+            nodata=fill_value,
         )
+
+        if rewrite_zeros_to is not None:
+            out_image = out_image.copy()
+            out_image[out_image == 0] = rewrite_zeros_to
 
         profile = src.profile.copy()
         profile.update(
             width=out_image.shape[2],
             height=out_image.shape[1],
             transform=out_transform,
+            nodata=out_nodata,
         )
         profile.update(creation_override or source_creation_options(src))
 
@@ -275,13 +339,14 @@ def clip_like(
     dst_path: Path,
     like_path: Path,
     creation_override: dict | None,
+    keep_zero: bool = True,
 ) -> None:
     """Crop ``src`` to the bounds of ``like``. CRS-reprojects the
     reference bounds if necessary so this works across CRSs."""
     with rasterio.open(like_path) as like:
         ref_bounds = (like.bounds.left, like.bounds.bottom, like.bounds.right, like.bounds.top)
         ref_crs = like.crs
-    clip_bbox(src_path, dst_path, ref_bounds, ref_crs, creation_override)
+    clip_bbox(src_path, dst_path, ref_bounds, ref_crs, creation_override, keep_zero)
 
 
 def parse_args() -> argparse.Namespace:
@@ -320,6 +385,14 @@ def parse_args() -> argparse.Namespace:
         "--all-touched", action="store_true",
         help="(--mask only) Include any pixel a polygon edge touches "
              "rather than only those with centers inside.",
+    )
+    p.add_argument(
+        "--zero", type=str_to_bool, default=True, metavar="true|false",
+        help="Keep zero-valued pixels (true, default) or drop them by "
+             "promoting every 0 to nodata in the output (false). When the "
+             "source has no nodata, --zero false declares 0 as the "
+             "output nodata sentinel; when the source has a non-zero "
+             "nodata, 0 pixels are rewritten to that sentinel.",
     )
     p.add_argument(
         "--compress", default=None,
@@ -381,6 +454,7 @@ def main() -> int:
         print(f"Clip   : mask {args.mask}{' (all-touched)' if args.all_touched else ''}")
     else:
         print(f"Clip   : extent of {args.like}")
+    print(f"Zeros  : {'kept' if args.zero else 'promoted to nodata'}")
 
     t0 = time.perf_counter()
     try:
@@ -390,11 +464,12 @@ def main() -> int:
                 tuple(args.bbox),
                 parse_crs(args.bbox_crs),
                 creation_override,
+                args.zero,
             )
         elif args.mask:
-            clip_mask(src, dst, args.mask, args.all_touched, creation_override)
+            clip_mask(src, dst, args.mask, args.all_touched, creation_override, args.zero)
         else:
-            clip_like(src, dst, args.like, creation_override)
+            clip_like(src, dst, args.like, creation_override, args.zero)
     except SystemExit:
         raise
     except Exception as exc:

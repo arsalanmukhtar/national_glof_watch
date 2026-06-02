@@ -39,7 +39,8 @@ function symbologyKey(style) {
         .join(',')
     : '';
   const nd = `${style.noDataColor ?? ''}@${style.noDataOpacity ?? 1}`;
-  return `${mode}|${style.colormap || 'viridis'}|${min}|${max}|${classes}|${nd}`;
+  const rev = style.colormapReversed ? 'r' : 'f';
+  return `${mode}|${style.colormap || 'viridis'}|${rev}|${min}|${max}|${classes}|${nd}`;
 }
 
 function frameKey(name, style) {
@@ -262,6 +263,7 @@ export default function RasterMapRenderer() {
             payload = await fetchAndDecodeRaster(layer.name, {
               mode: g.style?.mode,
               colormap: g.style?.colormap,
+              colormapReversed: g.style?.colormapReversed,
               classes: g.style?.classes,
               styleMin: auto ? null : g.style?.min,
               styleMax: auto ? null : g.style?.max,

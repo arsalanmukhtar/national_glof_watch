@@ -1537,10 +1537,37 @@ function RasterStyleForm({ groups, selectedId, onSelect }) {
         {mode === 'continuous' ? (
           <>
             <Section title="Colormap">
-              <Field label="Preset">
+              <Field
+                label="Preset"
+                action={
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setStyle({ colormapReversed: !style.colormapReversed })
+                    }
+                    title={
+                      style.colormapReversed
+                        ? 'Reversed — click to restore original direction'
+                        : 'Reverse colormap direction'
+                    }
+                    aria-pressed={!!style.colormapReversed}
+                    className={cn(
+                      'inline-flex h-6 w-6 items-center justify-center rounded',
+                      'border border-day-border dark:border-night-border',
+                      'transition-colors',
+                      style.colormapReversed
+                        ? 'bg-[#84cc16]/15 text-[#84cc16] border-[#84cc16]/40'
+                        : 'text-day-muted dark:text-night-muted hover:text-[#84cc16]',
+                    )}
+                  >
+                    <ArrowLeftRight className="h-3 w-3" />
+                  </button>
+                }
+              >
                 <ColormapDropdown
                   options={colormaps}
                   value={style.colormap || 'viridis'}
+                  reversed={!!style.colormapReversed}
                   onChange={(id) => setStyle({ colormap: id })}
                 />
               </Field>
@@ -2677,7 +2704,7 @@ function NoDataEditor({ color, opacity, onChange }) {
 // Compact preview-swatch-and-label dropdown for picking the active
 // colormap. Rendered with the same Listbox primitive the vector
 // AttributePicker uses so the visual style matches.
-function ColormapDropdown({ options, value, onChange }) {
+function ColormapDropdown({ options, value, onChange, reversed = false }) {
   const current = options.find((o) => o.id === value) ?? options[0];
   // Group options by category, preserving the order from listColormaps.
   const grouped = [];
@@ -2694,7 +2721,7 @@ function ColormapDropdown({ options, value, onChange }) {
     <Listbox value={value} onChange={onChange}>
       <div className="relative w-full">
         <Listbox.Button className="w-full inline-flex items-center gap-2 rounded-md border border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg px-2 py-1 text-[12px] text-day-text dark:text-night-text hover:border-[#84cc16]/60 transition-colors">
-          <ColormapPreview id={current.id} className="h-3 w-12 shrink-0 rounded" />
+          <ColormapPreview id={current.id} reversed={reversed} className="h-3 w-12 shrink-0 rounded" />
           <span className="flex-1 text-left truncate">{current.label}</span>
           <ChevronDown className="h-3 w-3 text-day-muted dark:text-night-muted" />
         </Listbox.Button>
@@ -2725,7 +2752,7 @@ function ColormapDropdown({ options, value, onChange }) {
                   >
                     {({ selected: isSel }) => (
                       <>
-                        <ColormapPreview id={o.id} className="h-3 w-12 shrink-0 rounded" />
+                        <ColormapPreview id={o.id} reversed={reversed} className="h-3 w-12 shrink-0 rounded" />
                         <span className="flex-1 truncate">{o.label}</span>
                         {isSel ? <Check className="h-3 w-3 text-[#84cc16]" /> : null}
                       </>
@@ -2744,14 +2771,14 @@ function ColormapDropdown({ options, value, onChange }) {
 // CSS-only horizontal gradient previewing each colormap. Derived from
 // the LUT in `rasterRender.js` so a new colormap shows up here for
 // free.
-function ColormapPreview({ id, className }) {
-  return (
-    <span
-      aria-hidden
-      className={className}
-      style={{ backgroundImage: colormapCssGradient(id) }}
-    />
-  );
+function ColormapPreview({ id, className, reversed = false }) {
+  // CSS gradients can't be programmatically reversed in one declaration,
+  // so we flip the stop direction by wrapping the gradient in another
+  // layer. Cheaper than recomputing the LUT in JS for a tiny preview.
+  const style = reversed
+    ? { backgroundImage: colormapCssGradient(id), transform: 'scaleX(-1)' }
+    : { backgroundImage: colormapCssGradient(id) };
+  return <span aria-hidden className={className} style={style} />;
 }
 
 // Trim trailing zeros so "192.000" reads as "192", but keep meaningful
