@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ChevronDown,
@@ -32,6 +32,7 @@ const ORBIT_FOREGROUND_M  = 1500;   // distance camera-ward of target
 const ORBIT_RELIEF_FULL_M = 800;    // relief that fully flattens pitch
 const ORBIT_DEG_PER_SEC   = 6;      // orbit speed (60s per revolution)
 const ORBIT_PITCH_SMOOTH  = 0.18;   // LPF coefficient on per-frame pitch
+const ORBIT_ZOOM_SLACK    = 3;      // slider range = initialZoom +/- this
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
@@ -66,7 +67,20 @@ export default function MapControls({ map, fullscreenTarget }) {
   const [collapsed, setCollapsed] = useState(false);
   const [pickMode, setPickMode] = useState(false);
   const [rotating, setRotating] = useState(false);
+  // Slider state — live zoom value + the clamp range derived from the
+  // orbit's starting zoom. Bounds stay null until the orbit kicks off
+  // so the slider isn't rendered with garbage values.
+  const [orbitZoom, setOrbitZoom] = useState(null);
+  const [orbitZoomBounds, setOrbitZoomBounds] = useState(null);
+  // Pixel offset of the orbit button's centre from the outer container's
+  // top — drives the slider's vertical alignment with the button.
+  const [sliderTop, setSliderTop] = useState(0);
   const frameRef = useRef(null);
+  // Read inside the RAF tick so changes don't require restarting the loop.
+  const orbitZoomRef = useRef(null);
+  const userAdjustingRef = useRef(false);
+  const orbitButtonRef = useRef(null);
+  const outerRef = useRef(null);
   const { resetView } = useMapView();
 
   useEffect(() => {
@@ -94,6 +108,10 @@ export default function MapControls({ map, fullscreenTarget }) {
       frameRef.current = null;
     }
     setRotating(false);
+    setOrbitZoom(null);
+    setOrbitZoomBounds(null);
+    orbitZoomRef.current = null;
+    userAdjustingRef.current = false;
     if (resetCamera && map) {
       map.easeTo({ bearing: 0, pitch: 0, duration: 600 });
     }
@@ -132,6 +150,16 @@ export default function MapControls({ map, fullscreenTarget }) {
       ORBIT_MAX_PITCH,
     );
 
+    // Slider clamp: keep the user close to the orbit's natural framing
+    // (initialZoom +/- slack), bounded by the map's own zoom limits so
+    // we never set a value Mapbox would refuse.
+    const sliderMin = Math.max(map.getMinZoom?.() ?? 0, initialZoom - ORBIT_ZOOM_SLACK);
+    const sliderMax = Math.min(map.getMaxZoom?.() ?? 22, initialZoom + ORBIT_ZOOM_SLACK);
+    setOrbitZoomBounds({ min: sliderMin, max: sliderMax });
+    setOrbitZoom(initialZoom);
+    orbitZoomRef.current = initialZoom;
+    userAdjustingRef.current = false;
+
     map.flyTo({
       center: target,
       zoom: initialZoom,
@@ -143,10 +171,19 @@ export default function MapControls({ map, fullscreenTarget }) {
     setRotating(true);
 
     let smoothedPitch = initialPitch;
-    const startTime = performance.now();
+    // Bearing is derived from `runningElapsed`, which only advances on
+    // frames where the user isn't dragging the slider. That makes the
+    // pause-on-adjust / resume-on-release behaviour fall out of the
+    // accumulator without any explicit cancel/restart of the RAF loop.
+    let runningElapsed = 0;
+    let lastTimestamp = performance.now();
     const tick = (timestamp) => {
-      const elapsed = timestamp - startTime;
-      const bearing = ((elapsed / 1000) * ORBIT_DEG_PER_SEC) % 360;
+      const delta = timestamp - lastTimestamp;
+      lastTimestamp = timestamp;
+      if (!userAdjustingRef.current) {
+        runningElapsed += delta;
+      }
+      const bearing = ((runningElapsed / 1000) * ORBIT_DEG_PER_SEC) % 360;
 
       // Camera sits opposite the bearing direction; "foreground" is the
       // ground between camera and target. Sample its elevation — if the
@@ -167,13 +204,21 @@ export default function MapControls({ map, fullscreenTarget }) {
       smoothedPitch =
         smoothedPitch * (1 - ORBIT_PITCH_SMOOTH) + targetPitch * ORBIT_PITCH_SMOOTH;
 
-      map.jumpTo({ center: target, bearing, pitch: smoothedPitch });
+      map.jumpTo({
+        center: target,
+        bearing,
+        pitch: smoothedPitch,
+        zoom: orbitZoomRef.current ?? initialZoom,
+      });
       frameRef.current = requestAnimationFrame(tick);
     };
     // Kick off after the flyTo settles so the rotation rides on top of
     // the terrain-pitched view rather than fighting the in-flight ease.
+    // Also reset `lastTimestamp` here so the accumulator's first delta
+    // doesn't include the 1.7s flyTo wait.
     setTimeout(() => {
       if (rotatingRef.current) {
+        lastTimestamp = performance.now();
         frameRef.current = requestAnimationFrame(tick);
       }
     }, 1700);
@@ -236,6 +281,31 @@ export default function MapControls({ map, fullscreenTarget }) {
     };
   }, []);
 
+  // Align the slider's TOP edge with the top of the orbit button so the
+  // lever hangs down from the button row rather than centring on it.
+  // Re-measured when collapse toggles since the button's top moves if
+  // the controls re-collapse mid-orbit.
+  useEffect(() => {
+    if (!rotating || !orbitButtonRef.current || !outerRef.current) return;
+    const btn = orbitButtonRef.current.getBoundingClientRect();
+    const outer = outerRef.current.getBoundingClientRect();
+    setSliderTop(btn.top - outer.top);
+  }, [rotating, collapsed]);
+
+  // Slider callbacks — wrap in useCallback so the slider's effects
+  // don't see fresh fn references every render and re-fire pointer
+  // handlers.
+  const handleZoomChange = useCallback((z) => {
+    orbitZoomRef.current = z;
+    setOrbitZoom(z);
+  }, []);
+  const handleAdjustStart = useCallback(() => {
+    userAdjustingRef.current = true;
+  }, []);
+  const handleAdjustEnd = useCallback(() => {
+    userAdjustingRef.current = false;
+  }, []);
+
   if (!map) return null;
 
   const zoomIn = () => map.zoomIn();
@@ -288,98 +358,124 @@ export default function MapControls({ map, fullscreenTarget }) {
       : 'Rotate camera around point';
 
   return (
+    // Outer positioning wrapper — NO overflow-hidden so the slider can
+    // float out to the left of the control card.
     <motion.div
+      ref={outerRef}
       initial={{ opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.1 }}
-      className={cn(
-        'absolute top-2 right-2 z-10 flex flex-col rounded-md overflow-hidden shadow-sm',
-        'bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm',
-        'border border-day-border dark:border-night-border',
-      )}
+      className="absolute top-2 right-2 z-10"
     >
-      <CtrlButton
-        onClick={() => setCollapsed((c) => !c)}
-        label={collapsed ? 'Show controls' : 'Hide controls'}
-      >
-        {collapsed ? (
-          <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} />
-        ) : (
-          <ChevronUp className="h-3.5 w-3.5" strokeWidth={2} />
+      <div
+        className={cn(
+          'flex flex-col rounded-md overflow-hidden shadow-sm',
+          'bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm',
+          'border border-day-border dark:border-night-border',
         )}
-      </CtrlButton>
+      >
+        <CtrlButton
+          onClick={() => setCollapsed((c) => !c)}
+          label={collapsed ? 'Show controls' : 'Hide controls'}
+        >
+          {collapsed ? (
+            <ChevronDown className="h-3.5 w-3.5" strokeWidth={2} />
+          ) : (
+            <ChevronUp className="h-3.5 w-3.5" strokeWidth={2} />
+          )}
+        </CtrlButton>
 
-      <AnimatePresence initial={false}>
-        {!collapsed && (
-          <motion.div
-            key="ctrl-stack"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            className={cn(
-              'flex flex-col overflow-hidden',
-              'border-t border-day-border dark:border-night-border',
-              'divide-y divide-day-border dark:divide-night-border',
-            )}
-          >
-            <CtrlButton onClick={zoomIn} label="Zoom in">
-              <Plus className="h-3.5 w-3.5" strokeWidth={2} />
-            </CtrlButton>
-            <CtrlButton onClick={zoomOut} label="Zoom out">
-              <Minus className="h-3.5 w-3.5" strokeWidth={2} />
-            </CtrlButton>
-            <CtrlButton onClick={resetView} label="Zoom to full extent">
-              <Expand className="h-3.5 w-3.5" strokeWidth={1.75} />
-            </CtrlButton>
-            <CtrlButton onClick={resetBearing} label="Reset bearing">
-              <Navigation2
-                className="h-3.5 w-3.5"
-                strokeWidth={1.75}
-                style={{ transform: `rotate(${-bearing}deg)` }}
-              />
-            </CtrlButton>
-            <CtrlButton onClick={locate} label="My location">
-              <LocateFixed className="h-3.5 w-3.5" strokeWidth={1.75} />
-            </CtrlButton>
-            <CtrlButton
-              onClick={toggleOrbit}
-              active={pickMode || rotating}
-              label={orbitLabel}
-            >
-              <SwitchCamera className="h-3.5 w-3.5" strokeWidth={1.75} />
-            </CtrlButton>
-            <CtrlButton
-              onClick={toggleProjection}
-              active={projection === 'globe'}
-              label={projection === 'globe' ? 'Switch to Mercator' : 'Switch to Globe'}
-            >
-              {projection === 'globe' ? (
-                <Globe2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-              ) : (
-                <Square className="h-3.5 w-3.5" strokeWidth={1.75} />
+        <AnimatePresence initial={false}>
+          {!collapsed && (
+            <motion.div
+              key="ctrl-stack"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className={cn(
+                'flex flex-col overflow-hidden',
+                'border-t border-day-border dark:border-night-border',
+                'divide-y divide-day-border dark:divide-night-border',
               )}
-            </CtrlButton>
-            <CtrlButton
-              onClick={toggleFullscreen}
-              label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
             >
-              {isFullscreen ? (
-                <Minimize2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-              ) : (
-                <Maximize2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-              )}
-            </CtrlButton>
-          </motion.div>
+              <CtrlButton onClick={zoomIn} label="Zoom in">
+                <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+              </CtrlButton>
+              <CtrlButton onClick={zoomOut} label="Zoom out">
+                <Minus className="h-3.5 w-3.5" strokeWidth={2} />
+              </CtrlButton>
+              <CtrlButton onClick={resetView} label="Zoom to full extent">
+                <Expand className="h-3.5 w-3.5" strokeWidth={1.75} />
+              </CtrlButton>
+              <CtrlButton onClick={resetBearing} label="Reset bearing">
+                <Navigation2
+                  className="h-3.5 w-3.5"
+                  strokeWidth={1.75}
+                  style={{ transform: `rotate(${-bearing}deg)` }}
+                />
+              </CtrlButton>
+              <CtrlButton onClick={locate} label="My location">
+                <LocateFixed className="h-3.5 w-3.5" strokeWidth={1.75} />
+              </CtrlButton>
+              <CtrlButton
+                ref={orbitButtonRef}
+                onClick={toggleOrbit}
+                active={pickMode || rotating}
+                label={orbitLabel}
+              >
+                <SwitchCamera className="h-3.5 w-3.5" strokeWidth={1.75} />
+              </CtrlButton>
+              <CtrlButton
+                onClick={toggleProjection}
+                active={projection === 'globe'}
+                label={projection === 'globe' ? 'Switch to Mercator' : 'Switch to Globe'}
+              >
+                {projection === 'globe' ? (
+                  <Globe2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                ) : (
+                  <Square className="h-3.5 w-3.5" strokeWidth={1.75} />
+                )}
+              </CtrlButton>
+              <CtrlButton
+                onClick={toggleFullscreen}
+                label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                ) : (
+                  <Maximize2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                )}
+              </CtrlButton>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <AnimatePresence>
+        {rotating && orbitZoomBounds && !collapsed && (
+          <OrbitZoomSlider
+            top={sliderTop}
+            zoom={orbitZoom ?? 0}
+            minZoom={orbitZoomBounds.min}
+            maxZoom={orbitZoomBounds.max}
+            onZoomChange={handleZoomChange}
+            onAdjustStart={handleAdjustStart}
+            onAdjustEnd={handleAdjustEnd}
+          />
         )}
       </AnimatePresence>
     </motion.div>
   );
 }
 
-function CtrlButton({ children, onClick, label, active = false }) {
+const CtrlButton = forwardRef(function CtrlButton(
+  { children, onClick, label, active = false },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
       title={label}
@@ -393,5 +489,105 @@ function CtrlButton({ children, onClick, label, active = false }) {
     >
       {children}
     </button>
+  );
+});
+
+// Vertical zoom lever — visible only while the orbit is active. Drag the
+// thumb to set zoom; pointerdown pauses the bearing accumulator (via
+// onAdjustStart) and pointerup resumes it (via onAdjustEnd) so the
+// orbit picks up exactly where it left off.
+function OrbitZoomSlider({
+  top, zoom, minZoom, maxZoom, onZoomChange, onAdjustStart, onAdjustEnd,
+}) {
+  const trackRef = useRef(null);
+  const adjustingRef = useRef(false);
+
+  const updateFromClientY = (clientY) => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const t = 1 - clamp((clientY - rect.top) / rect.height, 0, 1); // 0 bottom, 1 top
+    onZoomChange(minZoom + t * (maxZoom - minZoom));
+  };
+
+  const handlePointerDown = (e) => {
+    e.preventDefault();
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+    adjustingRef.current = true;
+    onAdjustStart();
+    updateFromClientY(e.clientY);
+  };
+  const handlePointerMove = (e) => {
+    if (!adjustingRef.current) return;
+    updateFromClientY(e.clientY);
+  };
+  const handlePointerEnd = (e) => {
+    if (!adjustingRef.current) return;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+    adjustingRef.current = false;
+    onAdjustEnd();
+  };
+
+  // Pointer-up outside the track (window release) is also a release.
+  useEffect(() => {
+    const onWinUp = () => {
+      if (!adjustingRef.current) return;
+      adjustingRef.current = false;
+      onAdjustEnd();
+    };
+    window.addEventListener('pointerup', onWinUp);
+    window.addEventListener('pointercancel', onWinUp);
+    return () => {
+      window.removeEventListener('pointerup', onWinUp);
+      window.removeEventListener('pointercancel', onWinUp);
+    };
+  }, [onAdjustEnd]);
+
+  const range = Math.max(1e-6, maxZoom - minZoom);
+  const t = clamp((zoom - minZoom) / range, 0, 1);
+  const thumbPct = (1 - t) * 100; // top % → 0 means thumb at top
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 4 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 4 }}
+      transition={{ duration: 0.16 }}
+      className="absolute right-full mr-1.5 z-10"
+      style={{ top }}
+    >
+      <div className="flex flex-col items-center gap-1 px-1.5 py-1.5 rounded-md bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm border border-day-border dark:border-night-border shadow-sm select-none">
+        <Plus
+          className="h-3 w-3 text-day-muted dark:text-night-muted"
+          strokeWidth={2}
+        />
+        <div
+          ref={trackRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
+          className="relative h-20 w-1.5 rounded-full bg-day-border dark:bg-night-border cursor-pointer touch-none"
+        >
+          {/* Filled portion — from the thumb down to the bottom of the
+              track. Tells the user "you're at this zoom level". */}
+          <div
+            className="absolute inset-x-0 rounded-full bg-[#84cc16]"
+            style={{ top: `${thumbPct}%`, bottom: 0 }}
+          />
+          {/* Thumb */}
+          <div
+            className="absolute left-1/2 h-3.5 w-3.5 rounded-full bg-[#84cc16] border-2 border-white shadow-[0_1px_3px_rgba(0,0,0,0.35)]"
+            style={{
+              top: `${thumbPct}%`,
+              transform: 'translate(-50%, -50%)',
+            }}
+          />
+        </div>
+        <Minus
+          className="h-3 w-3 text-day-muted dark:text-night-muted"
+          strokeWidth={2}
+        />
+      </div>
+    </motion.div>
   );
 }
