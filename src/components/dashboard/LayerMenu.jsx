@@ -31,6 +31,7 @@ const REGIONS = [
   { id: 'sardar_gol',    label: 'Sardar Gol',    layers: ['Risk Zones'] },
   { id: 'shisper',       label: 'Shisper',       layers: ['Lake', 'Risk Zones'] },
   { id: 'terset_hundur', label: 'Terset Hundur', layers: ['Lake', 'River', 'Risk Zones'] },
+  { id: 'thalo_i_ii',    label: 'Thalo I & II',  layers: ['Risk Zones'] },
   { id: 'ultar',         label: 'Ultar',         layers: ['Risk Zones'] },
 ];
 

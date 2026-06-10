@@ -324,6 +324,11 @@ load "$DATA_DIR/terset_hundur/glof_high_terset_hundur.geojson"   "risk_zones.ter
 load "$DATA_DIR/terset_hundur/glof_medium_terset_hundur.geojson" "risk_zones.terset_hundur_medium_risk_zone"
 load "$DATA_DIR/terset_hundur/glof_low_terset_hundur.geojson"    "risk_zones.terset_hundur_low_risk_zone"
 
+# Thalo I & II — only a single risk-zone level is published for this region.
+# The two missing levels (high/medium) resolve to empty FeatureCollections in
+# server/routes/region.js, same pattern as chatiboi's missing low.
+load "$DATA_DIR/thalo_i_ii/glof_low_thalo_i_ii.geojson"          "risk_zones.thalo_i_ii_low_risk_zone"
+
 # Ultar
 load "$DATA_DIR/ultar/glof_high_risk_ultar_lake.geojson"   "risk_zones.ultar_high_risk_zone"
 load "$DATA_DIR/ultar/glof_medium_risk_ultar_lake.geojson" "risk_zones.ultar_medium_risk_zone"
