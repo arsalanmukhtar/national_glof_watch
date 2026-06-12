@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Minimize2 } from 'lucide-react';
+import { ArrowBigDownDash, Minimize2 } from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
 import {
   Chart as ChartJS,
@@ -28,6 +28,7 @@ import { useCsvDatasets } from '@/contexts/CsvDatasetsContext';
 import { applyFilters } from '@/utils/csvParser';
 import { colorFor } from '@/config/parameterColors';
 import { buildLegendGradient } from '@/config/parameterLegends';
+import { generatePmdTrendReport } from '@/utils/pmdTrendReport';
 import { cn } from '@/utils/cn';
 
 ChartJS.register(
@@ -952,6 +953,46 @@ function PmdTrendPanel({ theme }) {
   const empty = !selected || !stationId;
   const noData = !empty && points.length === 0 && !loading;
 
+  // Chart.js instance — held in a ref so the Export PDF handler can call
+  // .toBase64Image() to embed the live chart in the report. The instance
+  // is the one react-chartjs-2 hands to the ref (Chart.js's own `Chart`
+  // object), not the canvas DOM node.
+  const chartRef = useRef(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (empty || noData || !points.length) return;
+    setExporting(true);
+    try {
+      // Yield a frame so the spinner repaints before the synchronous
+      // PDF build runs.
+      await new Promise((r) => setTimeout(r, 0));
+      // White background for the captured chart — chart.toBase64Image()
+      // grabs the canvas as-is, which is transparent by default and
+      // looks wrong embedded in the white PDF.
+      const chart = chartRef.current;
+      const chartImageDataUrl = chart?.toBase64Image?.(
+        'image/png', 1,
+      );
+      const windowLabel =
+        mode === 'daily'  ? 'Daily (last 24 h)'
+      : mode === 'weekly' ? 'Weekly (last 7 days)'
+                          : `Custom (last ${customDays} day${customDays === 1 ? '' : 's'})`;
+      generatePmdTrendReport({
+        parameter: selected,
+        unit,
+        stationName,
+        stationId,
+        windowLabel,
+        dateRangeLabel,
+        points,
+        chartImageDataUrl,
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="p-3 flex flex-col gap-2 h-full min-h-0">
       <div className="flex items-center gap-2 flex-wrap shrink-0">
@@ -974,6 +1015,23 @@ function PmdTrendPanel({ theme }) {
               disabled={empty}
             />
           )}
+          <Tooltip label="Download chart as PDF" side="bottom">
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              disabled={empty || noData || exporting || !points.length}
+              aria-label="Download chart as PDF"
+              className={cn(
+                'inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors',
+                'border border-day-border dark:border-night-border',
+                empty || noData || exporting || !points.length
+                  ? 'bg-day-bg dark:bg-night-bg text-day-muted dark:text-night-muted cursor-not-allowed opacity-60'
+                  : 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
+              )}
+            >
+              <ArrowBigDownDash className="h-3.5 w-3.5" strokeWidth={2} />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -994,6 +1052,7 @@ function PmdTrendPanel({ theme }) {
           </EmptyState>
         ) : (
           <Line
+            ref={chartRef}
             data={data}
             options={options}
             plugins={[dayMarkerPlugin, extremeMarkerPlugin]}

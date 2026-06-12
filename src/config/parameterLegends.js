@@ -72,7 +72,9 @@ export function buildLegendGradient(ctx, chartArea, yScale, element, alpha = 1) 
   return gradient;
 }
 
-function colorAtValue(stops, v) {
+// Exported so the PDF trend-report generator can colour each table row
+// with the same gradient the chart line uses for that value.
+export function colorAtValue(stops, v) {
   if (v <= stops[0].value) return stops[0].color;
   if (v >= stops[stops.length - 1].value) return stops[stops.length - 1].color;
   for (let i = 0; i < stops.length - 1; i++) {
