@@ -63,7 +63,42 @@ export default function MapLegend({ disabledStates, onToggleState }) {
             );
           })}
         </ul>
+        {/* Warning Post indicator — non-clickable row that documents the
+            concentric-ring styling applied to WP_* stations on the map.
+            Rendered below an <hr> so the reader sees it as a separate
+            symbology note rather than a seventh alert state. */}
+        <hr className="border-t border-day-border dark:border-night-border mx-2 my-0.5" />
+        <div className="px-1 py-1">
+          <div
+            className="w-full flex items-center gap-2 px-1.5 py-1 text-[12px] text-day-text dark:text-night-text"
+            title="Water-Point stations render with three concentric rings on the map."
+          >
+            <WarningPostGlyph />
+            <span className="leading-none">Warning Post</span>
+          </div>
+        </div>
       </div>
     </motion.div>
+  );
+}
+
+// Miniature version of the map's WP marker — three concentric black
+// rings around a small dot. Rendered as an SVG so it stays crisp at any
+// zoom / DPI. Kept purely visual (no clicks, no colour toggle) since it
+// documents symbology rather than a filterable state.
+function WarningPostGlyph() {
+  return (
+    <svg
+      aria-hidden
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      className="shrink-0"
+    >
+      <circle cx="7" cy="7" r="6"   fill="none" stroke="currentColor" strokeWidth="0.75" opacity="0.85" />
+      <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="0.75" opacity="0.85" />
+      <circle cx="7" cy="7" r="3"   fill="none" stroke="currentColor" strokeWidth="0.75" opacity="0.85" />
+      <circle cx="7" cy="7" r="1.4" fill="currentColor" />
+    </svg>
   );
 }

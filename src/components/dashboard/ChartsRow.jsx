@@ -741,7 +741,7 @@ function PmdTrendPanel({ theme }) {
   //   'weekly' → last 7 days
   //   'custom' → last `customDays` days
   const [mode, setMode] = useState('daily');
-  // Cap at the 30-day ceiling enforced below so the default doesn't
+  // Cap at the 60-day ceiling enforced below so the default doesn't
   // sit above the input's max — also matches what the user sees as
   // "Past N days" in the UI.
   const [customDays, setCustomDays] = useState(14);
@@ -756,7 +756,7 @@ function PmdTrendPanel({ theme }) {
       ? 1
       : mode === 'weekly'
         ? 7
-        : Math.max(1, Math.min(30, Number(customDays) || 1));
+        : Math.max(1, Math.min(60, Number(customDays) || 1));
 
   useEffect(() => {
     if (!selected || !stationId) {
@@ -868,16 +868,24 @@ function PmdTrendPanel({ theme }) {
 
   // Human-readable date range for the panel header — clarifies which
   // days the curve covers without relying on a single midnight tick.
+  // Year is appended once at the trailing edge (e.g. "Jun 15 → Jul 9,
+  // 2025") so the reader can anchor the range without every mid-chart
+  // day pill having to repeat it. If the window straddles a year
+  // boundary, both endpoints carry a year to keep the transition clear.
   const dateRangeLabel = useMemo(() => {
     if (points.length === 0) return null;
     const first = new Date(points[0].ts);
     const last = new Date(points[points.length - 1].ts);
     if (Number.isNaN(first.getTime()) || Number.isNaN(last.getTime())) return null;
-    const fmt = (d) =>
+    const fmtShort = (d) =>
       d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    return first.toDateString() === last.toDateString()
-      ? fmt(first)
-      : `${fmt(first)} → ${fmt(last)}`;
+    const fmtFull = (d) =>
+      d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    if (first.toDateString() === last.toDateString()) return fmtFull(first);
+    if (first.getFullYear() !== last.getFullYear()) {
+      return `${fmtFull(first)} → ${fmtFull(last)}`;
+    }
+    return `${fmtShort(first)} → ${fmtFull(last)}`;
   }, [points]);
 
   // Dot sizing: big at the most-significant boundary for the scale, small
@@ -1126,17 +1134,17 @@ function CustomDaysInput({ value, onChange, disabled }) {
     setDraft(String(value));
   }, [value]);
 
-  // Custom window is capped at 30 days — matches the input's max + the
-  // PmdTrendPanel's `Math.min(30, …)` clamp. Anything bigger gets
-  // rejected at commit so a stale draft doesn't fire a 90-day fetch.
+  // Custom window is capped at 60 days — matches the input's max + the
+  // PmdTrendPanel's `Math.min(60, …)` clamp. Anything bigger gets
+  // rejected at commit so a stale draft doesn't fire a 120-day fetch.
   const tryCommit = (raw) => {
     const n = Math.floor(Number(raw));
-    if (Number.isFinite(n) && n >= 1 && n <= 30) onChange(n);
+    if (Number.isFinite(n) && n >= 1 && n <= 60) onChange(n);
   };
 
   const commit = () => {
     const n = Math.floor(Number(draft));
-    if (Number.isFinite(n) && n >= 1 && n <= 30) {
+    if (Number.isFinite(n) && n >= 1 && n <= 60) {
       onChange(n);
     } else {
       setDraft(String(value));
@@ -1164,7 +1172,7 @@ function CustomDaysInput({ value, onChange, disabled }) {
         <input
           type="number"
           min={1}
-          max={30}
+          max={60}
           value={draft}
           onChange={(e) => {
             const v = e.target.value;

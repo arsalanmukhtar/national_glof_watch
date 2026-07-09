@@ -3,120 +3,212 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
   Clock,
+  CloudRain,
+  CloudSnow,
+  Compass,
   Droplets,
   Gauge,
+  Loader2,
+  Sun,
   Thermometer,
   Waves,
+  Wind,
 } from 'lucide-react';
+import { classifyState, stateForAlertId } from '@/config/alertStates';
+import { colorFor } from '@/config/parameterColors';
+import { useParameter } from '@/contexts/ParameterContext';
 import { cn } from '@/utils/cn';
 
-// Tabs displayed at the top of the card. Order matches PMD priority.
-const TABS = [
-  {
-    id: 'Air Temperature',
-    label: 'Air Temperature',
-    short: 'Air Temp',
-    icon: Thermometer,
-    accent: '#ef4444',   // red-500 — extreme-heat alert color
-    unit: '°C',
-    operator: '>',
-    threshold: 30,       // dummy: high-heat advisory threshold
-    thresholdLabel: '> 30°C',
-  },
-  {
-    id: 'Total Rain',
-    label: 'Total Rain',
-    short: 'Total Rain',
-    icon: Droplets,
-    accent: '#3b82f6',   // blue-500 — heavy rain
-    unit: 'mm',
-    operator: '>',
-    threshold: 30,       // dummy: heavy-rain threshold
-    thresholdLabel: '> 30 mm',
-  },
-  {
-    id: 'Water Level',
-    label: 'Water Level',
-    short: 'Water Level',
-    icon: Waves,
-    accent: '#dc2626',   // red-600 — flood risk
-    unit: 'm',
-    operator: '≥',
-    threshold: 2,        // dummy: high-water alert per parameterLegends.js
-    thresholdLabel: '≥ 2 m',
-  },
-  {
-    id: 'Instantaneous Flow',
-    label: 'Instantaneous Flow',
-    short: 'Inst. Flow',
-    icon: Gauge,
-    accent: '#8b5cf6',   // violet-500 — distinct from the temperature/water reds
-    unit: 'm³/s',
-    operator: '>',
-    threshold: 40,       // dummy: matches the high-flow bin in parameterLegends.js
-    thresholdLabel: '> 40 m³/s',
-  },
-];
-
-// Dummy breaching stations per parameter — every entry is *intentionally*
-// over the tab's threshold so the carousel always has something to show
-// during testing. Replace with a real fetch (e.g. /api/parameters/:el/latest
-// filtered by threshold) once the alert-thresholds policy is finalized.
-const DUMMY_BREACHES = {
-  'Air Temperature': [
-    { name: 'Skardu',          value: 33.4, ago: '15m ago' },
-    { name: 'Gilgit',          value: 31.8, ago: '8m ago'  },
-    { name: 'Chitral',         value: 32.1, ago: '42m ago' },
-    { name: 'Bunji',           value: 35.0, ago: '5m ago'  },
-    { name: 'Astore',          value: 30.6, ago: '20m ago' },
-  ],
-  'Total Rain': [
-    { name: 'Hunza',           value: 42,   ago: '1h ago'  },
-    { name: 'Gulmit',          value: 38,   ago: '20m ago' },
-    { name: 'Chatiboi',        value: 51,   ago: '35m ago' },
-    { name: 'Reshun',          value: 33,   ago: '12m ago' },
-  ],
-  'Water Level': [
-    { name: 'Indus @ Bunji',   value: 2.4,  ago: '30m ago' },
-    { name: 'Hunza @ Khairabad', value: 2.8, ago: '10m ago' },
-    { name: 'Gilgit @ Alam Br',  value: 2.1, ago: '45m ago' },
-  ],
-  'Instantaneous Flow': [
-    { name: 'Indus @ Bunji',     value: 52, ago: '12m ago' },
-    { name: 'Hunza @ Khairabad', value: 68, ago: '8m ago'  },
-    { name: 'Gilgit @ Alam Br',  value: 45, ago: '40m ago' },
-    { name: 'Shyok @ Yugo',      value: 73, ago: '20m ago' },
-  ],
+// Per-element icon + short-label overrides. Colours DO NOT live here —
+// they come from `colorFor(elementName)` in @/config/parameterColors so
+// every parameter reads with the same accent as in the ParametersPanel
+// list (Air Temperature = orange, Compact GAS State = violet, etc.).
+// Curated colours are pinned in parameterColors.js; anything else lands
+// in a stable 30-hue palette by hash of its name.
+const ELEMENT_META = {
+  'Air Temperature':        { icon: Thermometer, short: 'Air Temp' },
+  'Water Level':            { icon: Waves,       short: 'Water Level' },
+  'Instantaneous Flow':     { icon: Gauge,       short: 'Inst. Flow' },
+  'Istantaneous Flow':      { icon: Gauge,       short: 'Inst. Flow' },  // PMD's own spelling
+  'Total Rain':             { icon: Droplets,    short: 'Total Rain' },
+  Rainfall:                 { icon: CloudRain,   short: 'Rainfall' },
+  Precipitation:            { icon: CloudRain,   short: 'Precip.' },
+  Humidity:                 { icon: Droplets,    short: 'Humidity' },
+  'Wind Speed':             { icon: Wind,        short: 'Wind Spd' },
+  'Wind Direction':         { icon: Compass,     short: 'Wind Dir' },
+  'Snow Depth':             { icon: CloudSnow,   short: 'Snow Dep' },
+  'Solar Radiation':        { icon: Sun,         short: 'Solar Rad' },
 };
 
-// Cycle through breaching stations once every CAROUSEL_INTERVAL_MS while
-// the user isn't hovering. 3.5s is slow enough to read a value, fast
-// enough to feel "live" without becoming distracting.
-const CAROUSEL_INTERVAL_MS = 3500;
+const DEFAULT_META = { icon: CircleAlert, short: null };
 
-function formatValue(v, unit) {
-  if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
-  const txt = Number.isInteger(v) ? v.toString() : v.toFixed(1);
-  return `${txt} ${unit}`;
+function metaFor(elementName) {
+  const meta = ELEMENT_META[elementName] || DEFAULT_META;
+  return {
+    id: elementName,
+    label: elementName,
+    icon: meta.icon,
+    // Full-opacity per-parameter colour shared with ParametersPanel.
+    tabAccent: colorFor(elementName),
+    // Fallback short label: first two words, truncated.
+    short:
+      meta.short ??
+      (elementName.length > 10
+        ? elementName.split(' ').slice(0, 2).join(' ').slice(0, 12)
+        : elementName),
+  };
+}
+
+// Severity cutoff for "breach" — PMD's ladder: 0 Normal, 20 Error,
+// 40 Warning, 70 Pre-alarm, 90 Alarm. Focus is Pre-alarm-or-worse so the
+// card surfaces only the states that need active attention.
+const MIN_STATE = 70;
+
+// Preferred tab ordering: known "priority" elements first, then the rest
+// alphabetical. Keeps Air Temp / Water Level / etc. left-most when the
+// catalog is large.
+const TAB_PRIORITY = [
+  'Air Temperature',
+  'Total Rain',
+  'Water Level',
+  'Instantaneous Flow',
+];
+
+const CAROUSEL_INTERVAL_MS = 3500;
+const TAB_INTERVAL_MS = 5000;      // auto-advance parameter tabs every 5 s
+const MAX_DOTS = 6;       // vertical dots on the row — capped so card height stays fixed
+
+function formatValue(value, unit) {
+  if (value == null || value === '') return '—';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  const txt = Number.isInteger(n) ? n.toString() : n.toFixed(1);
+  return unit ? `${txt} ${unit}` : txt;
+}
+
+function timeAgo(ts) {
+  if (!ts) return '—';
+  const t = new Date(ts).getTime();
+  if (!Number.isFinite(t)) return '—';
+  const delta = Math.max(0, Date.now() - t);
+  if (delta < 45_000) return 'Just now';
+  const mins = Math.floor(delta / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function crossedLabel(crossed, unit) {
+  if (!crossed) return null;
+  const op = crossed.operator ?? '';
+  const min = crossed.min;
+  const max = crossed.max;
+  if (crossed.condition) {
+    return unit ? `${crossed.condition} ${unit}` : crossed.condition;
+  }
+  if (op && min != null) {
+    const rounded = Number.isFinite(min)
+      ? (Number.isInteger(min) ? min : Number(min.toFixed(1)))
+      : min;
+    return unit ? `${op} ${rounded} ${unit}` : `${op} ${rounded}`;
+  }
+  if (op && max != null) {
+    return unit ? `${op} ${max} ${unit}` : `${op} ${max}`;
+  }
+  return null;
 }
 
 export default function ThresholdStationsCard() {
-  const [tabId, setTabId] = useState(TABS[0].id);
+  const { elements } = useParameter();
+
+  // Build the tab list from the live element catalog. Ordered:
+  // priority elements first (in the order given), everything else after
+  // alphabetically. Elements with zero stations reporting are still
+  // included — the card will just say "no breaches" for them.
+  const tabs = useMemo(() => {
+    if (!elements?.length) {
+      // Bootstrap fallback so the card doesn't render empty on first
+      // paint before the catalog fetch resolves.
+      return TAB_PRIORITY.map(metaFor);
+    }
+    const priority = TAB_PRIORITY
+      .map((name) => elements.find((e) => e.name === name))
+      .filter(Boolean);
+    const seen = new Set(priority.map((e) => e.name));
+    const rest = elements
+      .filter((e) => !seen.has(e.name))
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return [...priority, ...rest].map((e) => metaFor(e.name));
+  }, [elements]);
+
+  const [tabId, setTabId] = useState(TAB_PRIORITY[0]);
+
+  // Guard: if the catalog reloads and the previously-selected tab no
+  // longer exists (renamed, removed), snap to the first available.
+  useEffect(() => {
+    if (!tabs.length) return;
+    if (!tabs.some((t) => t.id === tabId)) {
+      setTabId(tabs[0].id);
+    }
+  }, [tabs, tabId]);
+
+  const tab = tabs.find((t) => t.id === tabId) ?? tabs[0];
+  const activeIdx = tabs.findIndex((t) => t.id === tab?.id);
+
+  const [breaches, setBreaches] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [index, setIndex] = useState(0);
   const [hovered, setHovered] = useState(false);
 
-  const tab = TABS.find((t) => t.id === tabId) ?? TABS[0];
-  const breaches = useMemo(() => DUMMY_BREACHES[tab.id] ?? [], [tab.id]);
-
-  // Reset carousel position when switching tabs so the user lands on
-  // the first breaching station of the new parameter.
   useEffect(() => {
-    setIndex(0);
-  }, [tabId]);
+    if (!tab) return;
+    let cancelled = false;
+    const load = () => {
+      const url = `/api/parameters/${encodeURIComponent(tab.id)}/latest?minState=${MIN_STATE}`;
+      setLoading((wasLoading) => wasLoading || breaches.length === 0);
+      setError(null);
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((data) => {
+          if (cancelled) return;
+          const list = (data?.features ?? [])
+            .map((f) => f.properties)
+            .filter((p) => p && Number.isFinite(Number(p.stateId)))
+            .sort((a, b) => {
+              const dS = (b.stateId ?? 0) - (a.stateId ?? 0);
+              if (dS !== 0) return dS;
+              const ta = new Date(a.lastUpdate ?? 0).getTime();
+              const tb = new Date(b.lastUpdate ?? 0).getTime();
+              return tb - ta;
+            });
+          setBreaches(list);
+          setIndex(0);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setError(err.message);
+          setBreaches([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab?.id]);
 
-  // Auto-advance the carousel. Cleared on hover so the user can read a
-  // value without it sliding away.
   useEffect(() => {
     if (hovered || breaches.length <= 1) return;
     const t = setInterval(() => {
@@ -125,138 +217,307 @@ export default function ThresholdStationsCard() {
     return () => clearInterval(t);
   }, [hovered, breaches.length]);
 
+  // Auto-advance the parameter tab every 3 s. Uses the functional form of
+  // setTabId + a ref-free lookup against the live `tabs` array so the
+  // interval doesn't need to be torn down / rebuilt on every tab change —
+  // only when the catalog changes or the user pauses on hover.
+  useEffect(() => {
+    if (hovered || tabs.length <= 1) return;
+    const t = setInterval(() => {
+      setTabId((currentId) => {
+        const idx = tabs.findIndex((tt) => tt.id === currentId);
+        if (idx < 0) return tabs[0].id;
+        return tabs[(idx + 1) % tabs.length].id;
+      });
+    }, TAB_INTERVAL_MS);
+    return () => clearInterval(t);
+  }, [hovered, tabs]);
+
   const current = breaches[index] ?? null;
 
+  const worstState = useMemo(() => {
+    if (!breaches.length) return null;
+    const worstId = breaches.reduce(
+      (max, b) => Math.max(max, Number(b.stateId) || 0),
+      0,
+    );
+    return stateForAlertId(worstId);
+  }, [breaches]);
+
+  const rowState = current ? classifyState(current.stateId) : null;
+  const rowColor = rowState?.color ?? '#6b7280';
+  const rowUnit = current?.unit ?? '';
+  const rowCrossed = crossedLabel(current?.crossedThreshold, rowUnit);
+
+  // ---- Tab carousel: 3 fixed slots (prev | active | next) ----------
+  // Chevrons and preview slots advance the active tab by exactly one
+  // step so the user always sees the same layout: their currently
+  // selected parameter dead-centre, with a hint of what's on either
+  // side. Cleaner than a sliding window because there is no separate
+  // "which tab is active" vs "which window is visible" state to keep
+  // in sync — the active tab IS the middle slot, always.
+  const prevTab = activeIdx > 0 ? tabs[activeIdx - 1] : null;
+  const nextTab = activeIdx >= 0 && activeIdx < tabs.length - 1
+    ? tabs[activeIdx + 1]
+    : null;
+  const goPrev = () => {
+    if (prevTab) setTabId(prevTab.id);
+  };
+  const goNext = () => {
+    if (nextTab) setTabId(nextTab.id);
+  };
+
+  // ---- Fixed-count dot indicator -----------------------------------
+  // When there are <= MAX_DOTS breaches, dots map 1:1 to stations. Once
+  // over MAX_DOTS, they compress to a proportional position bar so the
+  // column stays exactly MAX_DOTS tall — the card height never grows
+  // with the breach count.
+  const dotCount = Math.min(breaches.length, MAX_DOTS);
+  const dotToIndex = (dotIdx) => {
+    if (breaches.length <= MAX_DOTS) return dotIdx;
+    // Round outward so first/last dots always target the ends.
+    return Math.round((dotIdx / (MAX_DOTS - 1)) * (breaches.length - 1));
+  };
+  const activeDot =
+    breaches.length <= MAX_DOTS
+      ? index
+      : breaches.length <= 1
+        ? 0
+        : Math.round((index / (breaches.length - 1)) * (MAX_DOTS - 1));
+
   return (
-    <div className="card-base flex flex-col">
-      {/* Header — title + threshold badge */}
+    <div
+      className="card-base flex flex-col"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Header — title + worst-state badge */}
       <div className="flex items-center gap-2 px-3 pt-2.5 pb-2 border-b border-day-border dark:border-night-border">
         <AlertTriangle
           className="h-3.5 w-3.5"
-          style={{ color: tab.accent }}
+          style={{ color: worstState?.color ?? tab?.tabAccent ?? '#84cc16' }}
           aria-hidden
         />
         <h3 className="text-[13px] font-semibold tracking-wide uppercase text-day-text dark:text-night-text">
           Threshold Breaches
         </h3>
-        <span
-          className="ml-auto text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md border"
-          style={{
-            color: tab.accent,
-            borderColor: `${tab.accent}66`,
-            backgroundColor: `${tab.accent}14`,
-          }}
-        >
-          {tab.thresholdLabel}
-        </span>
+        {worstState ? (
+          <span
+            className="ml-auto text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md border"
+            style={{
+              color: worstState.color,
+              borderColor: `${worstState.color}66`,
+              backgroundColor: `${worstState.color}14`,
+            }}
+          >
+            {worstState.label}
+          </span>
+        ) : loading ? (
+          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-day-muted dark:text-night-muted">
+            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            Loading…
+          </span>
+        ) : null}
       </div>
 
-      {/* Tabs */}
+      {/* Tab carousel — three fixed slots: previous (icon+short, muted),
+          active (icon + FULL label, accent-coloured), next (icon+short,
+          muted). Chevrons + preview slots both step by one so the user
+          always sees the same layout: current parameter dead-centre. */}
       <div className="flex items-stretch gap-0.5 px-1.5 pt-1.5">
-        {TABS.map((t) => {
-          const active = t.id === tabId;
-          const Icon = t.icon;
-          return (
+        <button
+          type="button"
+          onClick={goPrev}
+          disabled={!prevTab}
+          aria-label={prevTab ? `Previous parameter: ${prevTab.label}` : 'No previous parameter'}
+          className={cn(
+            'shrink-0 h-8 w-6 inline-flex items-center justify-center rounded-md transition-colors',
+            prevTab
+              ? 'text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg'
+              : 'text-day-muted/40 dark:text-night-muted/40 cursor-not-allowed',
+          )}
+        >
+          <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+        </button>
+
+        <div className="flex-1 flex items-stretch gap-0.5 min-w-0">
+          {/* PREVIOUS — narrow preview slot; empty placeholder keeps the
+              layout stable at the left edge of the list. */}
+          {prevTab ? (
             <button
-              key={t.id}
               type="button"
-              onClick={() => setTabId(t.id)}
-              aria-pressed={active}
-              className={cn(
-                'relative flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 text-[12px] font-medium rounded-md transition-colors',
-                active
-                  ? 'text-day-text dark:text-night-text'
-                  : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
-              )}
+              onClick={goPrev}
+              aria-label={`Switch to ${prevTab.label}`}
+              title={prevTab.label}
+              className="shrink-0 w-14 inline-flex items-center justify-center gap-1 px-1 py-1.5 text-[11.5px] font-medium rounded-md text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text hover:bg-day-bg dark:hover:bg-night-bg transition-colors"
             >
-              <Icon className="h-3.5 w-3.5" aria-hidden />
-              <span className="truncate">{t.short}</span>
-              {active ? (
-                <motion.span
-                  layoutId="threshold-tab-underline"
-                  className="absolute inset-x-1 bottom-0 h-0.5 rounded-full"
-                  style={{ backgroundColor: tab.accent }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 32 }}
-                />
-              ) : null}
+              <prevTab.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{prevTab.short}</span>
             </button>
-          );
-        })}
+          ) : (
+            <span className="shrink-0 w-14" aria-hidden />
+          )}
+
+          {/* ACTIVE — full label, coloured with tabAccent, animated
+              underline follows the accent. */}
+          {tab ? (
+            <div
+              className="relative flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md"
+              aria-current="true"
+              title={tab.label}
+            >
+              <tab.icon
+                className="h-3.5 w-3.5 shrink-0"
+                style={{ color: tab.tabAccent }}
+                aria-hidden
+              />
+              <span
+                className="truncate text-[12.5px] font-semibold"
+                style={{ color: tab.tabAccent }}
+              >
+                {tab.label}
+              </span>
+              <motion.span
+                layoutId="threshold-tab-underline"
+                className="absolute inset-x-1 bottom-0 h-0.5 rounded-full"
+                style={{ backgroundColor: tab.tabAccent }}
+                transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+              />
+            </div>
+          ) : (
+            <span className="flex-1" aria-hidden />
+          )}
+
+          {/* NEXT — narrow preview slot; empty placeholder at the right
+              edge of the list. */}
+          {nextTab ? (
+            <button
+              type="button"
+              onClick={goNext}
+              aria-label={`Switch to ${nextTab.label}`}
+              title={nextTab.label}
+              className="shrink-0 w-14 inline-flex items-center justify-center gap-1 px-1 py-1.5 text-[11.5px] font-medium rounded-md text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text hover:bg-day-bg dark:hover:bg-night-bg transition-colors"
+            >
+              <nextTab.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{nextTab.short}</span>
+            </button>
+          ) : (
+            <span className="shrink-0 w-14" aria-hidden />
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={goNext}
+          disabled={!nextTab}
+          aria-label={nextTab ? `Next parameter: ${nextTab.label}` : 'No next parameter'}
+          className={cn(
+            'shrink-0 h-8 w-6 inline-flex items-center justify-center rounded-md transition-colors',
+            nextTab
+              ? 'text-day-text dark:text-night-text hover:bg-day-bg dark:hover:bg-night-bg'
+              : 'text-day-muted/40 dark:text-night-muted/40 cursor-not-allowed',
+          )}
+        >
+          <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+        </button>
       </div>
 
       {/* Carousel viewport */}
-      <div
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        className="relative px-3 pt-2.5 pb-3 min-h-[68px]"
-      >
-        {breaches.length === 0 ? (
-          <div className="flex items-center justify-center h-[60px] text-[12px] text-day-muted dark:text-night-muted">
-            No stations breaching {tab.thresholdLabel} right now.
+      <div className="relative px-3 pt-2.5 pb-3 min-h-[68px]">
+        {error ? (
+          <div className="flex items-center justify-center h-[60px] text-[12px] text-red-600 dark:text-red-400">
+            {error}
           </div>
-        ) : (
+        ) : loading && breaches.length === 0 ? (
+          <div className="flex items-center justify-center h-[60px] gap-1.5 text-[12px] text-day-muted dark:text-night-muted">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            Loading breaches…
+          </div>
+        ) : breaches.length === 0 ? (
+          <div className="flex items-center justify-center h-[60px] text-[12px] text-day-muted dark:text-night-muted text-center px-2">
+            No {(tab?.short ?? tab?.label ?? 'station').toString().toLowerCase()} stations at Pre-alarm or Alarm right now.
+          </div>
+        ) : current ? (
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
-              key={`${tab.id}-${index}`}
+              key={`${tab.id}-${current.stationId}-${index}`}
               initial={{ opacity: 0, x: 24 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
-              // Accent tint matching the threshold badge in the header.
-              // Hex `33` ≈ 20% opacity — visibly filled while keeping the
-              // value text crisp against it on both day and night.
               className="flex items-center gap-3 p-2.5 rounded-md"
-              style={{ backgroundColor: `${tab.accent}33` }}
+              style={{ backgroundColor: `${rowColor}33` }}
             >
               <div
                 className="flex h-10 w-10 shrink-0 items-center justify-center"
-                style={{ color: tab.accent }}
+                style={{ color: rowColor }}
               >
                 <tab.icon className="h-5 w-5" aria-hidden />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-baseline gap-2 flex-wrap">
                   <span
                     className="text-[16px] font-semibold tabular-nums"
-                    style={{ color: tab.accent }}
+                    style={{ color: rowColor }}
                   >
-                    {formatValue(current.value, tab.unit)}
+                    {formatValue(current.value, rowUnit)}
                   </span>
-                  <span className="text-[11px] uppercase tracking-wide text-day-muted dark:text-night-muted">
-                    {tab.operator} {tab.threshold} {tab.unit}
-                  </span>
+                  {rowCrossed ? (
+                    <span className="text-[11px] uppercase tracking-wide text-day-muted dark:text-night-muted">
+                      {rowCrossed}
+                    </span>
+                  ) : rowState ? (
+                    <span className="text-[11px] uppercase tracking-wide text-day-muted dark:text-night-muted">
+                      {rowState.label}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5 text-[13px] text-day-text dark:text-night-text truncate">
                   <ArrowRight className="h-3 w-3 shrink-0 text-day-muted dark:text-night-muted" aria-hidden />
-                  <span className="truncate font-medium">{current.name}</span>
+                  <span className="truncate font-medium">
+                    {current.stationName ?? `Station ${current.stationId}`}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1 mt-0.5 text-[11px] text-day-muted dark:text-night-muted">
                   <Clock className="h-2.5 w-2.5" aria-hidden />
-                  <span>{current.ago}</span>
+                  <span>{timeAgo(current.lastUpdate)}</span>
                 </div>
               </div>
-              {/* Pagination dots — show position in the rotation. Click to
-                  jump straight to that station. */}
+              {/* Pagination dots — always MAX_DOTS tall. Beyond that many
+                  breaches, the dots represent a proportional position
+                  along the list so the card height never grows. */}
               <div className="flex flex-col gap-1 shrink-0">
-                {breaches.map((_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setIndex(i)}
-                    aria-label={`Show breach ${i + 1}`}
-                    className={cn(
-                      'h-1.5 w-1.5 rounded-full transition-colors',
-                      i === index
-                        ? ''
-                        : 'bg-day-border dark:bg-night-border hover:bg-day-muted dark:hover:bg-night-muted',
-                    )}
-                    style={i === index ? { backgroundColor: tab.accent } : undefined}
-                  />
-                ))}
+                {Array.from({ length: dotCount }).map((_, i) => {
+                  const targetIdx = dotToIndex(i);
+                  const isActive = i === activeDot;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setIndex(targetIdx)}
+                      aria-label={`Show breach ${targetIdx + 1} of ${breaches.length}`}
+                      className={cn(
+                        'h-1.5 w-1.5 rounded-full transition-colors',
+                        isActive
+                          ? ''
+                          : 'bg-day-border dark:bg-night-border hover:bg-day-muted dark:hover:bg-night-muted',
+                      )}
+                      style={isActive ? { backgroundColor: rowColor } : undefined}
+                    />
+                  );
+                })}
+                {breaches.length > MAX_DOTS ? (
+                  <span
+                    className="mt-0.5 text-[9px] font-semibold tabular-nums text-day-muted dark:text-night-muted"
+                    title={`Showing ${index + 1} of ${breaches.length}`}
+                  >
+                    +{breaches.length - MAX_DOTS}
+                  </span>
+                ) : null}
               </div>
             </motion.div>
           </AnimatePresence>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -202,7 +202,7 @@ parametersRouter.post('/thresholds/refresh', (_req, res) => {
 // ---------------------------------------------------------------------------
 // Readings
 // ---------------------------------------------------------------------------
-// GET /api/parameters/:element/latest
+// GET /api/parameters/:element/latest?minState=N
 // One feature per station that *has* this element (catalog-driven, from
 // station_elements), LEFT JOINed to its latest reading. Each feature
 // carries `stateId` (PMD's alert classification) which the map colors by.
@@ -210,8 +210,29 @@ parametersRouter.post('/thresholds/refresh', (_req, res) => {
 // value/stateId — the frontend renders it as the gray "No data" state
 // rather than dropping it, so the station roster stays stable and an
 // operator can see which sites have gone silent.
+//
+// `?minState=N` — optional numeric filter (0-100 on PMD's severity ladder;
+// 40 = Warning, 70 = Pre-alarm, 90 = Alarm). Keeps only stations whose
+// latest reading crossed at least that state. Used by the Threshold
+// Breaches card in the right sidebar to show the currently-alerting
+// stations for a given element.
+//
+// The response also embeds `crossedThreshold` per feature — the PMD alarm
+// band whose `alertStateId` matches the station's current stateId. Pulled
+// via a LATERAL join on `element_thresholds.alarms` (JSONB), so the card
+// can show "> 33 deg C" underneath each row without a second network call
+// per station. Null when the station is Normal or when we haven't captured
+// thresholds for that element_id yet.
 parametersRouter.get('/:element/latest', async (req, res) => {
   const element = decodeURIComponent(req.params.element);
+  const minStateRaw = req.query.minState;
+  const minState =
+    minStateRaw == null || minStateRaw === ''
+      ? null
+      : Number.isFinite(Number(minStateRaw))
+        ? Math.floor(Number(minStateRaw))
+        : null;
+
   try {
     const { rows } = await pool.query(
       `SELECT DISTINCT ON (se.station_id)
@@ -226,7 +247,12 @@ parametersRouter.get('/:element/latest', async (req, res) => {
               lr.unit,
               lr.state_id,
               lr.last_update,
-              lr.fetched_at
+              lr.fetched_at,
+              crossed.label      AS crossed_label,
+              crossed.operator   AS crossed_operator,
+              crossed.min_json   AS crossed_min,
+              crossed.max_json   AS crossed_max,
+              crossed.condition  AS crossed_condition
          FROM station_elements se
          JOIN stations s ON s.station_id = se.station_id
          LEFT JOIN LATERAL (
@@ -241,16 +267,47 @@ parametersRouter.get('/:element/latest', async (req, res) => {
             ORDER BY sr.last_update DESC NULLS LAST
             LIMIT 1
          ) lr ON true
+         LEFT JOIN LATERAL (
+           -- Find the alarm band whose alertStateId matches the station's
+           -- current stateId. Expand the JSONB two levels: alarms[] then
+           -- alarms[i].states[]. LIMIT 1 because more than one alarm can
+           -- carry the same state (rare) and we only need one label.
+           SELECT
+             state->>'label'     AS label,
+             state->>'operator'  AS operator,
+             state->'min'        AS min_json,
+             state->'max'        AS max_json,
+             state->>'condition' AS condition
+             FROM element_thresholds et,
+                  jsonb_array_elements(et.alarms) alarm,
+                  jsonb_array_elements(alarm->'states') state
+            WHERE et.element_id = se.element_id
+              AND lr.state_id IS NOT NULL
+              AND (state->>'alertStateId')::int = lr.state_id
+            LIMIT 1
+         ) crossed ON true
         WHERE se.element_name = $1
+          AND ($2::int IS NULL OR lr.state_id >= $2::int)
         ORDER BY se.station_id, lr.last_update DESC NULLS LAST`,
-      [element],
+      [element, minState],
     );
 
     res.json({
       type: 'FeatureCollection',
-      metadata: { element, count: rows.length, source: 'db' },
+      metadata: {
+        element,
+        count: rows.length,
+        source: 'db',
+        minState,
+      },
       features: rows.map((r) => {
         const stateId = r.state_id == null ? null : Number(r.state_id);
+        const hasCrossed =
+          r.crossed_label != null ||
+          r.crossed_operator != null ||
+          r.crossed_min != null ||
+          r.crossed_max != null ||
+          r.crossed_condition != null;
         return {
           type: 'Feature',
           geometry: { type: 'Point', coordinates: [Number(r.lon), Number(r.lat)] },
@@ -265,6 +322,15 @@ parametersRouter.get('/:element/latest', async (req, res) => {
             stateDescr: stateId == null ? null : stateLabel(stateId),
             lastUpdate: r.last_update?.toISOString?.() ?? r.last_update,
             fetchedAt: r.fetched_at?.toISOString?.() ?? r.fetched_at,
+            crossedThreshold: hasCrossed
+              ? {
+                  label:     r.crossed_label,
+                  operator:  r.crossed_operator,
+                  min:       r.crossed_min == null ? null : Number(r.crossed_min),
+                  max:       r.crossed_max == null ? null : Number(r.crossed_max),
+                  condition: r.crossed_condition,
+                }
+              : null,
           },
         };
       }),

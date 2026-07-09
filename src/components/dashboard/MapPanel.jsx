@@ -51,20 +51,44 @@ const DEFAULT_BASEMAP = 'light';
 const STATIONS_SOURCE = 'parameter-stations';
 const STATIONS_LAYER = 'parameter-stations-circle';
 const STATIONS_HALO_LAYER = 'parameter-stations-halo';
+// Three concentric black rings drawn only for Water-Point (WP_*) sensors.
+// The rings are colour-INDEPENDENT (fixed near-black `#0f172a`) so every
+// WP station reads the same regardless of its alert state — the core dot
+// underneath keeps carrying the Normal / Warning / Pre-alarm / Alarm
+// colour, so classification is still legible at a glance. The stroke
+// widths taper outward (2.5 → 1.5 → 0.75) so the innermost ring reads
+// strongest and the outer ones soften into a halo.
+const STATIONS_WP_RING_1_LAYER = 'parameter-stations-wp-ring-1'; // innermost, thickest
+const STATIONS_WP_RING_2_LAYER = 'parameter-stations-wp-ring-2'; // middle
+const STATIONS_WP_RING_3_LAYER = 'parameter-stations-wp-ring-3'; // outermost, thinnest
+const WP_RING_COLOR = '#0f172a';
 const STATIONS_RIPPLE_LAYERS = [
   'parameter-stations-ripple-1',
   'parameter-stations-ripple-2',
 ];
 const NO_HIGHLIGHT_FILTER = ['==', ['get', 'stationId'], -1];
+const WP_FILTER = ['==', ['get', 'isWp'], true];
 
 // Layer ids we own — skipped when the basemap-opacity slider iterates the
 // style. Anything else in `map.getStyle().layers` is treated as basemap.
 const CUSTOM_LAYER_IDS = new Set([
   GLACIER_LAYER_ID,
   STATIONS_HALO_LAYER,
+  STATIONS_WP_RING_1_LAYER,
+  STATIONS_WP_RING_2_LAYER,
+  STATIONS_WP_RING_3_LAYER,
   STATIONS_LAYER,
   ...STATIONS_RIPPLE_LAYERS,
 ]);
+
+// Water-Point sensors follow the `<Region>_WP_<index>` naming convention
+// (e.g. Gulkin_WP_1, Badswat_WP_2). Detecting them off the name keeps the
+// styling decision on the frontend — no schema change required — and
+// lets a station gain WP status the moment PMD renames it.
+function isWaterPoint(name) {
+  if (!name) return false;
+  return /(?:^|_)WP(?:_|$)/i.test(String(name));
+}
 
 // Ripple animation tuning. Two phase-shifted layers cycle radius outward
 // while fading opacity, producing a radar-pulse effect on the selected dot.
@@ -160,9 +184,10 @@ export default function MapPanel({ className, onMapReady }) {
       type: 'FeatureCollection',
       features: stations.map((f) => {
         const st = classifyState(f.properties?.stateId);
+        const isWp = isWaterPoint(f.properties?.stationName);
         return {
           ...f,
-          properties: { ...f.properties, state: st.id, color: st.color },
+          properties: { ...f.properties, state: st.id, color: st.color, isWp },
         };
       }),
     };
@@ -367,6 +392,10 @@ export default function MapPanel({ className, onMapReady }) {
       const filter = stateFilter(disabledStatesRef.current);
       for (const layerId of [STATIONS_LAYER, STATIONS_HALO_LAYER]) {
         if (map.getLayer(layerId)) map.setFilter(layerId, filter);
+      }
+      const wpFilter = withStateFilter(WP_FILTER, filter);
+      for (const layerId of [STATIONS_WP_RING_1_LAYER, STATIONS_WP_RING_2_LAYER, STATIONS_WP_RING_3_LAYER]) {
+        if (map.getLayer(layerId)) map.setFilter(layerId, wpFilter);
       }
     };
 
@@ -641,6 +670,10 @@ export default function MapPanel({ className, onMapReady }) {
     const filter = stateFilter(disabledStates);
     for (const layerId of [STATIONS_LAYER, STATIONS_HALO_LAYER]) {
       if (map.getLayer(layerId)) map.setFilter(layerId, filter);
+    }
+    const wpFilter = withStateFilter(WP_FILTER, filter);
+    for (const layerId of [STATIONS_WP_RING_1_LAYER, STATIONS_WP_RING_2_LAYER, STATIONS_WP_RING_3_LAYER]) {
+      if (map.getLayer(layerId)) map.setFilter(layerId, wpFilter);
     }
   }, [disabledStates]);
 
@@ -978,6 +1011,50 @@ function applyStationLayers(map, data) {
     });
   }
 
+  // Water-Point sensor styling — three tight, near-black concentric rings
+  // filtered to features carrying `isWp === true`. Rings hug the core dot
+  // (radii ~1.2x → ~1.4x → ~1.7x the core) with a uniform stroke width
+  // and opacity so the whole marker reads as a compact "warning-post"
+  // bullseye without dominating the neighbouring standard dots. Colour
+  // is fixed (`WP_RING_COLOR`) — NOT alert-driven — because the goal is
+  // to single out WP stations as a set; the core dot underneath still
+  // carries the Normal / Warning / Pre-alarm / Alarm colour so
+  // classification remains obvious.
+  //
+  // The three rings are painted ABOVE the halo but BELOW the core dot,
+  // so the core still receives clicks and the halo's soft glow reads
+  // around the rings rather than through them.
+  const wpRings = [
+    { id: STATIONS_WP_RING_1_LAYER, radiusStops: [4, 5.25, 7, 7.5, 12, 13.5, 16, 21] },
+    { id: STATIONS_WP_RING_2_LAYER, radiusStops: [4, 6.25, 7, 9,   12, 16,   16, 24.5] },
+    { id: STATIONS_WP_RING_3_LAYER, radiusStops: [4, 7.5,  7, 10.5, 12, 19,  16, 30] },
+  ];
+  const WP_RING_STROKE_WIDTH = 1.25;
+  const WP_RING_OPACITY = 0.85;
+  const beforeCore = map.getLayer(STATIONS_LAYER) ? STATIONS_LAYER : undefined;
+  for (const ring of wpRings) {
+    if (map.getLayer(ring.id)) continue;
+    map.addLayer({
+      id: ring.id,
+      type: 'circle',
+      source: STATIONS_SOURCE,
+      filter: WP_FILTER,
+      paint: {
+        'circle-radius': [
+          'interpolate', ['linear'], ['zoom'],
+          ring.radiusStops[0], ring.radiusStops[1],
+          ring.radiusStops[2], ring.radiusStops[3],
+          ring.radiusStops[4], ring.radiusStops[5],
+          ring.radiusStops[6], ring.radiusStops[7],
+        ],
+        'circle-color': 'rgba(0,0,0,0)',
+        'circle-stroke-color': WP_RING_COLOR,
+        'circle-stroke-width': WP_RING_STROKE_WIDTH,
+        'circle-stroke-opacity': WP_RING_OPACITY,
+      },
+    }, beforeCore);
+  }
+
   // Animated ripple rings for the selected station. Filter is set
   // externally (see the selectedStation effect); the rAF loop drives
   // the radius + opacity each frame.
@@ -1037,11 +1114,22 @@ function stateFilter(disabledStates) {
   ];
 }
 
+// Compose a base filter (e.g. `WP_FILTER`) with the legend's state
+// filter. Needed for the WP ring layers, which must both narrow to WP
+// features AND respect the legend toggles at the same time.
+function withStateFilter(baseFilter, stateFilterExpr) {
+  if (!stateFilterExpr) return baseFilter;
+  return ['all', baseFilter, stateFilterExpr];
+}
+
 function removeStationLayers(map) {
   for (const id of STATIONS_RIPPLE_LAYERS) {
     if (map.getLayer(id)) map.removeLayer(id);
   }
   if (map.getLayer(STATIONS_LAYER)) map.removeLayer(STATIONS_LAYER);
+  if (map.getLayer(STATIONS_WP_RING_3_LAYER)) map.removeLayer(STATIONS_WP_RING_3_LAYER);
+  if (map.getLayer(STATIONS_WP_RING_2_LAYER)) map.removeLayer(STATIONS_WP_RING_2_LAYER);
+  if (map.getLayer(STATIONS_WP_RING_1_LAYER)) map.removeLayer(STATIONS_WP_RING_1_LAYER);
   if (map.getLayer(STATIONS_HALO_LAYER)) map.removeLayer(STATIONS_HALO_LAYER);
   if (map.getSource(STATIONS_SOURCE)) map.removeSource(STATIONS_SOURCE);
 }
