@@ -183,7 +183,7 @@ export default function MapPanel({ className, onMapReady }) {
     return {
       type: 'FeatureCollection',
       features: stations.map((f) => {
-        const st = classifyState(f.properties?.stateId);
+        const st = classifyState(f.properties?.stateId, f.properties?.lastUpdate);
         const isWp = isWaterPoint(f.properties?.stationName);
         return {
           ...f,

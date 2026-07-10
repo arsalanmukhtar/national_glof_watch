@@ -244,7 +244,7 @@ export default function ThresholdStationsCard() {
     return stateForAlertId(worstId);
   }, [breaches]);
 
-  const rowState = current ? classifyState(current.stateId) : null;
+  const rowState = current ? classifyState(current.stateId, current.lastUpdate) : null;
   const rowColor = rowState?.color ?? '#6b7280';
   const rowUnit = current?.unit ?? '';
   const rowCrossed = crossedLabel(current?.crossedThreshold, rowUnit);

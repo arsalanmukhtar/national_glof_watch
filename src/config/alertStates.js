@@ -20,43 +20,68 @@ export const ALERT_STATES = [
   { id: 'error', label: 'Error', color: '#6b7280', match: (s) => s === 20 },
 ];
 
-// Pseudo-state for a station with no classified reading at all (no
-// stateId). Not part of the numeric match set; a slightly lighter gray
-// than `error` so the two read as distinct rows in the legend. Reading
-// age is NOT folded in here — an old-but-valid reading keeps its real
-// alert state and its age is surfaced in the "Updated" column.
-export const NODATA_STATE = {
-  id: 'nodata',
-  label: 'No data',
+// Pseudo-state for a station that is currently INACTIVE — either has no
+// classified reading at all, OR its latest reading is older than
+// `INACTIVE_THRESHOLD_MS`. Not part of the numeric match set; a slightly
+// lighter gray than `error` so the two read as distinct rows in the
+// legend. Formerly labelled "No data".
+export const INACTIVE_STATE = {
+  id: 'inactive',
+  label: 'Inactive',
   color: '#9ca3af',
 };
 
+// Backwards-compatible alias kept because `MapPanel`'s Mapbox paint
+// expressions and a handful of other spots reference `NODATA_STATE.color`
+// as the coalesce fallback for `['get', 'color']`. Same object, so any
+// touch to `INACTIVE_STATE.color` is picked up automatically.
+export const NODATA_STATE = INACTIVE_STATE;
+
+// A reading whose `lastUpdate` timestamp is older than this counts as
+// inactive on the map, in the legend, and in the stations table —
+// regardless of the numeric stateId PMD stamped on it. Two days matches
+// how the operators triage the network: anything not reporting inside
+// 48 h is treated as offline until it comes back.
+export const INACTIVE_THRESHOLD_MS = 48 * 60 * 60 * 1000;
+
 // Every legend row, in display order.
-export const LEGEND_STATES = [...ALERT_STATES, NODATA_STATE];
+export const LEGEND_STATES = [...ALERT_STATES, INACTIVE_STATE];
 
 const STATE_BY_ID = Object.fromEntries(LEGEND_STATES.map((s) => [s.id, s]));
 
 export function stateById(id) {
-  return STATE_BY_ID[id] ?? NODATA_STATE;
+  return STATE_BY_ID[id] ?? INACTIVE_STATE;
 }
 
-// Classify a station reading into an alert-state descriptor purely by its
-// PMD `stateId`. Reading age does not change the classification — a real
-// reading keeps its true alert state however old it is (the "Updated"
-// column carries the age). Only a missing/non-numeric stateId — i.e. no
-// classified reading at all — falls back to the no-data state.
-export function classifyState(stateId) {
-  if (stateId == null || !Number.isFinite(Number(stateId))) return NODATA_STATE;
+// True if the reading is missing OR older than the inactive threshold.
+export function isInactive(lastUpdate) {
+  if (!lastUpdate) return true;
+  const t = new Date(lastUpdate).getTime();
+  if (!Number.isFinite(t)) return true;
+  return Date.now() - t > INACTIVE_THRESHOLD_MS;
+}
+
+// Classify a station reading into an alert-state descriptor. Priority:
+//   1. Stale/missing reading (>48 h old OR no timestamp) → Inactive.
+//   2. Missing/non-numeric stateId → Inactive (no classified reading).
+//   3. Otherwise bucket by stateId (Normal / Warning / Pre-alarm / Alarm / Error).
+//
+// `lastUpdate` is optional — callers that don't have a timestamp (e.g.
+// threshold-table rows that already carry a definite alertStateId) can
+// omit it and get the pre-Inactive-rule behaviour.
+export function classifyState(stateId, lastUpdate) {
+  if (lastUpdate !== undefined && isInactive(lastUpdate)) return INACTIVE_STATE;
+  if (stateId == null || !Number.isFinite(Number(stateId))) return INACTIVE_STATE;
   const s = Number(stateId);
   for (const state of ALERT_STATES) {
     if (state.match(s)) return state;
   }
-  return NODATA_STATE;
+  return INACTIVE_STATE;
 }
 
 // Convenience — just the color.
-export function colorForState(stateId) {
-  return classifyState(stateId).color;
+export function colorForState(stateId, lastUpdate) {
+  return classifyState(stateId, lastUpdate).color;
 }
 
 // Map a raw alertStateId from a threshold definition to its palette state.
@@ -64,11 +89,11 @@ export function colorForState(stateId) {
 // the Feature Details threshold table.
 export function stateForAlertId(alertStateId) {
   const s = Number(alertStateId);
-  if (!Number.isFinite(s)) return NODATA_STATE;
+  if (!Number.isFinite(s)) return INACTIVE_STATE;
   for (const state of ALERT_STATES) {
     if (state.match(s)) return state;
   }
-  return NODATA_STATE;
+  return INACTIVE_STATE;
 }
 
 // Severity rank for table sorting — lower is calmer, nodata sorts last.

@@ -184,7 +184,7 @@ export default function StationsTable() {
       overlayKey,
       label: props.stationName || `Station #${stationId}`,
       sublabel: props.element || selected || 'PMD Station',
-      accentColor: classifyState(props.stateId).color,
+      accentColor: classifyState(props.stateId, props.lastUpdate).color,
     });
   };
 
@@ -194,7 +194,7 @@ export default function StationsTable() {
   // stay near the top regardless of direction.
   const sortedStations = useMemo(() => {
     const dir = sort.direction === 'asc' ? 1 : -1;
-    const stateOf = (f) => classifyState(f.properties?.stateId);
+    const stateOf = (f) => classifyState(f.properties?.stateId, f.properties?.lastUpdate);
     const cmp = (a, b) => {
       if (sort.column === 'station') {
         const an = (a.properties?.stationName ?? '').toString();
@@ -425,7 +425,7 @@ export default function StationsTable() {
                     {sortedStations.map((f) => {
                       const p = f.properties ?? {};
                       const id = p.stationId;
-                      const st = classifyState(p.stateId);
+                      const st = classifyState(p.stateId, p.lastUpdate);
                       const active = selectedStation?.stationId === id;
                       return (
                         <tr
@@ -452,7 +452,7 @@ export default function StationsTable() {
                                 style={{ backgroundColor: st.color }}
                               />
                               <span className="truncate text-day-text dark:text-night-text">
-                                {st.id === 'nodata' ? 'No data' : st.label}
+                                {st.label}
                               </span>
                             </span>
                           </td>
