@@ -90,6 +90,53 @@ parametersRouter.get('/station-status', async (_req, res) => {
   }
 });
 
+// GET /api/parameters/sensor-types
+// Sensor-type breakdown parsed from the station-name convention
+// `<Region>_<TYPE>_<n>` (e.g. Arandu_ARG_1, Badswat_WL-R_3). We drop the
+// leading region token and the trailing numeric suffix, then group.
+//
+// Returns `{ total, types: [{ type, count }, ...] }`. Cached 1 h — the
+// station roster changes on the order of days, not minutes.
+parametersRouter.get('/sensor-types', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      WITH parsed AS (
+        SELECT
+          station_id,
+          regexp_split_to_array(trim(station_name), '_') AS parts
+        FROM stations
+        WHERE station_name IS NOT NULL AND station_name <> ''
+      ),
+      typed AS (
+        SELECT
+          station_id,
+          CASE
+            WHEN array_length(parts, 1) IS NULL OR array_length(parts, 1) < 2
+              THEN 'OTHER'
+            -- Drop trailing numeric suffix if present.
+            WHEN parts[array_length(parts, 1)] ~ '^[0-9]+$'
+              THEN CASE
+                WHEN array_length(parts, 1) = 2 THEN 'OTHER'
+                ELSE array_to_string(parts[2:array_length(parts, 1) - 1], '_')
+              END
+            ELSE array_to_string(parts[2:array_length(parts, 1)], '_')
+          END AS sensor_type
+        FROM parsed
+      )
+      SELECT sensor_type AS type, COUNT(*)::int AS count
+      FROM typed
+      GROUP BY sensor_type
+      ORDER BY count DESC, sensor_type ASC;
+    `);
+    const total = rows.reduce((s, r) => s + r.count, 0);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({ total, types: rows });
+  } catch (err) {
+    console.error('[GET sensor-types]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Thresholds
 // ---------------------------------------------------------------------------

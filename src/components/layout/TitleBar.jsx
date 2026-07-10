@@ -3,6 +3,7 @@ import { ArrowLeft, BookOpen, Layers, Moon, PanelRight, Sun } from 'lucide-react
 import { Link, useLocation } from 'react-router-dom';
 import Tooltip from '@/components/ui/Tooltip';
 import StationStatusBadge from '@/components/layout/StationStatusBadge';
+import SensorTypesBadge from '@/components/layout/SensorTypesBadge';
 import { logos } from '@/assets';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -62,6 +63,11 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
       </div>
 
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
+        {/* Sensor-type breakdown — total count + colour-coded chip per
+            family (ARG, WP, WL-R, DG, WL-L, AWS, AWS-H). Rendered on
+            xl+ widths only so narrower titlebars stay uncluttered. */}
+        {!onDocs && <SensorTypesBadge />}
+        {!onDocs && <span aria-hidden className="hidden xl:block w-2" />}
         {/* PMD GLOF 2 Live feed badge — combined feed identifier +
             station counter. The component handles its own label,
             divider, metrics block, and "Last updated" footer. Only on

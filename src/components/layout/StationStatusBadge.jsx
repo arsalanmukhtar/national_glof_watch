@@ -94,7 +94,10 @@ export default function StationStatusBadge() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
       className={cn(
-        'hidden md:flex items-stretch gap-3 pl-3 pr-3 py-1 rounded-md select-none',
+        // Explicit h-11 pins this pill to 44 px so it stays row-aligned
+        // with the sibling SensorTypesBadge next to it, regardless of
+        // small content differences between the two.
+        'hidden md:flex h-11 items-stretch gap-3 pl-3 pr-3 rounded-md select-none',
         'bg-white/10 border border-white/15 text-white shadow-sm',
       )}
       aria-label="PMD GLOF 2 live station status"
