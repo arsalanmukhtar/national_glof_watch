@@ -9,9 +9,11 @@ import { gisRouter } from './routes/gis.js';
 import { regionRouter } from './routes/region.js';
 import { csvRouter } from './routes/csv.js';
 import { rastersRouter } from './routes/rasters.js';
+import { tilesRouter } from './routes/tiles.js';
 import { ensureSchema, pool } from './lib/db.js';
 import { storeAllStations } from './lib/store.js';
 import { refreshAllThresholds } from './lib/thresholds.js';
+import { refreshStationStatusCache } from './lib/pmd.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
@@ -28,6 +30,15 @@ const STORE_INTERVAL_MS = Math.max(1, STORE_INTERVAL_MIN) * 60 * 1000;
 // the value cron's window.
 const THRESHOLD_INTERVAL_DAYS = Number(process.env.THRESHOLD_INTERVAL_DAYS ?? 30);
 const THRESHOLD_INTERVAL_MS = Math.max(1, THRESHOLD_INTERVAL_DAYS) * 86400 * 1000;
+
+// PMD's legacy station-status endpoint can take 20–100+ s to respond.
+// The cron refreshes an in-process cache in the background so the
+// titlebar badge answers instantly from what was last known good.
+const STATION_STATUS_INTERVAL_MIN = Number(
+  process.env.STATION_STATUS_INTERVAL_MIN ?? 5,
+);
+const STATION_STATUS_INTERVAL_MS =
+  Math.max(1, STATION_STATUS_INTERVAL_MIN) * 60 * 1000;
 
 app.use(cors());
 // Default 1mb is fine for the parameter API. The /api/upload/import
@@ -54,6 +65,7 @@ app.use('/api/gis', gisRouter);
 app.use('/api/region', regionRouter);
 app.use('/api/csv', csvRouter);
 app.use('/api/rasters', rastersRouter);
+app.use('/api/tiles', tilesRouter);
 
 // Guard against an overrunning value cycle being re-entered by the next
 // scheduled tick — ~279 sequential station calls can run a few minutes.
@@ -161,6 +173,30 @@ ensureSchema()
           runThresholdCycle('initial');
         }
         scheduleEvery(THRESHOLD_INTERVAL_MS, () => runThresholdCycle('scheduled'));
+
+        // Station-status warm cache — kick immediately, then every N min.
+        // Fire-and-forget: cron log is inside refreshStationStatusCache
+        // via the returned metadata, printed here.
+        const kickStationStatus = async (reason) => {
+          const r = await refreshStationStatusCache();
+          if (r.ok) {
+            console.log(
+              `[cron] ${reason} station-status refresh ok (${r.elapsedMs}ms)`,
+            );
+          } else {
+            console.warn(
+              `[cron] ${reason} station-status refresh FAILED (${r.elapsedMs}ms): ${r.error}`,
+            );
+          }
+        };
+        kickStationStatus('initial');
+        setInterval(
+          () => kickStationStatus('scheduled'),
+          STATION_STATUS_INTERVAL_MS,
+        );
+        console.log(
+          `[server] station-status warm cache every ${STATION_STATUS_INTERVAL_MIN} min`,
+        );
       }, 2000);
     });
   })

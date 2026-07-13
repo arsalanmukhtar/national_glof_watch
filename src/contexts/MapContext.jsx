@@ -12,6 +12,7 @@ import {
   regionLayerUrl,
   secondaryLayerUrl,
 } from '@/config/layerSources';
+import { SECONDARY_LAYERS } from '@/contexts/SecondaryContext';
 import { bboxOfGeoJson, unionBbox } from '@/utils/bbox';
 
 const MapContext = createContext(null);
@@ -106,6 +107,39 @@ export function MapProvider({ children }) {
 
   const zoomToSecondaryLayer = useCallback(
     async (layerId) => {
+      // Vector-tile layers can't be summarised on the client — Mapbox
+      // only knows what's currently rendered in view. Ask the backend
+      // to resolve the layer's true extent from GeoServer's WMS
+      // GetCapabilities (cached 6 h server-side), and fall back to the
+      // static `vectorTile.bounds` declared in the catalog if the
+      // backend / GeoServer is unreachable so the button still frames
+      // something instead of no-op'ing.
+      const entry = SECONDARY_LAYERS.find((l) => l.id === layerId);
+      if (entry?.vectorTile) {
+        const { workspace, sourceLayer, bounds: fallback } = entry.vectorTile;
+        if (workspace && sourceLayer) {
+          try {
+            const r = await trackPromise(
+              fetch(`/api/tiles/bounds/${workspace}/${sourceLayer}`),
+            );
+            if (r.ok) {
+              const { bounds } = await r.json();
+              if (
+                Array.isArray(bounds) &&
+                bounds.length === 4 &&
+                bounds.every(Number.isFinite)
+              ) {
+                zoomToBbox(bounds);
+                return;
+              }
+            }
+          } catch (err) {
+            console.warn(`vt bounds fetch failed for ${layerId}:`, err);
+          }
+        }
+        if (fallback) zoomToBbox(fallback);
+        return;
+      }
       const url = secondaryLayerUrl(layerId);
       if (!url) return;
       try {
@@ -115,7 +149,7 @@ export function MapProvider({ children }) {
         console.warn(`zoomToSecondaryLayer ${layerId}:`, err);
       }
     },
-    [zoomToGeoJson, trackPromise],
+    [zoomToBbox, zoomToGeoJson, trackPromise],
   );
 
   // The "extent" control flies the map to the GLOF Districts footprint

@@ -8,10 +8,12 @@ import {
   Building2,
   Database,
   Droplets,
+  Fence,
   FileArchive,
   FileJson,
   FileUp,
   Gauge,
+  LandPlot,
   Landmark,
   Map as MapIcon,
   MapPin,
@@ -28,7 +30,9 @@ import {
   TableProperties,
   Triangle,
   Trash2,
+  Vault,
   Waves,
+  Waypoints,
   X,
 } from 'lucide-react';
 import EyeToggle from '@/components/ui/EyeToggle';
@@ -73,6 +77,17 @@ const LAYER_ICONS = {
   vulnerable_melting_glaciers_2026: Snowflake,
   vulnerable_melting_points_2026:   MapPinned,
   vulnerable_sites_2026:            AlertTriangle,
+  // Vector-tile layers — icons chosen to match the feature type at a
+  // glance in the layer list (RadioTower for BTS, Waves/Waypoints for
+  // river families, Droplets for reservoirs, LandPlot for watershed
+  // polygons, Fence + Vault for the minor/major dam pair).
+  vt_bts_sites:                     RadioTower,
+  vt_major_rivers:                  Waves,
+  vt_minor_rivers:                  Waypoints,
+  vt_reservoirs:                    Droplets,
+  vt_watersheds:                    LandPlot,
+  vt_minor_dams:                    Fence,
+  vt_major_dams:                    Vault,
 };
 
 const ACCEPTED_TYPES = '.geojson,.json,application/geo+json,application/json,.zip,application/zip';

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Readable } from 'node:stream';
-import { fetchStationStatus } from '../lib/pmd.js';
+import { getCachedStationStatus } from '../lib/pmd.js';
 import { stateLabel } from '../lib/datascape.js';
 import { storeAllStations } from '../lib/store.js';
 import { refreshAllThresholds } from '../lib/thresholds.js';
@@ -77,17 +77,27 @@ parametersRouter.get('/status', async (_req, res) => {
 });
 
 // GET /api/parameters/station-status
-// Live PMD network status (total + active station counts) from the legacy
-// EWS status endpoint. Powers the titlebar status badge. Cached 30 s.
-parametersRouter.get('/station-status', async (_req, res) => {
-  try {
-    const data = await fetchStationStatus();
+// Live PMD network status (total + active station counts) served from
+// the in-process warm cache in server/lib/pmd.js. A cron in
+// server/index.js refreshes that cache every few minutes so this
+// endpoint answers in ms even when the upstream takes 100+ s.
+//
+// If the cache hasn't populated yet (very early boot) we 503 so the
+// frontend keeps its skeleton visible instead of a broken UI state.
+parametersRouter.get('/station-status', (_req, res) => {
+  const { data, fetchedAt, error } = getCachedStationStatus();
+  if (data) {
+    // Reflect the actual freshness of the served payload so the client
+    // can decide whether it's stale enough to show a "stale" indicator.
+    if (fetchedAt) res.set('X-Cache-Fetched-At', fetchedAt);
+    if (error) res.set('X-Upstream-Error', error);
     res.set('Cache-Control', 'public, max-age=30');
-    res.json(data);
-  } catch (err) {
-    console.error('[GET station-status]', err.message);
-    res.status(err.status ?? 500).json({ error: err.message });
+    return res.json(data);
   }
+  res
+    .status(503)
+    .set('Retry-After', '10')
+    .json({ error: error ?? 'Station-status cache is still warming up' });
 });
 
 // GET /api/parameters/sensor-types

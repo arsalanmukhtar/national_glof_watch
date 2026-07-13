@@ -102,6 +102,72 @@ export const LAYER_DEFAULT_SYMBOLOGY = {
   akah_sensors:         stationSymbology('#22c55e'),
   gmrc_wapda_stations:  stationSymbology('#3b82f6'),
   bri_ff_china_sensors: stationSymbology('#ef4444'),
+
+  // ─── Vector-tile layer defaults (GeoServer GWC) ──────────────────────
+  // Colours picked to read as the feature naturally would on a map:
+  // rivers/reservoirs in water blues, watersheds in a warm earth tone,
+  // BTS towers in signal orange, dams in a major/minor red/amber pair.
+  // Point radii are tuned so numerous point layers (BTS, minor dams)
+  // don't clutter, while major dams pop as prominent structures.
+  vt_major_rivers: {
+    type: 'simple',
+    fillColor: '#1e40af',       // blue-800 — deep water
+    fillOpacity: 0.75,
+    strokeColor: '#1e3a8a',     // blue-900
+    strokeOpacity: 1,
+    strokeWidth: 1,
+  },
+  vt_minor_rivers: {
+    type: 'simple',
+    fillColor: '#3b82f6',       // blue-500 — lighter tributaries
+    fillOpacity: 0.6,
+    strokeColor: '#1d4ed8',     // blue-700
+    strokeOpacity: 1,
+    strokeWidth: 0.75,
+  },
+  vt_reservoirs: {
+    type: 'simple',
+    fillColor: '#06b6d4',       // cyan-500 — still water bodies
+    fillOpacity: 0.55,
+    strokeColor: '#0e7490',     // cyan-700
+    strokeOpacity: 1,
+    strokeWidth: 1.25,
+  },
+  vt_watersheds: {
+    type: 'simple',
+    fillColor: '#facc15',       // yellow-400 — earthy basin fill
+    fillOpacity: 0.08,          // barely tinted so multiple basins layer without drowning basemap
+    strokeColor: '#a16207',     // yellow-800 — warm boundary line
+    strokeOpacity: 0.9,
+    strokeWidth: 1.25,
+  },
+  vt_bts_sites: {
+    // Telecom towers — orange for radio/signal.
+    radius: 4,
+    fillColor: '#f97316',       // orange-500
+    fillOpacity: 0.9,
+    strokeColor: '#c2410c',     // orange-700
+    strokeWidth: 1,
+    strokeOpacity: 1,
+  },
+  vt_minor_dams: {
+    // Amber for less-critical dam structures.
+    radius: 5,
+    fillColor: '#f59e0b',       // amber-500
+    fillOpacity: 0.95,
+    strokeColor: '#b45309',     // amber-700
+    strokeWidth: 1.25,
+    strokeOpacity: 1,
+  },
+  vt_major_dams: {
+    // Bigger + red so major dams stand out as high-priority structures.
+    radius: 7,
+    fillColor: '#dc2626',       // red-600
+    fillOpacity: 1,
+    strokeColor: '#7f1d1d',     // red-900
+    strokeWidth: 1.5,
+    strokeOpacity: 1,
+  },
 };
 
 // True when the layer id has a configured default — used by MapPanel to

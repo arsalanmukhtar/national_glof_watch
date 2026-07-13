@@ -220,6 +220,21 @@ export default function MapPanel({ className, onMapReady }) {
     for (const id of secondaryVisible) {
       const layer = secondaryLayers.find((l) => l.id === id);
       if (!layer) continue; // uploads handled separately below
+      // Vector-tile layers skip the /api/secondary path entirely —
+      // Mapbox requests tiles directly from GeoServer. `url` stays
+      // null; the reconciler branches on `vectorTile` to build a
+      // `type: 'vector'` source instead of fetching GeoJSON.
+      if (layer.vectorTile) {
+        list.push({
+          key: `secondary:${id}`,
+          url: null,
+          data: null,
+          vectorTile: layer.vectorTile,
+          geometry: layer.geometry,
+          style: effectiveStyle(id, layer.geometry, secondaryStyles[id]),
+        });
+        continue;
+      }
       const url = secondaryLayerUrl(id);
       if (!url) continue;
       list.push({
@@ -748,6 +763,9 @@ export default function MapPanel({ className, onMapReady }) {
         Promise.all(
           desired.map(async (o) => {
             try {
+              // Vector-tile overlays skip the GeoJSON fetch — Mapbox
+              // itself makes the tile requests once the source is added.
+              if (o.vectorTile) return { o, data: null };
               const data = o.data ?? (await fetchGeoJson(o.url));
               return data ? { o, data } : null;
             } catch (err) {
@@ -761,7 +779,11 @@ export default function MapPanel({ className, onMapReady }) {
 
       for (const entry of resolved) {
         if (!entry) continue;
-        const geometry = detectGeometry(entry.data) || entry.o.geometry;
+        // For vector-tile entries we don't have the FeatureCollection
+        // on the client, so the configured geometry is authoritative.
+        const geometry = entry.o.vectorTile
+          ? entry.o.geometry
+          : (detectGeometry(entry.data) || entry.o.geometry);
 
         // Data-driven seed for layers with default symbology
         // configured (currently the four GLOF reference layers). Done
@@ -796,7 +818,7 @@ export default function MapPanel({ className, onMapReady }) {
           }
         }
 
-        ensureOverlay(map, entry.o.key, geometry, entry.data, style);
+        ensureOverlay(map, entry.o.key, geometry, entry.data, style, entry.o.vectorTile);
         tracked.add(entry.o.key);
       }
     };
@@ -822,6 +844,7 @@ export default function MapPanel({ className, onMapReady }) {
         Promise.all(
           desired.map(async (o) => {
             try {
+              if (o.vectorTile) return { o, data: null };
               const data = o.data ?? (await fetchGeoJson(o.url));
               return data ? { o, data } : null;
             } catch (err) {
@@ -834,7 +857,9 @@ export default function MapPanel({ className, onMapReady }) {
       if (!mapRef.current) return;
       for (const entry of resolved) {
         if (!entry) continue;
-        const geometry = detectGeometry(entry.data) || entry.o.geometry;
+        const geometry = entry.o.vectorTile
+          ? entry.o.geometry
+          : (detectGeometry(entry.data) || entry.o.geometry);
         // Mirror the inline-seed pattern from the reconcile effect so
         // basemap swaps that happen before the override has been
         // persisted still paint with the right symbology on the first
@@ -856,7 +881,7 @@ export default function MapPanel({ className, onMapReady }) {
             }
           }
         }
-        ensureOverlay(map, entry.o.key, geometry, entry.data, style);
+        ensureOverlay(map, entry.o.key, geometry, entry.data, style, entry.o.vectorTile);
         map._renderedOverlays.add(entry.o.key);
       }
     };
@@ -1469,14 +1494,30 @@ function applyPaintProps(map, layerId, paint) {
   }
 }
 
-function ensureOverlay(map, key, geometry, data, style) {
+function ensureOverlay(map, key, geometry, data, style, vectorTile) {
   const ids = overlayIds(key);
   const labelId = overlayLabelId(key);
   const heatId = overlayHeatmapId(key);
 
-  // Source: create or update with new data.
+  // Source: create-or-update. Vector-tile sources are IMMUTABLE (no
+  // .setData), so we only ever add them once per style lifetime; the
+  // reconciler drops + re-adds on a style swap. GeoJSON sources still
+  // hot-swap their data on every reconcile pass.
   const source = map.getSource(ids.source);
-  if (source) {
+  if (vectorTile) {
+    if (!source) {
+      map.addSource(ids.source, {
+        type: 'vector',
+        tiles: vectorTile.tiles,
+        // TMS y-axis flip — GeoServer GWC serves TMS by default. If the
+        // caller declared `xyz`, honour that; anything else defaults to
+        // TMS since every tile URL we're currently wired to is GWC.
+        scheme: vectorTile.scheme || 'tms',
+        minzoom: vectorTile.minzoom ?? 0,
+        maxzoom: vectorTile.maxzoom ?? 14,
+      });
+    }
+  } else if (source) {
     source.setData(data);
   } else {
     map.addSource(ids.source, { type: 'geojson', data });
@@ -1484,13 +1525,18 @@ function ensureOverlay(map, key, geometry, data, style) {
 
   const beforeId = overlayBeforeId(map);
   const exprs = paintExprsFor(style, geometry);
+  // Vector-tile layers require a `source-layer` name — the layer inside
+  // the MVT to render. Helper below merges it into every addLayer spec
+  // so the branches below stay symmetric between GeoJSON + tile sources.
+  const withSourceLayer = (spec) =>
+    vectorTile ? { ...spec, 'source-layer': vectorTile.sourceLayer } : spec;
 
   // Heatmap path — only valid for points; replaces the circle layer.
   if (exprs.kind === 'heatmap') {
     dropLayers(map, ids.fill, ids.line, ids.circle, ids.symbol);
     setLayer(
       map,
-      { id: heatId, type: 'heatmap', source: ids.source, paint: exprs.paint },
+      withSourceLayer({ id: heatId, type: 'heatmap', source: ids.source, paint: exprs.paint }),
       beforeId,
     );
   } else if (geometry === 'point' && exprs.kind === 'symbol') {
@@ -1518,13 +1564,13 @@ function ensureOverlay(map, key, geometry, data, style) {
         const layout = { ...exprs.layout, 'icon-image': imageId };
         if (!map.getLayer(ids.symbol)) {
           map.addLayer(
-            {
+            withSourceLayer({
               id: ids.symbol,
               type: 'symbol',
               source: ids.source,
               layout,
               paint: exprs.paint,
-            },
+            }),
             beforeId,
           );
         } else {
@@ -1554,7 +1600,7 @@ function ensureOverlay(map, key, geometry, data, style) {
     dropLayers(map, ids.fill, ids.symbol, heatId);
     if (!map.getLayer(ids.circle)) {
       map.addLayer(
-        { id: ids.circle, type: 'circle', source: ids.source, paint: exprs.paint },
+        withSourceLayer({ id: ids.circle, type: 'circle', source: ids.source, paint: exprs.paint }),
         beforeId,
       );
     } else {
@@ -1564,7 +1610,7 @@ function ensureOverlay(map, key, geometry, data, style) {
     dropLayers(map, ids.fill, ids.circle, ids.symbol, heatId);
     if (!map.getLayer(ids.line)) {
       map.addLayer(
-        { id: ids.line, type: 'line', source: ids.source, paint: exprs.paint },
+        withSourceLayer({ id: ids.line, type: 'line', source: ids.source, paint: exprs.paint }),
         beforeId,
       );
     } else {
@@ -1575,7 +1621,7 @@ function ensureOverlay(map, key, geometry, data, style) {
     dropLayers(map, ids.circle, ids.symbol, heatId);
     if (!map.getLayer(ids.fill)) {
       map.addLayer(
-        { id: ids.fill, type: 'fill', source: ids.source, paint: exprs.paint },
+        withSourceLayer({ id: ids.fill, type: 'fill', source: ids.source, paint: exprs.paint }),
         beforeId,
       );
     } else {
@@ -1583,7 +1629,7 @@ function ensureOverlay(map, key, geometry, data, style) {
     }
     if (!map.getLayer(ids.line)) {
       map.addLayer(
-        { id: ids.line, type: 'line', source: ids.source, paint: exprs.strokePaint },
+        withSourceLayer({ id: ids.line, type: 'line', source: ids.source, paint: exprs.strokePaint }),
         beforeId,
       );
     } else {
@@ -1592,7 +1638,10 @@ function ensureOverlay(map, key, geometry, data, style) {
   }
 
   // Optional label/symbol layer — added on top, removed when disabled.
-  const lab = labelLayoutAndPaint(style);
+  // Skipped for vector-tile layers: the label attribute the user picks
+  // in the style panel likely doesn't exist inside a GeoServer-produced
+  // MVT, and a missing `text-field` throws a Mapbox runtime warning.
+  const lab = !vectorTile ? labelLayoutAndPaint(style) : null;
   if (lab) {
     if (map.getLayer(labelId)) map.removeLayer(labelId);
     map.addLayer({
