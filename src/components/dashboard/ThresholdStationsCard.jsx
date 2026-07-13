@@ -104,6 +104,24 @@ function timeAgo(ts) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+// NDMA `ourCrossedThreshold` payload → same shape crossedLabel() reads
+// from PMD's `crossedThreshold`. Server returns a single `threshold`
+// scalar (already tightened) that we map onto whichever bound applies
+// so the "> 27 °C" pill renders identically in both modes.
+function adaptOurCrossed(crossed) {
+  if (!crossed) return null;
+  const op = crossed.operator ?? '';
+  const th = Number(crossed.threshold);
+  const upper = op === '>' || op === '≥' || op === '>=';
+  return {
+    label: crossed.label ?? null,
+    operator: op,
+    min: upper ? th : null,
+    max: upper ? null : th,
+    condition: null,
+  };
+}
+
 function crossedLabel(crossed, unit) {
   if (!crossed) return null;
   const op = crossed.operator ?? '';
@@ -125,7 +143,7 @@ function crossedLabel(crossed, unit) {
 }
 
 export default function ThresholdStationsCard() {
-  const { elements } = useParameter();
+  const { elements, earlyWarning, earlyWarningFactor } = useParameter();
 
   // Build the tab list from the live element catalog. Ordered:
   // priority elements first (in the order given), everything else after
@@ -178,18 +196,24 @@ export default function ThresholdStationsCard() {
     if (!tab) return;
     let cancelled = false;
     const load = () => {
-      const url = `/api/parameters/${encodeURIComponent(tab.id)}/latest?minState=${MIN_STATE}`;
+      // In EW mode we hand the server ?earlyFactor= so it computes
+      // ourStateId + filters against MIN_STATE with the tightened bands.
+      // Which state we then read below flips with the same flag.
+      const ewQs = earlyWarning ? `&earlyFactor=${earlyWarningFactor}` : '';
+      const url = `/api/parameters/${encodeURIComponent(tab.id)}/latest?minState=${MIN_STATE}${ewQs}`;
       setLoading((wasLoading) => wasLoading || breaches.length === 0);
       setError(null);
       fetch(url)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
         .then((data) => {
           if (cancelled) return;
+          const effStateId = (p) =>
+            earlyWarning ? (p?.ourStateId ?? p?.stateId) : p?.stateId;
           const list = (data?.features ?? [])
             .map((f) => f.properties)
-            .filter((p) => p && Number.isFinite(Number(p.stateId)))
+            .filter((p) => p && Number.isFinite(Number(effStateId(p))))
             .sort((a, b) => {
-              const dS = (b.stateId ?? 0) - (a.stateId ?? 0);
+              const dS = (Number(effStateId(b)) || 0) - (Number(effStateId(a)) || 0);
               if (dS !== 0) return dS;
               const ta = new Date(a.lastUpdate ?? 0).getTime();
               const tb = new Date(b.lastUpdate ?? 0).getTime();
@@ -214,7 +238,7 @@ export default function ThresholdStationsCard() {
       clearInterval(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab?.id]);
+  }, [tab?.id, earlyWarning, earlyWarningFactor]);
 
   useEffect(() => {
     if (hovered || breaches.length <= 1) return;
@@ -244,17 +268,28 @@ export default function ThresholdStationsCard() {
 
   const worstState = useMemo(() => {
     if (!breaches.length) return null;
-    const worstId = breaches.reduce(
-      (max, b) => Math.max(max, Number(b.stateId) || 0),
-      0,
-    );
+    const worstId = breaches.reduce((max, b) => {
+      const sid = earlyWarning ? (b.ourStateId ?? b.stateId) : b.stateId;
+      return Math.max(max, Number(sid) || 0);
+    }, 0);
     return stateForAlertId(worstId);
-  }, [breaches]);
+  }, [breaches, earlyWarning]);
 
-  const rowState = current ? classifyState(current.stateId, current.lastUpdate) : null;
+  const rowStateId = current
+    ? (earlyWarning ? (current.ourStateId ?? current.stateId) : current.stateId)
+    : null;
+  const rowState = current ? classifyState(rowStateId, current.lastUpdate) : null;
   const rowColor = rowState?.color ?? '#6b7280';
   const rowUnit = current?.unit ?? '';
-  const rowCrossed = crossedLabel(current?.crossedThreshold, rowUnit);
+  // NDMA-tightened bands live on `ourCrossedThreshold` and have a
+  // different shape (`threshold` scalar, not `min`/`max`). Wrap it back
+  // into what crossedLabel expects so the "> 27 °C" pill still renders.
+  const rowCrossed = crossedLabel(
+    earlyWarning
+      ? adaptOurCrossed(current?.ourCrossedThreshold)
+      : current?.crossedThreshold,
+    rowUnit,
+  );
 
   // ---- Tab carousel: 3 fixed slots (prev | active | next) ----------
   // Chevrons and preview slots advance the active tab by exactly one
@@ -317,6 +352,14 @@ export default function ThresholdStationsCard() {
         <h3 className="text-[13px] font-semibold tracking-wide uppercase text-day-text dark:text-night-text">
           Threshold Breaches
         </h3>
+        {earlyWarning ? (
+          <span
+            className="text-[9.5px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded bg-[#84cc16]/15 text-[#4d7c0f] dark:text-[#a3e635]"
+            title="Showing NDMA early-warning classification"
+          >
+            NDMA
+          </span>
+        ) : null}
         {showInfo && (
           <ThresholdInfoPopover
             anchorRef={infoBtnRef}
@@ -603,9 +646,16 @@ function ThresholdInfoPopover({ anchorRef, onClose }) {
         aria-label="How our early warning works"
         style={{ top: pos.top, left: pos.left, width: POPOVER_WIDTH }}
         className={cn(
-          'fixed z-[9999] p-3 rounded-md shadow-xl',
+          'fixed z-[9999] p-3 rounded-md',
+          // Theme-aware surface (unchanged) — no red fill, only the border
+          // and the outer glow carry the alert accent so the paragraph text
+          // stays comfortable to read on both themes.
           'bg-white dark:bg-night-surface',
-          'border border-day-border dark:border-night-border',
+          // Soft red border + very light outer glow, tuned per theme so
+          // the halo reads on both light and dark surfaces without
+          // overwhelming the card underneath.
+          'border border-[#fca5a5]/70 dark:border-[#f87171]/45',
+          'shadow-[0_0_14px_rgba(239,68,68,0.18)] dark:shadow-[0_0_14px_rgba(248,113,113,0.22)]',
           'text-[12px] leading-relaxed text-day-text dark:text-night-text',
           // text-justify + hyphens make the paragraph rag flush on both
           // sides without ugly word-spacing gaps in the narrow 280px box.

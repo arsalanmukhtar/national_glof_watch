@@ -102,6 +102,7 @@ export default function StationsTable() {
     selectedStation,
     setSelectedStation,
     disabledStates,
+    earlyWarning,
   } = useParameter();
   const { setSelectedFeature } = useAttributeTables();
   const {
@@ -184,7 +185,10 @@ export default function StationsTable() {
       overlayKey,
       label: props.stationName || `Station #${stationId}`,
       sublabel: props.element || selected || 'PMD Station',
-      accentColor: classifyState(props.stateId, props.lastUpdate).color,
+      accentColor: classifyState(
+        earlyWarning ? (props.ourStateId ?? props.stateId) : props.stateId,
+        props.lastUpdate,
+      ).color,
     });
   };
 
@@ -194,7 +198,11 @@ export default function StationsTable() {
   // stay near the top regardless of direction.
   const sortedStations = useMemo(() => {
     const dir = sort.direction === 'asc' ? 1 : -1;
-    const stateOf = (f) => classifyState(f.properties?.stateId, f.properties?.lastUpdate);
+    const stateOf = (f) => {
+      const p = f.properties ?? {};
+      const sid = earlyWarning ? (p.ourStateId ?? p.stateId) : p.stateId;
+      return classifyState(sid, p.lastUpdate);
+    };
     const cmp = (a, b) => {
       if (sort.column === 'station') {
         const an = (a.properties?.stationName ?? '').toString();
@@ -214,9 +222,13 @@ export default function StationsTable() {
         if (bBad) return -1;
         return (at - bt) * dir;
       }
-      // value (default)
-      const av = Number(a.properties?.value);
-      const bv = Number(b.properties?.value);
+      // value (default) — in NDMA mode we sort on the tightened
+      // threshold that classified the station (so stations line up in
+      // the same order the column presents them). Falls back to the raw
+      // reading whenever no NDMA threshold was crossed (e.g. Normal
+      // stations), matching the cell renderer below.
+      const av = Number(displayedValueOf(a.properties, earlyWarning));
+      const bv = Number(displayedValueOf(b.properties, earlyWarning));
       const aBad = !Number.isFinite(av);
       const bBad = !Number.isFinite(bv);
       if (aBad && bBad) return 0;
@@ -227,7 +239,7 @@ export default function StationsTable() {
     const sorted = [...stations].sort(cmp);
     if (!disabledStates || disabledStates.size === 0) return sorted;
     return sorted.filter((f) => !disabledStates.has(stateOf(f).id));
-  }, [stations, sort, disabledStates]);
+  }, [stations, sort, disabledStates, earlyWarning]);
 
   // Unit comes from the live feature payload — works for every element,
   // including ones with no hand-authored legend.
@@ -249,6 +261,20 @@ export default function StationsTable() {
         <h3 className="text-[13px] font-semibold text-day-text dark:text-night-text">
           Stations
         </h3>
+        {earlyWarning ? (
+          <span
+            className={cn(
+              'inline-flex items-center justify-center h-5 px-1.5 rounded',
+              'text-[9.5px] font-semibold uppercase tracking-wide leading-none',
+              'text-[#dc2626] dark:text-[#f87171]',
+              'border border-[#fca5a5]/70 dark:border-[#f87171]/40',
+              'shadow-[0_0_6px_rgba(239,68,68,0.18)] dark:shadow-[0_0_6px_rgba(248,113,113,0.22)]',
+            )}
+            title="NDMA Early-Warning classification active"
+          >
+            NDMA
+          </span>
+        ) : null}
         <button
           type="button"
           onClick={() => setLegendOpen((o) => !o)}
@@ -425,7 +451,10 @@ export default function StationsTable() {
                     {sortedStations.map((f) => {
                       const p = f.properties ?? {};
                       const id = p.stationId;
-                      const st = classifyState(p.stateId, p.lastUpdate);
+                      const st = classifyState(
+                        earlyWarning ? (p.ourStateId ?? p.stateId) : p.stateId,
+                        p.lastUpdate,
+                      );
                       const active = selectedStation?.stationId === id;
                       return (
                         <tr
@@ -456,8 +485,18 @@ export default function StationsTable() {
                               </span>
                             </span>
                           </td>
-                          <td className="px-2 py-1 text-day-text dark:text-night-text font-medium truncate">
-                            {formatValue(p.value, p.unit)}
+                          <td
+                            className="px-2 py-1 font-semibold tabular-nums truncate"
+                            style={{ color: st.color }}
+                            title={
+                              earlyWarning
+                                ? p.ourCrossedThreshold?.threshold != null
+                                  ? `NDMA tightened threshold that classified ${p.stationName ?? 'this station'} as ${st.label}. Raw reading: ${formatValue(p.value, p.unit)}`
+                                  : `No NDMA threshold crossed; showing raw reading. Classification: ${st.label}`
+                                : `PMD raw reading. Classification: ${st.label}`
+                            }
+                          >
+                            {formatValue(displayedValueOf(p, earlyWarning), p.unit)}
                           </td>
                           <td className="px-2 py-1 text-day-muted dark:text-night-muted truncate">
                             {timeAgo(p.lastUpdate)}
@@ -509,4 +548,25 @@ function parseTs(iso) {
   if (!iso) return null;
   const t = new Date(iso).getTime();
   return Number.isFinite(t) ? t : null;
+}
+
+// What the Value column shows for a given station row. In PMD mode it's
+// always the raw sensor reading. In NDMA mode it's the tightened
+// threshold that classified the station (so the number visibly differs
+// between modes — e.g. 13.49 °C reading in PMD flips to a `> 13.0 °C`
+// threshold in NDMA). Falls back to the raw reading when no NDMA
+// threshold was crossed (Normal / Inactive stations), so those rows
+// stay populated instead of dashing out.
+function displayedValueOf(props, earlyWarning) {
+  if (!props) return null;
+  if (earlyWarning) {
+    const th = props.ourCrossedThreshold?.threshold;
+    if (th != null && Number.isFinite(Number(th))) {
+      // Round to 2 decimals — NDMA thresholds come from `raw * factor`
+      // and can accumulate float noise (e.g. 13.050000000000001).
+      // Number() strips trailing zeros so 13.00 renders as 13.
+      return Number(Number(th).toFixed(2));
+    }
+  }
+  return props.value;
 }

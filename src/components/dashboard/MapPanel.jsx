@@ -66,8 +66,18 @@ const STATIONS_RIPPLE_LAYERS = [
   'parameter-stations-ripple-1',
   'parameter-stations-ripple-2',
 ];
+// Continuous pulse for every Alarm-state station (both PMD and NDMA
+// modes — the `state` property on each feature is already computed off
+// whichever classification is active, so a single filter drives both).
+// Two phase-shifted layers same as the selection ripple, but the filter
+// keys off the alert-state key instead of a single station id.
+const STATIONS_ALARM_PULSE_LAYERS = [
+  'parameter-stations-alarm-pulse-1',
+  'parameter-stations-alarm-pulse-2',
+];
 const NO_HIGHLIGHT_FILTER = ['==', ['get', 'stationId'], -1];
 const WP_FILTER = ['==', ['get', 'isWp'], true];
+const ALARM_FILTER = ['==', ['get', 'state'], 'alarm'];
 
 // Layer ids we own — skipped when the basemap-opacity slider iterates the
 // style. Anything else in `map.getStyle().layers` is treated as basemap.
@@ -79,6 +89,7 @@ const CUSTOM_LAYER_IDS = new Set([
   STATIONS_WP_RING_3_LAYER,
   STATIONS_LAYER,
   ...STATIONS_RIPPLE_LAYERS,
+  ...STATIONS_ALARM_PULSE_LAYERS,
 ]);
 
 // Water-Point sensors follow the `<Region>_WP_<index>` naming convention
@@ -95,6 +106,16 @@ function isWaterPoint(name) {
 const RIPPLE_PERIOD_MS = 1800;
 const RIPPLE_MIN_R = 6;
 const RIPPLE_MAX_R = 22;
+
+// Alarm-state continuous pulse — slightly slower + slightly larger than
+// the selection ripple so a critical station reads as "urgent" without
+// competing with the pointer's own selection halo. Same two-layer
+// phase-shifted pattern; the animation runs any time at least one
+// Alarm-classified station is on the map.
+const ALARM_PULSE_PERIOD_MS = 2200;
+const ALARM_PULSE_MIN_R = 8;
+const ALARM_PULSE_MAX_R = 28;
+const ALARM_PULSE_COLOR = '#dc2626'; // matches alertStates.alarm.color
 
 // Cap on auto-seeded categories. Many polygon attributes (e.g. unique
 // elevations on glof_lakes) have hundreds of distinct values; we keep
@@ -150,6 +171,7 @@ export default function MapPanel({ className, onMapReady }) {
     setSelectedStation,
     disabledStates,
     toggleState,
+    earlyWarning,
   } = useParameter();
   const { visibleLayers: regionVisible } = useRegionLayers();
   const {
@@ -178,20 +200,30 @@ export default function MapPanel({ className, onMapReady }) {
   // feature gets `state` (the alert-state key) and `color` derived from
   // its stateId — Mapbox reads `color` via ['get','color'] for the circle
   // paint and filters on `state` to hide toggled-off states.
+  //
+  // In NDMA early-warning mode we substitute `ourStateId` for `stateId`
+  // (falling back to PMD's stateId when thresholds aren't captured yet,
+  // so the station doesn't disappear). Staleness (48 h Inactive rule)
+  // still comes from `lastUpdate` — the classification changed, the
+  // reporting cadence didn't.
   const coloredCollection = useMemo(() => {
     if (!selected || stations.length === 0) return null;
     return {
       type: 'FeatureCollection',
       features: stations.map((f) => {
-        const st = classifyState(f.properties?.stateId, f.properties?.lastUpdate);
-        const isWp = isWaterPoint(f.properties?.stationName);
+        const p = f.properties ?? {};
+        const effStateId = earlyWarning
+          ? (p.ourStateId ?? p.stateId)
+          : p.stateId;
+        const st = classifyState(effStateId, p.lastUpdate);
+        const isWp = isWaterPoint(p.stationName);
         return {
           ...f,
-          properties: { ...f.properties, state: st.id, color: st.color, isWp },
+          properties: { ...p, state: st.id, color: st.color, isWp },
         };
       }),
     };
-  }, [selected, stations]);
+  }, [selected, stations, earlyWarning]);
   const collectionRef = useRef(coloredCollection);
   collectionRef.current = coloredCollection;
 
@@ -411,6 +443,12 @@ export default function MapPanel({ className, onMapReady }) {
       const wpFilter = withStateFilter(WP_FILTER, filter);
       for (const layerId of [STATIONS_WP_RING_1_LAYER, STATIONS_WP_RING_2_LAYER, STATIONS_WP_RING_3_LAYER]) {
         if (map.getLayer(layerId)) map.setFilter(layerId, wpFilter);
+      }
+      // Alarm-pulse layers stay bound to state === 'alarm' but also
+      // respect the legend toggle (hiding "Alarm" hides the pulse).
+      const alarmFilter = withStateFilter(ALARM_FILTER, filter);
+      for (const layerId of STATIONS_ALARM_PULSE_LAYERS) {
+        if (map.getLayer(layerId)) map.setFilter(layerId, alarmFilter);
       }
     };
 
@@ -676,6 +714,41 @@ export default function MapPanel({ className, onMapReady }) {
     };
   }, [selectedStation]);
 
+  // Continuous alarm-pulse loop for every station classified as Alarm.
+  // Runs any time station layers exist — the filter (state === 'alarm')
+  // takes care of only actually painting on the critical stations, so
+  // this stays a single low-cost setPaintProperty pair per frame even
+  // when there are hundreds of stations on screen. Kicks in for both
+  // PMD and NDMA modes automatically because coloredCollection stamps
+  // `state` off whichever classification is active.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !coloredCollection) return;
+
+    let raf = null;
+    const start = performance.now();
+
+    const tick = (now) => {
+      const elapsed = now - start;
+      STATIONS_ALARM_PULSE_LAYERS.forEach((id, i) => {
+        if (!map.getLayer(id)) return;
+        const phase =
+          ((elapsed + (i * ALARM_PULSE_PERIOD_MS) / 2) % ALARM_PULSE_PERIOD_MS) /
+          ALARM_PULSE_PERIOD_MS;
+        const radius = ALARM_PULSE_MIN_R + (ALARM_PULSE_MAX_R - ALARM_PULSE_MIN_R) * phase;
+        const opacity = 0.85 * (1 - phase);
+        map.setPaintProperty(id, 'circle-radius', radius);
+        map.setPaintProperty(id, 'circle-stroke-opacity', opacity);
+      });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+    };
+  }, [coloredCollection]);
+
   // Push the legend's hidden-state set as a Mapbox filter on the dot + halo
   // layers. Re-applied on style.load via the stations-style.load handler
   // (which reads from disabledStatesRef).
@@ -689,6 +762,10 @@ export default function MapPanel({ className, onMapReady }) {
     const wpFilter = withStateFilter(WP_FILTER, filter);
     for (const layerId of [STATIONS_WP_RING_1_LAYER, STATIONS_WP_RING_2_LAYER, STATIONS_WP_RING_3_LAYER]) {
       if (map.getLayer(layerId)) map.setFilter(layerId, wpFilter);
+    }
+    const alarmFilter = withStateFilter(ALARM_FILTER, filter);
+    for (const layerId of STATIONS_ALARM_PULSE_LAYERS) {
+      if (map.getLayer(layerId)) map.setFilter(layerId, alarmFilter);
     }
   }, [disabledStates]);
 
@@ -1080,6 +1157,30 @@ function applyStationLayers(map, data) {
     }, beforeCore);
   }
 
+  // Continuous alarm-pulse rings for every station currently classified
+  // as Alarm — filter keys off the shared `state` property so the same
+  // layers cover PMD and NDMA modes (the property is populated from
+  // whichever classification is active). Painted BEFORE the selection
+  // ripple layers so the selection halo (when a station is picked) sits
+  // above the pulse and still reads as "you selected this one".
+  for (const id of STATIONS_ALARM_PULSE_LAYERS) {
+    if (!map.getLayer(id)) {
+      map.addLayer({
+        id,
+        type: 'circle',
+        source: STATIONS_SOURCE,
+        filter: ALARM_FILTER,
+        paint: {
+          'circle-radius': ALARM_PULSE_MIN_R,
+          'circle-color': 'rgba(0,0,0,0)',
+          'circle-stroke-color': ALARM_PULSE_COLOR,
+          'circle-stroke-width': 3,
+          'circle-stroke-opacity': 0,
+        },
+      });
+    }
+  }
+
   // Animated ripple rings for the selected station. Filter is set
   // externally (see the selectedStation effect); the rAF loop drives
   // the radius + opacity each frame.
@@ -1149,6 +1250,9 @@ function withStateFilter(baseFilter, stateFilterExpr) {
 
 function removeStationLayers(map) {
   for (const id of STATIONS_RIPPLE_LAYERS) {
+    if (map.getLayer(id)) map.removeLayer(id);
+  }
+  for (const id of STATIONS_ALARM_PULSE_LAYERS) {
     if (map.getLayer(id)) map.removeLayer(id);
   }
   if (map.getLayer(STATIONS_LAYER)) map.removeLayer(STATIONS_LAYER);

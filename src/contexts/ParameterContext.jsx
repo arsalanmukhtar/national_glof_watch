@@ -8,6 +8,13 @@ import {
 
 const ParameterContext = createContext(null);
 
+// Tightening factor for NDMA early-warning classification. 0.9 means the
+// upper bounds of every alarm band shift down by 10% (and the lower
+// bounds shift up by ~11%), so a Pre-alarm fires ahead of PMD's own
+// threshold. Kept as a module constant, not user-facing, because tuning
+// it is a policy call — the toggle is a switch, not a slider.
+export const EARLY_WARNING_FACTOR = 0.9;
+
 export function ParameterProvider({ children }) {
   const [selected, setSelected] = useState(null);
   // Full element catalog from the backend: [{ name, unit, stationCount }].
@@ -23,6 +30,12 @@ export function ParameterProvider({ children }) {
   // Set of alert-state keys the user has hidden via the legend; map
   // circles + attribute-table rows both filter against it.
   const [disabledStates, setDisabledStates] = useState(() => new Set());
+  // NDMA early-warning toggle. When true, /latest is fetched with
+  // ?earlyFactor=EARLY_WARNING_FACTOR and consumers read `ourStateId`
+  // instead of PMD's `stateId`. Single source of truth so the map dot,
+  // stations table, and threshold breaches card can't disagree on which
+  // classification is showing.
+  const [earlyWarning, setEarlyWarning] = useState(false);
 
   const select = useCallback((id) => {
     setSelected((prev) => (prev === id ? null : id));
@@ -66,14 +79,16 @@ export function ParameterProvider({ children }) {
     }
   }, []);
 
-  const loadStations = useCallback(async (element) => {
+  const loadStations = useCallback(async (element, opts = {}) => {
     if (!element) {
       setStations([]);
       return;
     }
+    const useEarly = opts.earlyWarning ?? false;
+    const qs = useEarly ? `?earlyFactor=${EARLY_WARNING_FACTOR}` : '';
     try {
       const res = await fetch(
-        `/api/parameters/${encodeURIComponent(element)}/latest`,
+        `/api/parameters/${encodeURIComponent(element)}/latest${qs}`,
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -90,11 +105,11 @@ export function ParameterProvider({ children }) {
       if (!res.ok) throw new Error(`Refresh-all failed (${res.status})`);
       await loadStatus();
       await loadElements();
-      await loadStations(selected);
+      await loadStations(selected, { earlyWarning });
     } finally {
       setBusy((b) => (b === 'ALL' ? null : b));
     }
-  }, [loadStatus, loadElements, loadStations, selected]);
+  }, [loadStatus, loadElements, loadStations, selected, earlyWarning]);
 
   // Per-element refresh runs the same full v3 value cycle (the v3 pipeline
   // is per-station, not per-element) — just badged to the chosen element.
@@ -108,12 +123,12 @@ export function ParameterProvider({ children }) {
         });
         if (!res.ok) throw new Error(`Refresh failed (${res.status})`);
         await loadStatus();
-        await loadStations(element);
+        await loadStations(element, { earlyWarning });
       } finally {
         setBusy((b) => (b === element ? null : b));
       }
     },
-    [loadStatus, loadStations],
+    [loadStatus, loadStations, earlyWarning],
   );
 
   // Decoded alert thresholds for one element instance — used by the
@@ -139,8 +154,8 @@ export function ParameterProvider({ children }) {
   }, [loadStatus]);
 
   useEffect(() => {
-    loadStations(selected);
-  }, [selected, loadStations]);
+    loadStations(selected, { earlyWarning });
+  }, [selected, earlyWarning, loadStations]);
 
   // If the catalog reloads and the selected element is gone, clear it.
   useEffect(() => {
@@ -170,6 +185,9 @@ export function ParameterProvider({ children }) {
         disabledStates,
         toggleState,
         fetchThresholds,
+        earlyWarning,
+        setEarlyWarning,
+        earlyWarningFactor: EARLY_WARNING_FACTOR,
       }}
     >
       {children}

@@ -9,7 +9,7 @@ import { cn } from '@/utils/cn';
 // Rows are clickable to hide/show that state on the map (filter owned by
 // MapPanel via the disabledStates prop).
 export default function MapLegend({ disabledStates, onToggleState }) {
-  const { selected } = useParameter();
+  const { selected, earlyWarning, setEarlyWarning } = useParameter();
 
   if (!selected) return null;
 
@@ -28,10 +28,67 @@ export default function MapLegend({ disabledStates, onToggleState }) {
           'border border-day-border dark:border-night-border',
         )}
       >
-        <div className="px-2.5 py-1.5 border-b border-day-border dark:border-night-border">
-          <h4 className="text-[12px] font-semibold text-day-text dark:text-night-text">
+        <div className="px-2.5 py-1.5 border-b border-day-border dark:border-night-border flex items-center gap-2 h-8">
+          <h4 className="text-[12px] font-semibold leading-none text-day-text dark:text-night-text inline-flex items-center h-5">
             Alert State
           </h4>
+          {earlyWarning ? (
+            <span
+              className={cn(
+                'ml-auto inline-flex items-center justify-center',
+                'h-5 px-1.5 rounded',
+                'text-[9.5px] font-semibold uppercase tracking-wide leading-none',
+                'text-[#dc2626] dark:text-[#f87171]',
+                'border border-[#fca5a5]/70 dark:border-[#f87171]/40',
+                'shadow-[0_0_6px_rgba(239,68,68,0.18)] dark:shadow-[0_0_6px_rgba(248,113,113,0.22)]',
+              )}
+              title="NDMA Early-Warning classification active"
+            >
+              EW
+            </span>
+          ) : null}
+        </div>
+
+        {/* PMD ↔ NDMA classification toggle. Sliding pill built with
+            Framer motion.layoutId so the active fill animates between
+            the two options. Flipping this reloads /latest with (or
+            without) ?earlyFactor= so map, table, and threshold card
+            all switch together. */}
+        <div className="px-2 py-1.5 border-b border-day-border dark:border-night-border">
+          <div className="relative flex rounded-md bg-day-bg dark:bg-night-bg p-0.5">
+            {[
+              { id: 'pmd',  label: 'PMD',  title: 'Show PMD official classification' },
+              { id: 'ndma', label: 'NDMA', title: 'Show NDMA early-warning classification (10% ahead of PMD)' },
+            ].map((opt) => {
+              const active =
+                (opt.id === 'ndma' && earlyWarning) ||
+                (opt.id === 'pmd' && !earlyWarning);
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setEarlyWarning(opt.id === 'ndma')}
+                  aria-pressed={active}
+                  title={opt.title}
+                  className={cn(
+                    'relative flex-1 h-6 inline-flex items-center justify-center text-[10.5px] font-semibold tracking-wide rounded-[5px] transition-colors',
+                    active
+                      ? 'text-[#1a2e05]'
+                      : 'text-day-muted dark:text-night-muted hover:text-day-text dark:hover:text-night-text',
+                  )}
+                >
+                  {active ? (
+                    <motion.span
+                      layoutId="legend-mode-pill"
+                      className="absolute inset-0 rounded-[5px] bg-[#84cc16]"
+                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    />
+                  ) : null}
+                  <span className="relative z-[1]">{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <ul className="px-1 py-1 flex flex-col">
           {LEGEND_STATES.map((s) => {

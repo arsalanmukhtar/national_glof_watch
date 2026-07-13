@@ -130,7 +130,8 @@ export default function ParametersPanel() {
                 )}
                 <span
                   className={cn(
-                    'shrink-0 rounded px-1.5 py-0.5 text-[10px] tabular-nums font-semibold',
+                    'shrink-0 inline-flex items-center justify-center',
+                    'w-8 h-5 rounded text-[10px] tabular-nums font-semibold text-center',
                     !active &&
                       'bg-day-bg text-day-muted dark:bg-night-bg dark:text-night-muted',
                   )}
