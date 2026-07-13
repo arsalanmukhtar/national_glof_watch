@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Antenna,
   Building2,
+  CloudRain,
   Database,
   Droplets,
   Fence,
@@ -77,17 +78,19 @@ const LAYER_ICONS = {
   vulnerable_melting_glaciers_2026: Snowflake,
   vulnerable_melting_points_2026:   MapPinned,
   vulnerable_sites_2026:            AlertTriangle,
-  // Vector-tile layers — icons chosen to match the feature type at a
-  // glance in the layer list (RadioTower for BTS, Waves/Waypoints for
-  // river families, Droplets for reservoirs, LandPlot for watershed
-  // polygons, Fence + Vault for the minor/major dam pair).
-  vt_bts_sites:                     RadioTower,
-  vt_major_rivers:                  Waves,
-  vt_minor_rivers:                  Waypoints,
-  vt_reservoirs:                    Droplets,
-  vt_watersheds:                    LandPlot,
-  vt_minor_dams:                    Fence,
-  vt_major_dams:                    Vault,
+  // Static reference layers imported from data/geojsons/static/. Icons
+  // match the feature type at a glance in the layer list (RadioTower
+  // for BTS, Waves/Waypoints for the river families, Droplets for
+  // reservoirs, LandPlot for watershed polygons, Fence + Vault for the
+  // minor/major dam pair, CloudRain for monsoon-basin gauges).
+  bts_cell_sites:                   RadioTower,
+  major_rivers:                     Waves,
+  minor_rivers:                     Waypoints,
+  reservoirs:                       Droplets,
+  watersheds:                       LandPlot,
+  minor_dams:                       Fence,
+  major_dams:                       Vault,
+  monsoon_basins:                   CloudRain,
 };
 
 const ACCEPTED_TYPES = '.geojson,.json,application/geo+json,application/json,.zip,application/zip';

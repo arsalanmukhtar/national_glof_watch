@@ -34,6 +34,15 @@ const SECONDARY_API_LAYERS = new Set([
   'vulnerable_melting_glaciers_2026',
   'vulnerable_melting_points_2026',
   'vulnerable_sites_2026',
+  // Static reference layers (bts / hydrology / dams / monsoon).
+  'bts_cell_sites',
+  'major_rivers',
+  'minor_rivers',
+  'reservoirs',
+  'watersheds',
+  'minor_dams',
+  'major_dams',
+  'monsoon_basins',
 ]);
 
 // Live PMD GIS layers proxied via /api/gis. Upstream uses a private CA

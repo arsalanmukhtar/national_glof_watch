@@ -412,6 +412,21 @@ load "$DATA_DIR/year_2026/Vulnerable_Melting_Glaciers.geojson"  "secondary.vulne
 load "$DATA_DIR/year_2026/Vulnerable_Melting_Points.geojson"    "secondary.vulnerable_melting_points_2026"
 load "$DATA_DIR/year_2026/Vulnerable_Sites_2026.geojson"        "secondary.vulnerable_sites_2026"
 
+# Static reference layers — global hydrology + telecom infrastructure
+# imported from data/geojsons/static/. These were previously rendered
+# from GeoServer vector tiles (see MapPanel `vectorTile` branch and
+# /api/tiles/bounds) — the DB path is preferred because it hands the
+# client a full FeatureCollection (attribute table, style panel,
+# feature-details all work out of the box).
+load "$DATA_DIR/static/bts_cell_sites.geojson"          "secondary.bts_cell_sites"
+load "$DATA_DIR/static/major_rivers_features.geojson"   "secondary.major_rivers"
+load "$DATA_DIR/static/minor_rivers_features.geojson"   "secondary.minor_rivers"
+load "$DATA_DIR/static/reservoirs_features.geojson"     "secondary.reservoirs"
+load "$DATA_DIR/static/water_shed_features.geojson"     "secondary.watersheds"
+load "$DATA_DIR/static/minor_dams_features.geojson"     "secondary.minor_dams"
+load "$DATA_DIR/static/major_dams_features.geojson"     "secondary.major_dams"
+load "$DATA_DIR/static/Monsoon_Basins.geojson"          "secondary.monsoon_basins"
+
 echo
 echo "[done] $OK_COUNT ok / $SKIP_COUNT skipped / ${#FAIL_LIST[@]} failed"
 if (( ${#FAIL_LIST[@]} > 0 )); then

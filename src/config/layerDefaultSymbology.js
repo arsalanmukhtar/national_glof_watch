@@ -103,29 +103,34 @@ export const LAYER_DEFAULT_SYMBOLOGY = {
   gmrc_wapda_stations:  stationSymbology('#3b82f6'),
   bri_ff_china_sensors: stationSymbology('#ef4444'),
 
-  // ─── Vector-tile layer defaults (GeoServer GWC) ──────────────────────
-  // Colours picked to read as the feature naturally would on a map:
+  // ─── Static reference layers (imported from data/geojsons/static/) ──
+  // Colours picked so each feature reads as it naturally would on a map:
   // rivers/reservoirs in water blues, watersheds in a warm earth tone,
-  // BTS towers in signal orange, dams in a major/minor red/amber pair.
-  // Point radii are tuned so numerous point layers (BTS, minor dams)
-  // don't clutter, while major dams pop as prominent structures.
-  vt_major_rivers: {
+  // BTS towers in signal orange, dams in a major/minor red/amber pair,
+  // monsoon-basin gauges in a rainfall sky-blue. Point radii step up so
+  // major dams pop as high-priority structures while numerous BTS +
+  // minor-dam points don't clutter the map.
+  //
+  // LINE geometry paint (paintExprsFor with geometry='line') reads the
+  // line-family names: `color`, `width`, `opacity`. The polygon-family
+  // `strokeColor` / `strokeWidth` are IGNORED for lines — setting them
+  // here would silently fall back to the base lime default. Both river
+  // families paint in natural water blues, major thicker + fully
+  // opaque, minor thinner + slightly translucent so major rivers
+  // dominate visually where the two overlap.
+  major_rivers: {
     type: 'simple',
-    fillColor: '#1e40af',       // blue-800 — deep water
-    fillOpacity: 0.75,
-    strokeColor: '#1e3a8a',     // blue-900
-    strokeOpacity: 1,
-    strokeWidth: 1,
+    color: '#1e40af',   // blue-800 — deep water
+    width: 2.5,
+    opacity: 1,
   },
-  vt_minor_rivers: {
+  minor_rivers: {
     type: 'simple',
-    fillColor: '#3b82f6',       // blue-500 — lighter tributaries
-    fillOpacity: 0.6,
-    strokeColor: '#1d4ed8',     // blue-700
-    strokeOpacity: 1,
-    strokeWidth: 0.75,
+    color: '#3b82f6',   // blue-500 — lighter tributaries
+    width: 1.25,
+    opacity: 0.9,
   },
-  vt_reservoirs: {
+  reservoirs: {
     type: 'simple',
     fillColor: '#06b6d4',       // cyan-500 — still water bodies
     fillOpacity: 0.55,
@@ -133,7 +138,7 @@ export const LAYER_DEFAULT_SYMBOLOGY = {
     strokeOpacity: 1,
     strokeWidth: 1.25,
   },
-  vt_watersheds: {
+  watersheds: {
     type: 'simple',
     fillColor: '#facc15',       // yellow-400 — earthy basin fill
     fillOpacity: 0.08,          // barely tinted so multiple basins layer without drowning basemap
@@ -141,7 +146,7 @@ export const LAYER_DEFAULT_SYMBOLOGY = {
     strokeOpacity: 0.9,
     strokeWidth: 1.25,
   },
-  vt_bts_sites: {
+  bts_cell_sites: {
     // Telecom towers — orange for radio/signal.
     radius: 4,
     fillColor: '#f97316',       // orange-500
@@ -150,7 +155,7 @@ export const LAYER_DEFAULT_SYMBOLOGY = {
     strokeWidth: 1,
     strokeOpacity: 1,
   },
-  vt_minor_dams: {
+  minor_dams: {
     // Amber for less-critical dam structures.
     radius: 5,
     fillColor: '#f59e0b',       // amber-500
@@ -159,13 +164,22 @@ export const LAYER_DEFAULT_SYMBOLOGY = {
     strokeWidth: 1.25,
     strokeOpacity: 1,
   },
-  vt_major_dams: {
+  major_dams: {
     // Bigger + red so major dams stand out as high-priority structures.
     radius: 7,
     fillColor: '#dc2626',       // red-600
     fillOpacity: 1,
     strokeColor: '#7f1d1d',     // red-900
     strokeWidth: 1.5,
+    strokeOpacity: 1,
+  },
+  monsoon_basins: {
+    // Rainfall gauges — sky-blue centre, deeper stroke.
+    radius: 5,
+    fillColor: '#0284c7',       // sky-600
+    fillOpacity: 0.95,
+    strokeColor: '#075985',     // sky-800
+    strokeWidth: 1.25,
     strokeOpacity: 1,
   },
 };

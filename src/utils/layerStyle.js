@@ -289,15 +289,19 @@ export function paintExprsFor(style, geometry) {
     let width = zoomedOrLiteral(style, 'width', style.width ?? 2);
     if (style.type === 'sizeRange') width = sizeRangeExpr(style, width);
 
-    return {
-      kind: 'line',
-      paint: {
-        'line-color': color,
-        'line-width': width,
-        'line-opacity': zoomedOrLiteral(style, 'opacity', style.opacity ?? 1),
-        'line-dasharray': style.dashed ? [2, 2] : null,
-      },
+    // `line-dasharray` MUST be an array when present — Mapbox's style
+    // validator rejects `null` at addLayer time and throws, orphaning
+    // the source and leaving the map blank. Omit the key entirely for
+    // solid lines. (`applyPaintProps` also skips null-dash on updates,
+    // so the two paths stay consistent.)
+    const paint = {
+      'line-color': color,
+      'line-width': width,
+      'line-opacity': zoomedOrLiteral(style, 'opacity', style.opacity ?? 1),
     };
+    if (style.dashed) paint['line-dasharray'] = [2, 2];
+
+    return { kind: 'line', paint };
   }
 
   // polygon

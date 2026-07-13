@@ -36,98 +36,23 @@ export const SECONDARY_LAYERS = [
   { id: 'vulnerable_melting_points_2026',     label: 'Vulnerable Melting Points (2026)',   geometry: 'point',   table: 'secondary.vulnerable_melting_points_2026' },
   { id: 'vulnerable_sites_2026',              label: 'Vulnerable Sites (2026)',            geometry: 'point',   table: 'secondary.vulnerable_sites_2026' },
 
-  // ─── Vector-tile layers (GeoServer GWC TMS/MVT) ──────────────────────
-  // These are NOT loaded via the /api/secondary endpoint — Mapbox
-  // requests tiles directly from GeoServer's GWC. `vectorTile` carries
-  // the source spec (tile URL template, source-layer name inside the
-  // MVT, TMS y-axis convention, and the zoom bounds GWC was seeded at).
-  // `table: null` keeps the attribute-table paths inert for these
-  // layers since we don't have a full FeatureCollection on the client.
+  // Static reference layers — imported from data/geojsons/static/ into
+  // secondary.*. Geometries are the ground-truth from the GeoJSON files
+  // (both river families are actually LineString sets, not polygons as
+  // the earlier tile-rendered version suggested).
   //
-  // NOTE: GeoServer GWC MVT tile URLs are TMS (y flipped from XYZ).
-  //       `scheme: 'tms'` MUST be set on the source or tiles render
-  //       upside-down. `EPSG:900913` = EPSG:3857 (Web Mercator).
-  //
-  // "Zoom to extent" strategy:
-  //   1. The frontend hits `/api/tiles/bounds/:workspace/:sourceLayer`
-  //      which parses GeoServer's WMS 1.3.0 GetCapabilities and returns
-  //      the actual `<EX_GeographicBoundingBox>` for the layer.
-  //   2. If that request fails (backend down, GeoServer unreachable,
-  //      caps XML changed shape), we fall back to the static `bounds`
-  //      declared here — currently framed on Pakistan since these are
-  //      global datasets used in Pakistan context.
-  // Add a `workspace` to each entry so the resolver knows which
-  // GeoServer workspace to query.
-  {
-    id: 'vt_bts_sites', label: 'BTS Cell Sites', geometry: 'point', table: null,
-    vectorTile: {
-      tiles: ['http://172.18.7.21:8080/geoserver/gwc/service/tms/1.0.0/telecom_infrastructure_global:bts_site_details@EPSG:900913@pbf/{z}/{x}/{y}.pbf'],
-      workspace: 'telecom_infrastructure_global',
-      sourceLayer: 'bts_site_details', scheme: 'tms', minzoom: 0, maxzoom: 14,
-      bounds: [60.878, 23.7, 77.837, 37.084],
-    },
-  },
-  // Rivers turned out to be polygon layers in the source tiles (river
-  // channel outlines, not centrelines) — hence `polygon` here so the
-  // `fill` layer picks them up. A `line` layer against polygon tile
-  // geometry rendered nothing at all.
-  {
-    id: 'vt_major_rivers', label: 'Major Rivers', geometry: 'polygon', table: null,
-    vectorTile: {
-      tiles: ['http://172.18.7.21:8080/geoserver/gwc/service/tms/1.0.0/hydrological_global:major_rivers@EPSG:900913@pbf/{z}/{x}/{y}.pbf'],
-      workspace: 'hydrological_global',
-      sourceLayer: 'major_rivers', scheme: 'tms', minzoom: 0, maxzoom: 14,
-      bounds: [60.878, 23.7, 77.837, 37.084],
-    },
-  },
-  {
-    id: 'vt_minor_rivers', label: 'Minor Rivers', geometry: 'polygon', table: null,
-    vectorTile: {
-      tiles: ['http://172.18.7.21:8080/geoserver/gwc/service/tms/1.0.0/hydrological_global:minor_rivers@EPSG:900913@pbf/{z}/{x}/{y}.pbf'],
-      workspace: 'hydrological_global',
-      sourceLayer: 'minor_rivers', scheme: 'tms', minzoom: 0, maxzoom: 14,
-      bounds: [60.878, 23.7, 77.837, 37.084],
-    },
-  },
-  {
-    id: 'vt_reservoirs', label: 'Reservoirs', geometry: 'polygon', table: null,
-    vectorTile: {
-      tiles: ['http://172.18.7.21:8080/geoserver/gwc/service/tms/1.0.0/hydrological_global:reservoirs@EPSG:900913@pbf/{z}/{x}/{y}.pbf'],
-      workspace: 'hydrological_global',
-      sourceLayer: 'reservoirs', scheme: 'tms', minzoom: 0, maxzoom: 14,
-      bounds: [60.878, 23.7, 77.837, 37.084],
-    },
-  },
-  {
-    id: 'vt_watersheds', label: 'Watersheds', geometry: 'polygon', table: null,
-    vectorTile: {
-      tiles: ['http://172.18.7.21:8080/geoserver/gwc/service/tms/1.0.0/hydrological_global:water_shed@EPSG:900913@pbf/{z}/{x}/{y}.pbf'],
-      workspace: 'hydrological_global',
-      sourceLayer: 'water_shed', scheme: 'tms', minzoom: 0, maxzoom: 14,
-      bounds: [60.878, 23.7, 77.837, 37.084],
-    },
-  },
-  // Dam layers — best guess is point geometry (structure locations).
-  // If they turn out to be polygons in the tile, flip the `geometry`
-  // field here to 'polygon' — nothing else needs to change.
-  {
-    id: 'vt_minor_dams', label: 'Minor Dams', geometry: 'point', table: null,
-    vectorTile: {
-      tiles: ['http://172.18.7.21:8080/geoserver/gwc/service/tms/1.0.0/hydrological_global:minor_dams@EPSG:900913@pbf/{z}/{x}/{y}.pbf'],
-      workspace: 'hydrological_global',
-      sourceLayer: 'minor_dams', scheme: 'tms', minzoom: 0, maxzoom: 14,
-      bounds: [60.878, 23.7, 77.837, 37.084],
-    },
-  },
-  {
-    id: 'vt_major_dams', label: 'Major Dams', geometry: 'point', table: null,
-    vectorTile: {
-      tiles: ['http://172.18.7.21:8080/geoserver/gwc/service/tms/1.0.0/hydrological_global:major_dams@EPSG:900913@pbf/{z}/{x}/{y}.pbf'],
-      workspace: 'hydrological_global',
-      sourceLayer: 'major_dams', scheme: 'tms', minzoom: 0, maxzoom: 14,
-      bounds: [60.878, 23.7, 77.837, 37.084],
-    },
-  },
+  // Note: the codebase still supports a `vectorTile` field on any entry
+  // (see MapPanel `ensureOverlay` + /api/tiles/bounds) so future layers
+  // can flip back to a GeoServer tile source without any code change —
+  // just add the descriptor.
+  { id: 'bts_cell_sites', label: 'BTS Cell Sites', geometry: 'point',   table: 'secondary.bts_cell_sites' },
+  { id: 'major_rivers',   label: 'Major Rivers',   geometry: 'line',    table: 'secondary.major_rivers'   },
+  { id: 'minor_rivers',   label: 'Minor Rivers',   geometry: 'line',    table: 'secondary.minor_rivers'   },
+  { id: 'reservoirs',     label: 'Reservoirs',     geometry: 'polygon', table: 'secondary.reservoirs'     },
+  { id: 'watersheds',     label: 'Watersheds',     geometry: 'polygon', table: 'secondary.watersheds'     },
+  { id: 'minor_dams',     label: 'Minor Dams',     geometry: 'point',   table: 'secondary.minor_dams'     },
+  { id: 'major_dams',     label: 'Major Dams',     geometry: 'point',   table: 'secondary.major_dams'     },
+  { id: 'monsoon_basins', label: 'Monsoon Basins', geometry: 'point',   table: 'secondary.monsoon_basins' },
 ];
 
 // Sensible defaults per geometry type. The accent color (#84cc16) keeps

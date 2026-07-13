@@ -23,6 +23,17 @@ const ALLOWED_LAYERS = new Set([
   'vulnerable_melting_glaciers_2026',
   'vulnerable_melting_points_2026',
   'vulnerable_sites_2026',
+  // Static reference layers (imported from data/geojsons/static/) —
+  // previously served as GeoServer vector tiles; now DB-backed so the
+  // attribute table + feature-details flows work out of the box.
+  'bts_cell_sites',
+  'major_rivers',
+  'minor_rivers',
+  'reservoirs',
+  'watersheds',
+  'minor_dams',
+  'major_dams',
+  'monsoon_basins',
 ]);
 
 export const secondaryRouter = express.Router();
