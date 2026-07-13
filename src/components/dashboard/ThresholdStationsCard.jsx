@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle,
@@ -166,6 +167,12 @@ export default function ThresholdStationsCard() {
   const [error, setError] = useState(null);
   const [index, setIndex] = useState(0);
   const [hovered, setHovered] = useState(false);
+  // Info-popover visibility. Small explainer that opens when the user
+  // clicks the header's warning-triangle. Rendered through a portal
+  // with fixed positioning so it escapes any parent panel's overflow
+  // or stacking context (which was clipping / underlaying it before).
+  const [showInfo, setShowInfo] = useState(false);
+  const infoBtnRef = useRef(null);
 
   useEffect(() => {
     if (!tab) return;
@@ -293,14 +300,29 @@ export default function ThresholdStationsCard() {
     >
       {/* Header — title + worst-state badge */}
       <div className="flex items-center gap-2 px-3 pt-2.5 pb-2 border-b border-day-border dark:border-night-border">
-        <AlertTriangle
-          className="h-3.5 w-3.5"
-          style={{ color: worstState?.color ?? tab?.tabAccent ?? '#84cc16' }}
-          aria-hidden
-        />
+        <button
+          ref={infoBtnRef}
+          type="button"
+          onClick={() => setShowInfo((v) => !v)}
+          aria-label="About Threshold Breaches"
+          title="How thresholds are calculated"
+          className="inline-flex items-center justify-center rounded transition-opacity hover:opacity-80"
+        >
+          <AlertTriangle
+            className="h-3.5 w-3.5"
+            style={{ color: worstState?.color ?? tab?.tabAccent ?? '#84cc16' }}
+            aria-hidden
+          />
+        </button>
         <h3 className="text-[13px] font-semibold tracking-wide uppercase text-day-text dark:text-night-text">
           Threshold Breaches
         </h3>
+        {showInfo && (
+          <ThresholdInfoPopover
+            anchorRef={infoBtnRef}
+            onClose={() => setShowInfo(false)}
+          />
+        )}
         {worstState ? (
           <span
             className="ml-auto text-[11px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md border"
@@ -520,5 +542,96 @@ export default function ThresholdStationsCard() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+// Explainer popover that opens when the user clicks the header
+// warning-triangle. Rendered through a Portal into document.body with
+// FIXED positioning so it escapes every parent's overflow-hidden and
+// stacking context (previously the Layer Style panel underneath was
+// drawing on top of it). Position is computed from the anchor button's
+// bounding rect and refreshed on window resize.
+function ThresholdInfoPopover({ anchorRef, onClose }) {
+  const POPOVER_WIDTH = 280;
+  const [pos, setPos] = useState(() => computePos());
+
+  function computePos() {
+    const el = anchorRef?.current;
+    if (!el || typeof window === 'undefined') return { top: 0, left: 0 };
+    const r = el.getBoundingClientRect();
+    // Anchor: 4 px below the icon, left-aligned to its left edge, but
+    // clamped so the 280 px box never spills off the viewport's right side.
+    const preferredLeft = r.left;
+    const maxLeft = window.innerWidth - POPOVER_WIDTH - 8;
+    return {
+      top: r.bottom + 4,
+      left: Math.max(8, Math.min(preferredLeft, maxLeft)),
+    };
+  }
+
+  useEffect(() => {
+    setPos(computePos());
+    const onResize = () => setPos(computePos());
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onResize, true);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onResize, true);
+    };
+    // computePos closes over the ref, which is stable — no deps needed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <>
+      {/* Invisible full-viewport backdrop closes the popover on any
+          outside click. z-[9998] sits just below the popover so clicks
+          on the popover itself land through. */}
+      <button
+        type="button"
+        aria-label="Close info"
+        onClick={onClose}
+        className="fixed inset-0 z-[9998] cursor-default bg-transparent"
+      />
+      <motion.div
+        initial={{ opacity: 0, y: -4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.15 }}
+        role="dialog"
+        aria-label="How our early warning works"
+        style={{ top: pos.top, left: pos.left, width: POPOVER_WIDTH }}
+        className={cn(
+          'fixed z-[9999] p-3 rounded-md shadow-xl',
+          'bg-white dark:bg-night-surface',
+          'border border-day-border dark:border-night-border',
+          'text-[12px] leading-relaxed text-day-text dark:text-night-text',
+          // text-justify + hyphens make the paragraph rag flush on both
+          // sides without ugly word-spacing gaps in the narrow 280px box.
+          'text-justify hyphens-auto',
+        )}
+      >
+        <div className="mb-1.5 text-left">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-day-muted dark:text-night-muted">
+            How this works
+          </span>
+        </div>
+        <p className="mb-2">
+          We warn you <span className="font-semibold">10% sooner</span> than
+          PMD. So if PMD would raise the alarm at{' '}
+          <span className="font-semibold">30 °C</span>, our warning appears at{' '}
+          <span className="font-semibold">27 °C</span>. That extra buffer
+          gives you time to check the station and take action before the
+          official alarm fires.
+        </p>
+        <p className="text-[11.5px] text-day-muted dark:text-night-muted">
+          Every station has its own alert limits set by PMD. The 10% early
+          check is applied to each station individually, not to the whole
+          network at once.
+        </p>
+      </motion.div>
+    </>,
+    document.body,
   );
 }

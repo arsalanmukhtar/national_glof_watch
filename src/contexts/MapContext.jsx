@@ -108,34 +108,45 @@ export function MapProvider({ children }) {
   const zoomToSecondaryLayer = useCallback(
     async (layerId) => {
       // Vector-tile layers can't be summarised on the client — Mapbox
-      // only knows what's currently rendered in view. Ask the backend
-      // to resolve the layer's true extent from GeoServer's WMS
-      // GetCapabilities (cached 6 h server-side), and fall back to the
-      // static `vectorTile.bounds` declared in the catalog if the
-      // backend / GeoServer is unreachable so the button still frames
-      // something instead of no-op'ing.
+      // only knows what's currently rendered in view. Two supported
+      // ways to resolve their extent:
+      //   1. `vectorTile.boundsPath` — an explicit URL on our backend
+      //      (e.g. /api/tiles/mvt-bounds/:schema/:table for PostGIS
+      //      MVT tables). Preferred when the tile source is our own DB.
+      //   2. `vectorTile.workspace` + `sourceLayer` — hits
+      //      /api/tiles/bounds/:workspace/:layer which parses GeoServer's
+      //      WMS GetCapabilities. Used for GeoServer-hosted layers.
+      // Both fall back to the static `vectorTile.bounds` in the catalog
+      // if the request fails, so the button never no-op's silently.
       const entry = SECONDARY_LAYERS.find((l) => l.id === layerId);
       if (entry?.vectorTile) {
-        const { workspace, sourceLayer, bounds: fallback } = entry.vectorTile;
-        if (workspace && sourceLayer) {
-          try {
-            const r = await trackPromise(
-              fetch(`/api/tiles/bounds/${workspace}/${sourceLayer}`),
-            );
-            if (r.ok) {
-              const { bounds } = await r.json();
-              if (
-                Array.isArray(bounds) &&
-                bounds.length === 4 &&
-                bounds.every(Number.isFinite)
-              ) {
-                zoomToBbox(bounds);
-                return;
-              }
-            }
-          } catch (err) {
-            console.warn(`vt bounds fetch failed for ${layerId}:`, err);
+        const { workspace, sourceLayer, boundsPath, bounds: fallback } =
+          entry.vectorTile;
+        const tryUrl = async (url) => {
+          const r = await trackPromise(fetch(url));
+          if (!r.ok) return false;
+          const { bounds } = await r.json();
+          if (
+            Array.isArray(bounds) &&
+            bounds.length === 4 &&
+            bounds.every(Number.isFinite)
+          ) {
+            zoomToBbox(bounds);
+            return true;
           }
+          return false;
+        };
+        try {
+          if (boundsPath && (await tryUrl(boundsPath))) return;
+          if (
+            workspace &&
+            sourceLayer &&
+            (await tryUrl(`/api/tiles/bounds/${workspace}/${sourceLayer}`))
+          ) {
+            return;
+          }
+        } catch (err) {
+          console.warn(`vt bounds fetch failed for ${layerId}:`, err);
         }
         if (fallback) zoomToBbox(fallback);
         return;

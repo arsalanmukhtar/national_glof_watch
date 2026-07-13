@@ -34,6 +34,9 @@ const ALLOWED_LAYERS = new Set([
   'minor_dams',
   'major_dams',
   'monsoon_basins',
+  // Note: glacial_inventory is served exclusively via the MVT endpoint
+  // (/api/tiles/mvt/secondary/glacial_inventory) — the ~180 MB GeoJSON
+  // payload would stall the browser on parse.
 ]);
 
 export const secondaryRouter = express.Router();

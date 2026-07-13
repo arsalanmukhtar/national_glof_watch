@@ -43,6 +43,7 @@ const SECONDARY_API_LAYERS = new Set([
   'minor_dams',
   'major_dams',
   'monsoon_basins',
+  // glacial_inventory served exclusively via MVT — see SecondaryContext.
 ]);
 
 // Live PMD GIS layers proxied via /api/gis. Upstream uses a private CA

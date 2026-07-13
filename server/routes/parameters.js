@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Readable } from 'node:stream';
 import { getCachedStationStatus } from '../lib/pmd.js';
-import { stateLabel } from '../lib/datascape.js';
+import { classifyAgainstTightened, stateLabel } from '../lib/datascape.js';
 import { storeAllStations } from '../lib/store.js';
 import { refreshAllThresholds } from '../lib/thresholds.js';
 import { pool } from '../lib/db.js';
@@ -290,6 +290,26 @@ parametersRouter.get('/:element/latest', async (req, res) => {
         ? Math.floor(Number(minStateRaw))
         : null;
 
+  // Early-warning classification factor (NDMA-side). When present, each
+  // feature gets `ourStateId` + `ourCrossedThreshold` computed against
+  // per-station bands tightened by this factor — see
+  // classifyAgainstTightened() in datascape.js for the direction-aware
+  // rule (0.9 shifts upper bounds down and lower bounds up by ~11%).
+  //
+  // Also flips how `minState` is applied: without earlyFactor, we filter
+  // in SQL on PMD's stateId; WITH earlyFactor we skip the SQL filter and
+  // filter in JS against ourStateId — a station PMD calls Normal may
+  // still surface as Pre-alarm on our tightened bands, so we mustn't
+  // drop it in SQL first.
+  const earlyRaw = req.query.earlyFactor;
+  const earlyFactor =
+    earlyRaw == null || earlyRaw === ''
+      ? null
+      : Number.isFinite(Number(earlyRaw))
+        ? Number(earlyRaw)
+        : null;
+  const applyStateFilterInSql = minState != null && earlyFactor == null;
+
   try {
     const { rows } = await pool.query(
       `SELECT DISTINCT ON (se.station_id)
@@ -309,7 +329,8 @@ parametersRouter.get('/:element/latest', async (req, res) => {
               crossed.operator   AS crossed_operator,
               crossed.min_json   AS crossed_min,
               crossed.max_json   AS crossed_max,
-              crossed.condition  AS crossed_condition
+              crossed.condition  AS crossed_condition,
+              th.alarms          AS alarms_json
          FROM station_elements se
          JOIN stations s ON s.station_id = se.station_id
          LEFT JOIN LATERAL (
@@ -343,54 +364,104 @@ parametersRouter.get('/:element/latest', async (req, res) => {
               AND (state->>'alertStateId')::int = lr.state_id
             LIMIT 1
          ) crossed ON true
+         LEFT JOIN LATERAL (
+           -- Full alarms JSONB — needed by the JS classifier below when
+           -- the earlyFactor query is set. NULL when we havent captured
+           -- thresholds for this element_id yet (station gets no
+           -- ourStateId — just falls back to PMD stateId on the client).
+           SELECT alarms FROM element_thresholds et
+            WHERE et.element_id = se.element_id
+            LIMIT 1
+         ) th ON true
         WHERE se.element_name = $1
           AND ($2::int IS NULL OR lr.state_id >= $2::int)
         ORDER BY se.station_id, lr.last_update DESC NULLS LAST`,
-      [element, minState],
+      [element, applyStateFilterInSql ? minState : null],
     );
+
+    // Build features. When earlyFactor is set, compute `ourStateId` +
+    // `ourCrossedThreshold` per row and then filter the resulting list
+    // against `minState` in JS.
+    let features = rows.map((r) => {
+      const stateId = r.state_id == null ? null : Number(r.state_id);
+      const hasCrossed =
+        r.crossed_label != null ||
+        r.crossed_operator != null ||
+        r.crossed_min != null ||
+        r.crossed_max != null ||
+        r.crossed_condition != null;
+
+      let ourStateId = null;
+      let ourCrossed = null;
+      if (earlyFactor != null && Array.isArray(r.alarms_json) && r.value != null) {
+        const result = classifyAgainstTightened(
+          r.value,
+          r.alarms_json,
+          earlyFactor,
+          element,
+        );
+        ourStateId = result.stateId;
+        if (result.crossed) {
+          ourCrossed = {
+            label:     result.crossed.label ?? null,
+            operator:  result.crossed.operator ?? null,
+            threshold: result.crossed.threshold,
+            alertStateId: result.crossed.alertStateId ?? null,
+          };
+        }
+      }
+
+      return {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [Number(r.lon), Number(r.lat)] },
+        properties: {
+          stationId: Number(r.station_id),
+          stationName: r.station_name,
+          elementId: r.element_id == null ? null : Number(r.element_id),
+          element: r.element,
+          value: r.value,
+          unit: r.unit ?? r.meas_unit ?? null,
+          stateId,
+          stateDescr: stateId == null ? null : stateLabel(stateId),
+          lastUpdate: r.last_update?.toISOString?.() ?? r.last_update,
+          fetchedAt: r.fetched_at?.toISOString?.() ?? r.fetched_at,
+          crossedThreshold: hasCrossed
+            ? {
+                label:     r.crossed_label,
+                operator:  r.crossed_operator,
+                min:       r.crossed_min == null ? null : Number(r.crossed_min),
+                max:       r.crossed_max == null ? null : Number(r.crossed_max),
+                condition: r.crossed_condition,
+              }
+            : null,
+          // Present ONLY when the caller passed `?earlyFactor=`. `null`
+          // ourStateId means we don't have thresholds for this element_id
+          // yet (or the reading is null) — client should fall back to
+          // PMD's stateId in that case.
+          ourStateId,
+          ourStateDescr: ourStateId == null ? null : stateLabel(ourStateId),
+          ourCrossedThreshold: ourCrossed,
+        },
+      };
+    });
+
+    // When early-warning is active, filter here rather than in SQL —
+    // a PMD-Normal station might promote into Pre-alarm on our tightened
+    // bands and we'd miss it if we filtered by `state_id` earlier.
+    if (earlyFactor != null && minState != null) {
+      features = features.filter((f) => (f.properties.ourStateId ?? -1) >= minState);
+    }
 
     res.json({
       type: 'FeatureCollection',
       metadata: {
         element,
-        count: rows.length,
+        count: features.length,
         source: 'db',
         minState,
+        earlyFactor,
       },
-      features: rows.map((r) => {
-        const stateId = r.state_id == null ? null : Number(r.state_id);
-        const hasCrossed =
-          r.crossed_label != null ||
-          r.crossed_operator != null ||
-          r.crossed_min != null ||
-          r.crossed_max != null ||
-          r.crossed_condition != null;
-        return {
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [Number(r.lon), Number(r.lat)] },
-          properties: {
-            stationId: Number(r.station_id),
-            stationName: r.station_name,
-            elementId: r.element_id == null ? null : Number(r.element_id),
-            element: r.element,
-            value: r.value,
-            unit: r.unit ?? r.meas_unit ?? null,
-            stateId,
-            stateDescr: stateId == null ? null : stateLabel(stateId),
-            lastUpdate: r.last_update?.toISOString?.() ?? r.last_update,
-            fetchedAt: r.fetched_at?.toISOString?.() ?? r.fetched_at,
-            crossedThreshold: hasCrossed
-              ? {
-                  label:     r.crossed_label,
-                  operator:  r.crossed_operator,
-                  min:       r.crossed_min == null ? null : Number(r.crossed_min),
-                  max:       r.crossed_max == null ? null : Number(r.crossed_max),
-                  condition: r.crossed_condition,
-                }
-              : null,
-          },
-        };
-      }),
+      features,
     });
   } catch (err) {
     console.error('[GET latest]', err);

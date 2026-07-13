@@ -182,6 +182,18 @@ export const LAYER_DEFAULT_SYMBOLOGY = {
     strokeWidth: 1.25,
     strokeOpacity: 1,
   },
+  glacial_inventory: {
+    // RGI glaciers — icy pale-blue fill with a slightly darker outline
+    // so 28k polygons don't drown the map in solid colour. Thin stroke
+    // (0.75 px) keeps individual glacier boundaries readable at wide
+    // zooms without turning the layer into a mesh of thick lines.
+    type: 'simple',
+    fillColor: '#bae6fd',       // sky-200 — light ice blue
+    fillOpacity: 0.55,
+    strokeColor: '#0369a1',     // sky-700 — deeper glacier outline
+    strokeOpacity: 0.9,
+    strokeWidth: 0.75,
+  },
 };
 
 // True when the layer id has a configured default — used by MapPanel to

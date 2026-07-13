@@ -20,6 +20,7 @@ import {
   MapPin,
   MapPinned,
   Mountain,
+  MountainSnow,
   Radio,
   RadioTower,
   SatelliteDish,
@@ -91,6 +92,7 @@ const LAYER_ICONS = {
   minor_dams:                       Fence,
   major_dams:                       Vault,
   monsoon_basins:                   CloudRain,
+  glacial_inventory:                MountainSnow,
 };
 
 const ACCEPTED_TYPES = '.geojson,.json,application/geo+json,application/json,.zip,application/zip';

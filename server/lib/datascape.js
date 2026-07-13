@@ -229,6 +229,166 @@ function fmtTrendPeriod(minutes) {
   return minutes % 60 === 0 ? `${minutes / 60}h` : `${minutes}m`;
 }
 
+// ---------------------------------------------------------------------------
+// Direction-aware threshold tightening. Used for NDMA's "early-warning"
+// classification: same alarm bands as PMD, but each threshold is nudged
+// 10% *closer* to the safe zone regardless of operator direction.
+//
+//   Operator '>' or '≥' → threshold is an UPPER bound (alarm above X).
+//   Tighten by MULTIPLYING by `factor` (< 1) so the threshold moves DOWN.
+//   PMD: alarm if value > 30; factor 0.9 → ours: alarm if value > 27.
+//
+//   Operator '<' or '≤' → threshold is a LOWER bound (alarm below X).
+//   Tighten by MULTIPLYING by 1/factor (> 1) so the threshold moves UP.
+//   PMD: alarm if value < 12; factor 0.9 → ours: alarm if value < 13.33.
+//
+// Range operator ('range') is left alone — the safe zone is bounded on
+// both sides and tightening it needs a policy call we don't have (does
+// 10% mean shrink each side by 5%? symmetric absolute? etc.). Anything
+// we can't classify falls back to PMD's own stateId elsewhere.
+//
+// classifyAgainstTightened(value, alarms, factor) returns:
+//   { stateId, crossed: { label, operator, threshold, ...state } | null }
+// where `stateId` is the WORST (highest-severity) `alertStateId` whose
+// tightened band the current value crosses, and `crossed` is a copy of
+// that state entry with `threshold` set to the actual tightened value.
+// If nothing crosses, returns { stateId: 0, crossed: null } — same "no
+// alert" semantic PMD uses (Normal = 0).
+// ---------------------------------------------------------------------------
+
+const UPPER_OPS = new Set(['>', '≥', '>=', 'gt', 'ge']);
+const LOWER_OPS = new Set(['<', '≤', '<=', 'lt', 'le']);
+
+// Per-element-name overrides for the early-warning classifier. The
+// default (multiplicative ×0.9 / ÷0.9) misbehaves for parameters whose
+// safe value is far from zero:
+//   • Atmospheric Pressure — normal ~1013 hPa, PMD alarm ≤ 990.
+//     ÷0.9 → tightened Warning ≤ 1100, which every normal reading
+//     satisfies → 100% false-positive rate.
+//   • Any parameter whose thresholds cluster tightly around a non-zero
+//     baseline (pH, calibrated depth sensors, etc.).
+// For these, we skip early-warning and fall back to PMD's own stateId
+// — better to under-warn than cry wolf on every reading. Extend this
+// map as new parameters surface the same problem.
+const EARLY_WARNING_OVERRIDES = {
+  'Atmospheric Pressure': { mode: 'skip' },
+};
+
+// Given an alarm's ordered `states` array, decide whether severity
+// climbs with value (ascending) or drops with it (descending). Look at
+// pairs of states that both have numeric `min`s and both have
+// `alertStateId > 0` (the Normal band is uninformative). If EVERY such
+// pair has higher-min → higher-severity, ascending. If EVERY pair goes
+// the other way, descending. Anything else defaults to ascending (the
+// PMD-typical case), which is safe: an ascending classifier applied to
+// descending bands under-warns, it never falsely alarms.
+function detectDirection(states) {
+  const points = [];
+  for (const s of states) {
+    if (s?.operator !== 'range') continue;
+    const min = Number(s?.min);
+    const sid = Number(s?.alertStateId);
+    if (!Number.isFinite(min) || !Number.isFinite(sid) || sid <= 0) continue;
+    points.push({ min, sid });
+  }
+  if (points.length < 2) return 'ascending';
+  points.sort((a, b) => a.min - b.min);
+  let asc = 0;
+  let desc = 0;
+  for (let i = 1; i < points.length; i++) {
+    if (points[i].sid > points[i - 1].sid) asc++;
+    else if (points[i].sid < points[i - 1].sid) desc++;
+  }
+  if (desc > 0 && asc === 0) return 'descending';
+  return 'ascending';
+}
+
+export function classifyAgainstTightened(value, alarms, factor, elementName) {
+  if (value == null) return { stateId: null, crossed: null };
+  const v = Number(value);
+  if (!Number.isFinite(v)) return { stateId: null, crossed: null };
+  if (!Array.isArray(alarms) || alarms.length === 0) {
+    return { stateId: null, crossed: null };
+  }
+  const f = Number(factor);
+  if (!Number.isFinite(f) || f <= 0) return { stateId: null, crossed: null };
+  const invF = 1 / f;
+
+  // Per-parameter safety hatch. `mode: 'skip'` returns null so the
+  // client falls back to PMD's stateId — matches how a station without
+  // captured thresholds is treated.
+  const override = elementName ? EARLY_WARNING_OVERRIDES[elementName] : null;
+  if (override?.mode === 'skip') return { stateId: null, crossed: null };
+
+  let worstStateId = 0;
+  let worstCrossed = null;
+
+  for (const alarm of alarms) {
+    // Direction is per-alarm — a station can have both a
+    // heat-risk alarm (ascending) and a battery-low alarm (descending)
+    // on the same element in theory. In practice a single alarm's
+    // states all point the same way.
+    const direction = detectDirection(alarm?.states ?? []);
+    for (const state of alarm?.states ?? []) {
+      const op = state?.operator;
+      const sid = Number(state?.alertStateId);
+      if (!Number.isFinite(sid)) continue;
+
+      const minRaw = state?.min;
+      const maxRaw = state?.max;
+      const minV = minRaw == null ? null : Number(minRaw);
+      const maxV = maxRaw == null ? null : Number(maxRaw);
+
+      let tightened = null;
+      let crossed = false;
+
+      if (UPPER_OPS.has(op) && minV != null && Number.isFinite(minV)) {
+        // "value > X" / "value ≥ X" — tighten X down so alert fires earlier.
+        tightened = minV * f;
+        crossed =
+          op === '≥' || op === '>=' ? v >= tightened : v > tightened;
+      } else if (LOWER_OPS.has(op) && minV != null && Number.isFinite(minV)) {
+        // "value < X" / "value ≤ X" — tighten X up so alert fires earlier.
+        tightened = minV * invF;
+        crossed =
+          op === '≤' || op === '<=' ? v <= tightened : v < tightened;
+      } else if (op === 'range') {
+        // Cascading range bands — the vast majority of PMD's
+        // definitions. Direction of severity matters:
+        //   ascending  — higher min → higher severity (heat, water level,
+        //     rainfall, wind, etc.). Tighten the LOWER edge downward and
+        //     match `value >= tightened_min` — worst-band-wins gives the
+        //     right classification.
+        //   descending — higher min → lower severity (battery voltage,
+        //     reservoir level for drought, etc.). Tighten the UPPER edge
+        //     upward and match `value < tightened_max`.
+        if (direction === 'ascending' && minV != null && Number.isFinite(minV)) {
+          tightened = minV * f;
+          crossed = v >= tightened;
+        } else if (
+          direction === 'descending' &&
+          maxV != null &&
+          Number.isFinite(maxV)
+        ) {
+          tightened = maxV * invF;
+          crossed = v < tightened;
+        } else {
+          continue;
+        }
+      } else {
+        continue;
+      }
+
+      if (crossed && sid > worstStateId) {
+        worstStateId = sid;
+        worstCrossed = { ...state, threshold: tightened };
+      }
+    }
+  }
+
+  return { stateId: worstStateId, crossed: worstCrossed };
+}
+
 // Decode a raw entryCfgs array into labelled threshold blocks, grouped by
 // alarmId. Each block: { alarmId, alarmName, type, trendPeriod, states[] }.
 export function parseEntryCfgs(entryCfgs, decimals = 2) {

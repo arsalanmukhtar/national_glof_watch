@@ -426,6 +426,8 @@ load "$DATA_DIR/static/water_shed_features.geojson"     "secondary.watersheds"
 load "$DATA_DIR/static/minor_dams_features.geojson"     "secondary.minor_dams"
 load "$DATA_DIR/static/major_dams_features.geojson"     "secondary.major_dams"
 load "$DATA_DIR/static/Monsoon_Basins.geojson"          "secondary.monsoon_basins"
+# Randolph Glacier Inventory subset — glacier extent polygons.
+load "$DATA_DIR/static/glaciel_inventory.geojson"       "secondary.glacial_inventory"
 
 echo
 echo "[done] $OK_COUNT ok / $SKIP_COUNT skipped / ${#FAIL_LIST[@]} failed"

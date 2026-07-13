@@ -53,6 +53,31 @@ export const SECONDARY_LAYERS = [
   { id: 'minor_dams',     label: 'Minor Dams',     geometry: 'point',   table: 'secondary.minor_dams'     },
   { id: 'major_dams',     label: 'Major Dams',     geometry: 'point',   table: 'secondary.major_dams'     },
   { id: 'monsoon_basins', label: 'Monsoon Basins', geometry: 'point',   table: 'secondary.monsoon_basins' },
+  // RGI glacier inventory (~28k polygons, ~180 MB source GeoJSON). The
+  // GeoJSON path would ship the whole layer in one payload and stall
+  // the browser on parse; instead we serve it as Mapbox Vector Tiles
+  // built on-the-fly by ST_AsMVT + ST_AsMVTGeom (see /api/tiles/mvt).
+  // Only the tiles currently in view are fetched, so the layer loads
+  // incrementally regardless of dataset size.
+  {
+    id: 'glacial_inventory',
+    label: 'Glacier Inventory',
+    geometry: 'polygon',
+    table: 'secondary.glacial_inventory',
+    vectorTile: {
+      tiles: ['/api/tiles/mvt/secondary/glacial_inventory/{z}/{x}/{y}.pbf'],
+      // sourceLayer is the second arg passed to ST_AsMVT — we use the
+      // table name for consistency with GeoServer's convention.
+      sourceLayer: 'glacial_inventory',
+      // ST_TileEnvelope produces XYZ (not TMS) coordinates, so no
+      // y-flip is needed. Leaving `scheme` off = Mapbox default 'xyz'.
+      minzoom: 0,
+      maxzoom: 22,
+      // "Zoom to extent" uses `/api/tiles/mvt-bounds/:schema/:table`
+      // resolved via MapContext — see the boundsPath below.
+      boundsPath: '/api/tiles/mvt-bounds/secondary/glacial_inventory',
+    },
+  },
 ];
 
 // Sensible defaults per geometry type. The accent color (#84cc16) keeps
