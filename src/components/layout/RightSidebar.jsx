@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FileBarChart, X } from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
 import ThresholdStationsCard from '@/components/dashboard/ThresholdStationsCard';
+import { useMonitoring } from '@/contexts/MonitoringContext';
 import { useSecondary } from '@/contexts/SecondaryContext';
 import { MEDIA_SECTIONS } from './MediaSwitcher';
 import { cn } from '@/utils/cn';
@@ -32,6 +33,25 @@ export default function RightSidebar({ className }) {
       setActiveId(null);
     }
   }, [sections, activeId]);
+
+  // When Monitoring is active the grid needs the full column width, so
+  // auto-collapse this panel. Remember which section was open before we
+  // collapsed and restore it when Monitoring turns off — the operator
+  // shouldn't lose their place because they took a comparison detour.
+  const { active: monitoringActive } = useMonitoring();
+  const preMonitoringId = useRef(null);
+  useEffect(() => {
+    if (monitoringActive) {
+      if (activeId != null) {
+        preMonitoringId.current = activeId;
+        setActiveId(null);
+      }
+    } else if (preMonitoringId.current != null) {
+      setActiveId(preMonitoringId.current);
+      preMonitoringId.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monitoringActive]);
 
   // Right column structure:
   //   ┌─────────────────────────────────────┐

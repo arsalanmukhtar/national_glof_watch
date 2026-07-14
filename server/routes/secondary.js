@@ -66,6 +66,50 @@ secondaryRouter.get('/sensor-counts', async (_req, res) => {
   }
 });
 
+// GET /api/secondary/monitoring-districts
+// Districts polygon set filtered to the two provinces that contain
+// every GLOF-monitoring station (Gilgit Baltistan + Khyber
+// Pakhtunkhwa). Served as its own endpoint (not via the generic
+// /:layer route) because:
+//   1. The filter is a fixed policy call for the Monitoring surface,
+//      not a parameter the client should set.
+//   2. district_boundary is deliberately NOT in ALLOWED_LAYERS — we
+//      don't want the full unfiltered dataset shipped to callers that
+//      only need this subset.
+// Declared BEFORE /:layer so the "monitoring-districts" segment isn't
+// swallowed by the generic FeatureCollection route below.
+secondaryRouter.get('/monitoring-districts', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT json_build_object(
+        'type', 'FeatureCollection',
+        'features', COALESCE(json_agg(
+          json_build_object(
+            'type', 'Feature',
+            'geometry', ST_AsGeoJSON(geom)::json,
+            'properties', jsonb_build_object(
+              -- INITCAP normalises the district / division / province
+              -- casing so the map label reads "Skardu" instead of the
+              -- source's shouty "SKARDU" — same rule for the two admin
+              -- levels so future consumers get consistent capitalisation.
+              'district', INITCAP(districts),
+              'division', INITCAP(division),
+              'province', INITCAP(province)
+            )
+          )
+        ), '[]'::json)
+      ) AS fc
+      FROM secondary.district_boundary
+      WHERE province IN ('Gilgit Baltistan', 'Khyber Pakhtunkhwa')
+    `);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json(rows[0]?.fc ?? { type: 'FeatureCollection', features: [] });
+  } catch (err) {
+    console.error('GET /api/secondary/monitoring-districts failed:', err);
+    res.status(500).json({ error: 'Query failed', detail: err.message });
+  }
+});
+
 // GET /api/secondary/:layer
 // Returns a GeoJSON FeatureCollection assembled inside Postgres. The
 // FeatureCollection is shaped on the server so the client can pipe the

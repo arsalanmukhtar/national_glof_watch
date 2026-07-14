@@ -250,6 +250,116 @@
   50%, 90%      { background-position: 0px 50px, 15px 58px, 30px 66px, 45px 78px, 60px 90px; }
 }
 
+/* ---------------------------------------------------------------------------
+   Monitoring station hover popup
+   ---------------------------------------------------------------------------
+   Applied to Mapbox Popups created by MonitoringMap when the cursor
+   enters a station dot. Overrides Mapbox's default white balloon so the
+   popup blends with the day/night palette; the little tip triangle is
+   recoloured too so it doesn't stand out as a white notch.
+   Keep classnames in sync with MonitoringMap's `Popup({ className })`. */
+.monitoring-hover-popup .mapboxgl-popup-content {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  /* No border — the 1 px border was creating a visible seam between
+     the popup body and the tip triangle (the tip fills against the
+     body edge, but the border sat on top of that intersection and
+     made the tip look disconnected). Box-shadow alone gives enough
+     definition against both light and satellite basemaps. */
+  border: none;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.3);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* `html.dark` cascades through the map container, so `.dark <popup>`
+   picks the popup up wherever Mapbox appends it. Explicit hex colours
+   (not theme()) so we don't depend on PostCSS's Tailwind resolver
+   inside plain-CSS blocks. */
+.dark .monitoring-hover-popup .mapboxgl-popup-content {
+  background: #0f172a;
+  color: #f1f5f9;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.65);
+}
+
+/* Mapbox's tip is a CSS-border triangle: three sides of the 10-px
+   border are transparent and ONE side is coloured (which side depends
+   on the popup's anchor). To restyle the tip cleanly for our themes:
+     1. Reset all four border-colors to transparent so previously-set
+        white/dark values from Mapbox's per-anchor rules can't bleed
+        through as a wrong-colour notch.
+     2. Per-anchor, colour just the one border that forms the visible
+        triangle — matching bg to popup content in each theme.
+   Both anchor-cardinal (top/bottom/left/right) and anchor-corner
+   variants get their own rule. */
+.monitoring-hover-popup .mapboxgl-popup-tip {
+  border-color: transparent !important;
+}
+
+/* Light theme — popup content is #ffffff, so tip matches white. */
+.monitoring-hover-popup.mapboxgl-popup-anchor-top .mapboxgl-popup-tip,
+.monitoring-hover-popup.mapboxgl-popup-anchor-top-left .mapboxgl-popup-tip,
+.monitoring-hover-popup.mapboxgl-popup-anchor-top-right .mapboxgl-popup-tip {
+  border-bottom-color: #ffffff !important;
+}
+.monitoring-hover-popup.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip,
+.monitoring-hover-popup.mapboxgl-popup-anchor-bottom-left .mapboxgl-popup-tip,
+.monitoring-hover-popup.mapboxgl-popup-anchor-bottom-right .mapboxgl-popup-tip {
+  border-top-color: #ffffff !important;
+}
+.monitoring-hover-popup.mapboxgl-popup-anchor-left .mapboxgl-popup-tip {
+  border-right-color: #ffffff !important;
+}
+.monitoring-hover-popup.mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
+  border-left-color: #ffffff !important;
+}
+
+/* Dark theme — popup content is #0f172a, tip matches. */
+.dark .monitoring-hover-popup.mapboxgl-popup-anchor-top .mapboxgl-popup-tip,
+.dark .monitoring-hover-popup.mapboxgl-popup-anchor-top-left .mapboxgl-popup-tip,
+.dark .monitoring-hover-popup.mapboxgl-popup-anchor-top-right .mapboxgl-popup-tip {
+  border-bottom-color: #0f172a !important;
+}
+.dark .monitoring-hover-popup.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip,
+.dark .monitoring-hover-popup.mapboxgl-popup-anchor-bottom-left .mapboxgl-popup-tip,
+.dark .monitoring-hover-popup.mapboxgl-popup-anchor-bottom-right .mapboxgl-popup-tip {
+  border-top-color: #0f172a !important;
+}
+.dark .monitoring-hover-popup.mapboxgl-popup-anchor-left .mapboxgl-popup-tip {
+  border-right-color: #0f172a !important;
+}
+.dark .monitoring-hover-popup.mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
+  border-left-color: #0f172a !important;
+}
+
+/* Coloured status dot inside the popup content. Colour is set inline
+   via a CSS variable from MonitoringMap so it matches the station's
+   current alert-state palette. */
+.monitoring-hover-popup .mhp-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.monitoring-hover-popup .mhp-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--mhp-dot, #94a3b8);
+  border: 1px solid rgba(15, 23, 42, 0.35);
+}
+
+.dark .monitoring-hover-popup .mhp-dot {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
 @keyframes ballStepUp {
   0%   { transform: translate(0, 0); }
   5%   { transform: translate(8px, -14px); }

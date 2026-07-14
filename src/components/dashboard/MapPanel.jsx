@@ -854,6 +854,12 @@ export default function MapPanel({ className, onMapReady }) {
       );
       if (cancelled || !mapRef.current) return;
 
+      // Second pass: install the layers. Vector-tile sources download
+      // their first tile burst asynchronously — wrap each new one in a
+      // trackPromise so the map loader stays up until the source has
+      // finished loading, matching the UX of GeoJSON layers whose fetch
+      // is inherently async.
+      const vtWaits = [];
       for (const entry of resolved) {
         if (!entry) continue;
         // For vector-tile entries we don't have the FeatureCollection
@@ -895,8 +901,20 @@ export default function MapPanel({ className, onMapReady }) {
           }
         }
 
+        const wasNewSource =
+          entry.o.vectorTile &&
+          !map.getSource(`${OVERLAY_PREFIX}${entry.o.key}`);
         ensureOverlay(map, entry.o.key, geometry, entry.data, style, entry.o.vectorTile);
         tracked.add(entry.o.key);
+        if (wasNewSource) {
+          vtWaits.push(waitForVectorTileLoad(map, `${OVERLAY_PREFIX}${entry.o.key}`));
+        }
+      }
+      if (vtWaits.length > 0) {
+        // Fire-and-forget — trackPromise increments the loader counter
+        // for the duration of the wait so the spinner is visible while
+        // the first tile burst is in flight.
+        trackPromise(Promise.all(vtWaits));
       }
     };
 
@@ -932,6 +950,7 @@ export default function MapPanel({ className, onMapReady }) {
         ),
       );
       if (!mapRef.current) return;
+      const vtWaits = [];
       for (const entry of resolved) {
         if (!entry) continue;
         const geometry = entry.o.vectorTile
@@ -958,9 +977,16 @@ export default function MapPanel({ className, onMapReady }) {
             }
           }
         }
+        const wasNewSource =
+          entry.o.vectorTile &&
+          !map.getSource(`${OVERLAY_PREFIX}${entry.o.key}`);
         ensureOverlay(map, entry.o.key, geometry, entry.data, style, entry.o.vectorTile);
         map._renderedOverlays.add(entry.o.key);
+        if (wasNewSource) {
+          vtWaits.push(waitForVectorTileLoad(map, `${OVERLAY_PREFIX}${entry.o.key}`));
+        }
       }
+      if (vtWaits.length > 0) trackPromise(Promise.all(vtWaits));
     };
 
     map.on('style.load', onStyleLoad);
@@ -1598,6 +1624,38 @@ function applyPaintProps(map, layerId, paint) {
   }
 }
 
+// Resolve when a newly-added vector-tile source has loaded its first
+// tile burst. Mapbox emits `sourcedata` on every tile arrival, and
+// `isSourceLoaded` flips true when the currently-visible tiles have all
+// settled. We time-cap at 8 s so a stuck upstream never keeps the map
+// loader spinning forever — the layer will still populate as later
+// pan/zoom triggers arrive.
+function waitForVectorTileLoad(map, sourceId, timeoutMs = 8000) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      map.off('sourcedata', onData);
+      clearTimeout(timer);
+      resolve();
+    };
+    const onData = (e) => {
+      if (e.sourceId !== sourceId) return;
+      if (e.isSourceLoaded) finish();
+    };
+    // Guard: if the source is already loaded when we start listening
+    // (rare — the reconcile pass runs synchronously after addSource),
+    // isSourceLoaded returns immediately truthy on the next tick.
+    if (map.isSourceLoaded?.(sourceId)) {
+      queueMicrotask(finish);
+      return;
+    }
+    map.on('sourcedata', onData);
+    const timer = setTimeout(finish, timeoutMs);
+  });
+}
+
 function ensureOverlay(map, key, geometry, data, style, vectorTile) {
   const ids = overlayIds(key);
   const labelId = overlayLabelId(key);
@@ -1610,9 +1668,23 @@ function ensureOverlay(map, key, geometry, data, style, vectorTile) {
   const source = map.getSource(ids.source);
   if (vectorTile) {
     if (!source) {
+      // Absolutize tile URLs. Mapbox fetches tiles inside a Web Worker
+      // that has no `window.location` context, so a relative `/api/…`
+      // path throws `Failed to construct 'Request': Failed to parse URL`
+      // the moment the worker tries `new Request(url)`. Prefixing with
+      // the page's origin makes the URL parseable in-worker; absolute
+      // URLs (starting with http:/https:) pass through unchanged so a
+      // GeoServer host stays whatever the caller specified.
+      const origin =
+        typeof window !== 'undefined' && window.location
+          ? window.location.origin
+          : '';
+      const absTiles = (vectorTile.tiles ?? []).map((t) =>
+        /^https?:\/\//i.test(t) ? t : `${origin}${t}`,
+      );
       map.addSource(ids.source, {
         type: 'vector',
-        tiles: vectorTile.tiles,
+        tiles: absTiles,
         // TMS y-axis flip — GeoServer GWC serves TMS by default. If the
         // caller declared `xyz`, honour that; anything else defaults to
         // TMS since every tile URL we're currently wired to is GWC.

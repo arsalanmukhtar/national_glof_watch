@@ -3,9 +3,13 @@ import LeftSidebar from '@/components/layout/LeftSidebar';
 import RightSidebar from '@/components/layout/RightSidebar';
 import { GLACIER_LAYER_ID } from '@/config/glacierLayer';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
+import { useMonitoring } from '@/contexts/MonitoringContext';
 import MapPanel from './MapPanel';
 import ChartsRow from './ChartsRow';
+import MonitoringChartsPanel from './MonitoringChartsModal';
+import MonitoringGrid from './MonitoringGrid';
 import QuickToggles from './QuickToggles';
+import { cn } from '@/utils/cn';
 
 const TERRAIN_SPEC = { source: 'mapbox-dem', exaggeration: 1.5 };
 
@@ -13,6 +17,7 @@ export default function Dashboard() {
   const [map, setMap] = useState(null);
   const [quickLayers, setQuickLayers] = useState(() => new Set(['terrain']));
   const { chartTab } = useAttributeTables();
+  const { active: monitoringActive } = useMonitoring();
   // When the chart card's "Attributes Table" tab is active, fold the
   // map away (h-0) so the table can take the entire column. The map
   // stays mounted; MapPanel's internal ResizeObserver handles the
@@ -73,12 +78,31 @@ export default function Dashboard() {
       <LeftSidebar />
 
       <div className="flex flex-col flex-1 min-w-0 min-h-0 gap-3 overflow-hidden">
-        <QuickToggles active={quickLayers} onToggle={toggleQuickLayer} />
-        <MapPanel
-          className={tableMode ? 'h-0 overflow-hidden' : 'flex-1 min-h-0'}
-          onMapReady={setMap}
-        />
-        <ChartsRow />
+        {monitoringActive ? (
+          // Monitoring mode takes over the whole middle column — no
+          // QuickToggles, no ChartsRow, no main MapPanel. The grid and
+          // the Charts panel sit as flex-row siblings so opening the
+          // panel naturally compacts the grid instead of overlaying it
+          // (the panel is NOT a modal on purpose — the operator needs
+          // to keep clicking dots while the charts are up).
+          <div className="flex flex-1 min-h-0 min-w-0 gap-3">
+            <MonitoringGrid className="flex-1 min-w-0" />
+            <MonitoringChartsPanel />
+          </div>
+        ) : null}
+        <div
+          className={cn(
+            'flex flex-col flex-1 min-w-0 min-h-0 gap-3',
+            monitoringActive && 'hidden',
+          )}
+        >
+          <QuickToggles active={quickLayers} onToggle={toggleQuickLayer} />
+          <MapPanel
+            className={tableMode ? 'h-0 overflow-hidden' : 'flex-1 min-h-0'}
+            onMapReady={setMap}
+          />
+          <ChartsRow />
+        </div>
       </div>
 
       <RightSidebar />

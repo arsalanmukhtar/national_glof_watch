@@ -43,7 +43,7 @@ ChartJS.register(
   Filler,
 );
 
-const TOKENS = {
+export const TOKENS = {
   day: {
     text:       '#475569',
     grid:       'rgba(148, 163, 184, 0.28)',
@@ -77,7 +77,7 @@ const TOKENS = {
 //      "May 6" begins).
 // Configured via `options.plugins.dayMarker` (theme colors + max-pill
 // budget so very-long windows don't crowd the top of the chart).
-const dayMarkerPlugin = {
+export const dayMarkerPlugin = {
   id: 'dayMarker',
   beforeDatasetsDraw(chart, _args, opts) {
     if (!opts?.enabled) return;
@@ -202,7 +202,7 @@ const dayMarkerPlugin = {
 // Configured via `options.plugins.extremeMarker`:
 //   { enabled, lowColor, highColor, periodMs, baseRadius, growRadius, dotRadius }
 // ---------------------------------------------------------------------------
-const extremeMarkerPlugin = {
+export const extremeMarkerPlugin = {
   id: 'extremeMarker',
   beforeUpdate(chart, _args, opts) {
     if (!opts?.enabled) return;
@@ -366,7 +366,7 @@ function extremeTooltipLabelColor(item, fallback) {
 // RAF loop. The early return prevents the pulse phase from being reset
 // on incidental animation events (hover, resize) — only the first
 // completion after a `beforeUpdate` re-arm restarts the timer.
-function extremeMarkerOnComplete() {
+export function extremeMarkerOnComplete() {
   const chart = this;
   if (!chart || chart.destroyed) return;
   if (chart._extremeReady) return;
@@ -419,7 +419,7 @@ function formatTooltipTitle(iso) {
   return `${date} · ${time}`;
 }
 
-function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
+export function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
   const t = TOKENS[theme];
   return {
     responsive: true,
@@ -1793,7 +1793,7 @@ function escapeHtml(s) {
 
 // Hex (#rrggbb) → rgba(r,g,b,a). Used to derive a translucent fill from the
 // solid line color so the chart area tint matches the parameter's palette.
-function hexToRgba(hex, alpha) {
+export function hexToRgba(hex, alpha) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex ?? '');
   if (!m) return `rgba(132, 204, 22, ${alpha})`;
   const r = parseInt(m[1], 16);
@@ -1805,7 +1805,7 @@ function hexToRgba(hex, alpha) {
 // Vertical two-stop brand gradient — the trend chart's default for any
 // element that has no curated PARAMETER_GRADIENTS entry, so a brand-new
 // element still gets a themed line instead of a flat color.
-function brandGradient(ctx, chartArea, alpha) {
+export function brandGradient(ctx, chartArea, alpha) {
   if (!ctx || !chartArea) return null;
   const g = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
   g.addColorStop(0, hexToRgba('#4d7c0f', alpha));

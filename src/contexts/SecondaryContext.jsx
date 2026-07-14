@@ -69,8 +69,11 @@ export const SECONDARY_LAYERS = [
       // sourceLayer is the second arg passed to ST_AsMVT — we use the
       // table name for consistency with GeoServer's convention.
       sourceLayer: 'glacial_inventory',
-      // ST_TileEnvelope produces XYZ (not TMS) coordinates, so no
-      // y-flip is needed. Leaving `scheme` off = Mapbox default 'xyz'.
+      // ST_TileEnvelope in PostGIS uses XYZ (top-left origin). Must set
+      // this explicitly — ensureOverlay defaults to 'tms' (bottom-left)
+      // for GeoServer/GWC compatibility, which would y-flip our requests
+      // and hit tile coords that never match the current view.
+      scheme: 'xyz',
       minzoom: 0,
       maxzoom: 22,
       // "Zoom to extent" uses `/api/tiles/mvt-bounds/:schema/:table`

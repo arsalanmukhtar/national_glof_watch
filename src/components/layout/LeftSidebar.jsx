@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   CloudDownload,
@@ -11,27 +11,31 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react';
+import { TbHeartRateMonitor } from 'react-icons/tb';
 import Tooltip from '@/components/ui/Tooltip';
 import CsvDataPanel from '@/components/dashboard/CsvDataPanel';
 import ExportLayersModal from '@/components/dashboard/ExportLayersModal';
 import GeeImageryPanel from '@/components/dashboard/GeeImageryPanel';
 import GeoAnalysisPanel from '@/components/dashboard/GeoAnalysisPanel';
 import LayerMenu from '@/components/dashboard/LayerMenu';
+import MonitoringPanel from '@/components/dashboard/MonitoringPanel';
 import ParametersPanel from '@/components/dashboard/ParametersPanel';
 import RasterLayersPanel from '@/components/dashboard/RasterLayersPanel';
 import SecondaryPanel from '@/components/dashboard/SecondaryPanel';
+import { useMonitoring } from '@/contexts/MonitoringContext';
 import { cn } from '@/utils/cn';
 
 // All non-Primary icons are "solo" modes — turning one on clears the
 // rest. Primary fans out to both PMD parameters and Layers panels at
 // once; toggling it off / clicking another icon dismisses it.
-const SECONDARY_ID = 'secondary';
-const CSV_ID       = 'csv';
-const RASTER_ID    = 'raster';
-const GEE_ID       = 'gee';
-const TOOLBOX_ID   = 'toolbox';
-const PRIMARY_IDS  = ['parameters', 'layers'];
-const SOLO_IDS     = [SECONDARY_ID, CSV_ID, RASTER_ID, GEE_ID, TOOLBOX_ID];
+const SECONDARY_ID  = 'secondary';
+const MONITORING_ID = 'monitoring';
+const CSV_ID        = 'csv';
+const RASTER_ID     = 'raster';
+const GEE_ID        = 'gee';
+const TOOLBOX_ID    = 'toolbox';
+const PRIMARY_IDS   = ['parameters', 'layers'];
+const SOLO_IDS      = [SECONDARY_ID, MONITORING_ID, CSV_ID, RASTER_ID, GEE_ID, TOOLBOX_ID];
 
 const SECTIONS = [
   {
@@ -57,6 +61,14 @@ const SECTIONS = [
     title: 'Secondary Layers',
     grow: true,
     render: () => <SecondaryPanel />,
+  },
+  {
+    id: MONITORING_ID,
+    label: 'Monitoring',
+    headerIcon: TbHeartRateMonitor,
+    title: 'Monitoring',
+    grow: true,
+    render: () => <MonitoringPanel />,
   },
   {
     id: CSV_ID,
@@ -98,13 +110,14 @@ const SECTIONS = [
 // off by a divider underneath the panel toggles.
 const EXPORT_ID = 'export';
 const ICON_BUTTONS = [
-  { id: 'primary',  label: 'Primary Layers',   icon: Layers },
-  { id: SECONDARY_ID, label: 'Secondary Layers', icon: Shapes },
-  { id: CSV_ID,     label: 'CSV Data',         icon: FileSpreadsheet },
-  { id: RASTER_ID,  label: 'Raster Layers',    icon: Grid3x3 },
-  { id: GEE_ID,     label: 'GEE Imagery',      icon: CloudDownload },
-  { id: TOOLBOX_ID, label: 'Geospatial Analysis Toolbox', icon: Hammer },
-  { id: EXPORT_ID,  label: 'Export Layers',    icon: HardDriveDownload },
+  { id: 'primary',      label: 'Primary Layers',   icon: Layers },
+  { id: SECONDARY_ID,   label: 'Secondary Layers', icon: Shapes },
+  { id: MONITORING_ID,  label: 'Monitoring',       icon: TbHeartRateMonitor },
+  { id: CSV_ID,         label: 'CSV Data',         icon: FileSpreadsheet },
+  { id: RASTER_ID,      label: 'Raster Layers',    icon: Grid3x3 },
+  { id: GEE_ID,         label: 'GEE Imagery',      icon: CloudDownload },
+  { id: TOOLBOX_ID,     label: 'Geospatial Analysis Toolbox', icon: Hammer },
+  { id: EXPORT_ID,      label: 'Export Layers',    icon: HardDriveDownload },
 ];
 
 export default function LeftSidebar({ className }) {
@@ -115,6 +128,13 @@ export default function LeftSidebar({ className }) {
   // Export still opens a modal — Toolbox is now a sidebar SOLO panel
   // so its own state lives in `activeIds`, not a separate flag.
   const [exportOpen, setExportOpen] = useState(false);
+  // Broadcast Monitoring on/off to the rest of the dashboard —
+  // Dashboard swaps the middle column for the map grid, and RightSidebar
+  // auto-collapses so the grid can take the whole available width.
+  const { setActive: setMonitoringActive } = useMonitoring();
+  useEffect(() => {
+    setMonitoringActive(activeIds.has(MONITORING_ID));
+  }, [activeIds, setMonitoringActive]);
 
   const toggleIconButton = (id) => {
     setActiveIds((prev) => {
