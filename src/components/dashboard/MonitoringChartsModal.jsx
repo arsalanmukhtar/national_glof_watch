@@ -14,19 +14,16 @@ import { cn } from '@/utils/cn';
 // toggle at the top so the operator compares the same slice of history
 // across every parameter at once.
 export default function MonitoringChartsPanel() {
-  const { layoutId } = useMonitoring();
-
-  // Trend window — shared across every row so all charts scale to the
-  // same X axis. Custom uses an inline number input, matching the main
-  // PMD Data Trend tab's contract.
-  const [mode, setMode] = useState('daily');
-  const [customDays, setCustomDays] = useState(14);
-  const days =
-    mode === 'daily'
-      ? 1
-      : mode === 'weekly'
-        ? 7
-        : Math.max(1, Math.min(60, Number(customDays) || 1));
+  // Trend window state is lifted into MonitoringContext so the report
+  // generator can read the same window without extra plumbing.
+  const {
+    layoutId,
+    chartWindowMode: mode,
+    setChartWindowMode: setMode,
+    chartCustomDays: customDays,
+    setChartCustomDays: setCustomDays,
+    chartDays: days,
+  } = useMonitoring();
 
   const layout = layoutById(layoutId);
   const areas = layout.areas;

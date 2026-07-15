@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AlertCircle, FileDown, Maximize2, Mountain, RotateCcw, Type } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { BASEMAPS } from '@/config/mapbox';
@@ -11,6 +12,8 @@ import {
 import { useParameter } from '@/contexts/ParameterContext';
 import { colorFor } from '@/config/parameterColors';
 import ParameterSelect from '@/components/ui/ParameterSelect';
+import MonitoringReportModal from '@/components/dashboard/MonitoringReportModal';
+import { generateMonitoringReport } from '@/services/monitoringReport';
 import { cn } from '@/utils/cn';
 
 // Config panel for the Monitoring feature. Shown in the LeftSidebar
@@ -47,11 +50,56 @@ export default function MonitoringPanel() {
     setDistrictsLabels,
     earlyWarning,
     setEarlyWarning,
+    earlyWarningFactor,
+    chartDays,
+    chartWindowMode,
+    chartCustomDays,
+    getMapApi,
+    getChartApi,
     resetView,
   } = useMonitoring();
   const { elements } = useParameter();
 
   const layout = layoutById(layoutId);
+
+  const [reportOpen, setReportOpen] = useState(false);
+
+  const handleReportConfirm = async ({ onProgress }) => {
+    // Assemble the per-cell input for the generator. Only cells that
+    // actually have a parameter assigned participate — the generator
+    // itself handles the "no station" case by leaving that section's
+    // map / chart empty rather than skipping the section entirely.
+    const cells = layout.areas
+      .map((area) => {
+        const parameter = cellParameters[area] ?? null;
+        if (!parameter) return null;
+        return {
+          cellKey: area,
+          parameter,
+          mapApi: getMapApi(area),
+          chartApi: getChartApi(area),
+        };
+      })
+      .filter(Boolean);
+
+    const chartWindowLabel =
+      chartWindowMode === 'daily'
+        ? 'Daily · past 24 hours'
+        : chartWindowMode === 'weekly'
+          ? 'Weekly · past 7 days'
+          : `Custom · past ${chartCustomDays} days`;
+
+    await generateMonitoringReport({
+      cells,
+      chartDays,
+      chartWindowLabel,
+      layoutId,
+      layoutLabel: layout.label,
+      earlyWarning,
+      earlyWarningFactor,
+      onProgress,
+    });
+  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -345,11 +393,7 @@ export default function MonitoringPanel() {
           <motion.button
             type="button"
             whileTap={{ scale: 0.97 }}
-            onClick={() => {
-              // TODO: wire to /api/reports/monitoring — accepts current
-              // cell parameters + selected station and returns PDF.
-              console.log('[monitoring] Export Report clicked (Phase 2)');
-            }}
+            onClick={() => setReportOpen(true)}
             className="inline-flex items-center justify-center gap-1 rounded-md bg-[#84cc16] px-1.5 py-1 text-[10.5px] font-semibold text-[#1a2e05] hover:bg-[#65a30d]"
           >
             <FileDown className="h-3 w-3" />
@@ -387,6 +431,15 @@ export default function MonitoringPanel() {
           </li>
         </ul>
       </div>
+
+      {/* Report confirmation modal — mounted here (not at Dashboard
+          level) because it's tied to the panel's own Report button
+          and consumes MonitoringContext, which is already in scope. */}
+      <MonitoringReportModal
+        open={reportOpen}
+        onCancel={() => setReportOpen(false)}
+        onConfirm={handleReportConfirm}
+      />
     </div>
   );
 }

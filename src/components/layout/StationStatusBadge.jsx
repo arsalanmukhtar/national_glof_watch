@@ -8,13 +8,17 @@ import { cn } from '@/utils/cn';
 // three counts the upstream reports (total / total active / currently
 // active) plus a "Last updated …" footer.
 //
-// Poll cadence: 30 minutes. The upstream rolls slowly enough that more
-// frequent polls just burn the proxy cache without surfacing new data.
-// A separate 60s tick updates the relative-time label so the user sees
-// the counter advance ("21 mins ago" → "22 mins ago") without paying
-// for a refetch.
-const REFRESH_MS = 30 * 60 * 1000;
-const TICK_MS    = 60 * 1000;
+// Poll cadence: 30 minutes once the badge has data. While no data has
+// ever loaded (backend booting, upstream PMD API slow, /station-status
+// still returning 503 with a warming cache), we retry every 30 s so
+// the pill fills in as soon as the backend is ready instead of
+// silently staying blank until the next 30-minute tick.
+// A separate 60s tick updates the relative-time label so the user
+// sees the counter advance ("21 mins ago" → "22 mins ago") without
+// paying for a refetch.
+const REFRESH_MS       = 30 * 60 * 1000;
+const RETRY_WHILE_EMPTY_MS = 30 * 1000;
+const TICK_MS          = 60 * 1000;
 
 export default function StationStatusBadge() {
   const [data, setData] = useState(null);
@@ -53,17 +57,24 @@ export default function StationStatusBadge() {
 
   useEffect(() => {
     load();
+    // Slow interval always ticks; a faster retry ticks only while we
+    // don't yet have data, so the pill fills in the moment the
+    // backend cache is warm rather than waiting up to 30 minutes.
     const refreshId = setInterval(load, REFRESH_MS);
-    const tickId    = setInterval(() => setNow(Date.now()), TICK_MS);
+    const retryId = setInterval(() => {
+      if (!data) load();
+    }, RETRY_WHILE_EMPTY_MS);
+    const tickId = setInterval(() => setNow(Date.now()), TICK_MS);
     return () => {
       clearInterval(refreshId);
+      clearInterval(retryId);
       clearInterval(tickId);
     };
-  }, [load]);
+  }, [load, data]);
 
   // Reserve space while the first request is in flight so the layout
-  // doesn't jolt once data lands; vanish only on a hard error. Width
-  // matches the rendered combined badge — feed label + metrics + footer.
+  // doesn't jolt once data lands. Width matches the rendered combined
+  // badge — feed label + metrics + footer.
   if (!loaded && !data) {
     return (
       <div
@@ -72,7 +83,12 @@ export default function StationStatusBadge() {
       />
     );
   }
-  if (error && !data) return null;
+  // Deliberately fall through to the render even when the fetch has
+  // failed — the badge itself is useful chrome (the label + refresh
+  // button remain interactive) and the metric columns show dashes
+  // via the `value ?? '—'` fallback in <Metric>. Previously a hard
+  // error hid the whole pill until a full page reload, which the
+  // operator experienced as "the section disappeared".
 
   // Hard-pinned to the published EWS station roster (279) regardless
   // of what the upstream count reports — the live API occasionally
@@ -102,26 +118,39 @@ export default function StationStatusBadge() {
       )}
       aria-label="PMD GLOF 2 live station status"
     >
-      {/* Feed identifier column — pulsing emerald dot + name on top,
-          "Updated …" + refresh button below. The bottom row uses
-          justify-between so the refresh icon hugs the column's right
-          edge (sitting right against the divider), matching the visual
-          weight of the top row. */}
+      {/* Feed identifier column — pulsing dot + name on top,
+          "Updated …" + refresh button below. Dot goes emerald when
+          the last fetch succeeded, amber while we're operating on a
+          missing/errored backend so the operator can tell "dashes"
+          apart from "actual zeros". */}
       <div className="flex flex-col justify-center gap-1 pr-2 border-r border-white/15">
         <div className="flex items-center gap-2">
           <span className="relative inline-flex h-2 w-2 shrink-0" aria-hidden>
-            <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-75" />
-            <span className="relative h-2 w-2 rounded-full bg-emerald-400" />
+            <span
+              className={cn(
+                'absolute inset-0 rounded-full animate-ping opacity-75',
+                data ? 'bg-emerald-400' : 'bg-amber-400',
+              )}
+            />
+            <span
+              className={cn(
+                'relative h-2 w-2 rounded-full',
+                data ? 'bg-emerald-400' : 'bg-amber-400',
+              )}
+            />
           </span>
           <span className="text-[12px] font-semibold uppercase tracking-[0.1em] whitespace-nowrap">
             PMD GLOF 2 Live
           </span>
         </div>
         <div className="flex items-center justify-between gap-2 leading-none">
-          <span className="text-[10px] text-white/60 whitespace-nowrap">
+          <span
+            className="text-[10px] text-white/60 whitespace-nowrap"
+            title={!data && error ? `Upstream unavailable: ${error}` : undefined}
+          >
             Updated{' '}
             <span className="text-white/85 tabular-nums">
-              {fetchedAt ? timeAgo(fetchedAt) : '—'}
+              {fetchedAt ? timeAgo(fetchedAt) : !data && error ? 'unavailable' : '—'}
             </span>
           </span>
           <button

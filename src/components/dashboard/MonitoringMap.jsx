@@ -15,6 +15,11 @@ import { cn } from '@/utils/cn';
 const STATIONS_SOURCE = 'monitoring-stations';
 const STATIONS_LAYER  = 'monitoring-stations-circle';
 const STATIONS_HALO   = 'monitoring-stations-halo';
+// Always-on station label. Small but legible dark-on-white so the
+// name reads over satellite imagery without dominating the alert
+// dots. Gated by `minzoom` so overview zoom stays scannable.
+const STATIONS_LABEL  = 'monitoring-stations-label';
+const STATIONS_LABEL_MIN_ZOOM = 7;
 // Two phase-shifted ring layers that pulse for every Alarm-classified
 // station (works for both PMD and NDMA — coloredCollection stamps the
 // shared `state` property off whichever classification is active). Same
@@ -266,6 +271,47 @@ function ensureStationLayers(map, data) {
       },
     });
   }
+  // Station name label — small dark text with a white halo for
+  // legibility across both satellite and light basemaps. Anchored
+  // above the dot with a small offset so the label sits clear of
+  // the coloured circle. `text-optional: true` lets Mapbox drop
+  // labels that would collide (dots still render), keeping the map
+  // scannable at moderate zoom levels.
+  if (!map.getLayer(STATIONS_LABEL)) {
+    map.addLayer({
+      id: STATIONS_LABEL,
+      type: 'symbol',
+      source: STATIONS_SOURCE,
+      minzoom: STATIONS_LABEL_MIN_ZOOM,
+      layout: {
+        'text-field': ['coalesce', ['get', 'stationName'], ''],
+        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+        'text-size': [
+          'interpolate', ['linear'], ['zoom'],
+          STATIONS_LABEL_MIN_ZOOM, 9, 10, 10.5, 14, 12,
+        ],
+        'text-offset': [0, -1.3],
+        'text-anchor': 'bottom',
+        'text-allow-overlap': false,
+        'text-optional': true,
+        // Sort alarming stations to the front so their labels win
+        // collision arbitration over greens/greys.
+        'symbol-sort-key': [
+          'case',
+          ['==', ['get', 'state'], 'alarm'],     0,
+          ['==', ['get', 'state'], 'pre_alarm'], 1,
+          ['==', ['get', 'state'], 'warning'],   2,
+          3,
+        ],
+      },
+      paint: {
+        'text-color': '#0f172a',
+        'text-halo-color': 'rgba(255, 255, 255, 0.95)',
+        'text-halo-width': 1.4,
+        'text-halo-blur': 0.4,
+      },
+    });
+  }
 }
 
 // Set the type-appropriate opacity paint property on a single layer.
@@ -301,6 +347,7 @@ function removeStationLayers(map) {
   for (const id of SEL_RIPPLE_LAYERS) {
     if (map.getLayer(id)) map.removeLayer(id);
   }
+  if (map.getLayer(STATIONS_LABEL)) map.removeLayer(STATIONS_LABEL);
   if (map.getLayer(STATIONS_LAYER)) map.removeLayer(STATIONS_LAYER);
   if (map.getLayer(STATIONS_HALO)) map.removeLayer(STATIONS_HALO);
   if (map.getSource(STATIONS_SOURCE)) map.removeSource(STATIONS_SOURCE);
@@ -336,6 +383,7 @@ export default function MonitoringMap({ cellKey }) {
     earlyWarningFactor,
     selectedStations,
     setSelectedStation,
+    registerMapApi,
   } = useMonitoring();
   const { elements } = useParameter();
 
@@ -481,6 +529,11 @@ export default function MonitoringMap({ cellKey }) {
       zoom: view.zoom,
       bearing: view.bearing,
       pitch: view.pitch,
+      // Required so `getCanvas().toDataURL()` returns actual pixels
+      // instead of black — the PDF report generator snapshots each
+      // cell this way. Small perf tax on redraw; worth it for the
+      // export path.
+      preserveDrawingBuffer: true,
     });
     mapRef.current = map;
 
@@ -527,6 +580,36 @@ export default function MonitoringMap({ cellKey }) {
     // handle every subsequent change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Register this cell's map API in the context registry so the
+  // report generator (or any other cross-cell consumer) can grab a
+  // PNG snapshot + the underlying map instance on demand. The
+  // snapshot forces one render tick so the preserveDrawingBuffer
+  // canvas is populated with fresh pixels before toDataURL().
+  useEffect(() => {
+    const api = {
+      getMap: () => mapRef.current,
+      snapshot: () =>
+        new Promise((resolve) => {
+          const map = mapRef.current;
+          if (!map) return resolve(null);
+          const grab = () => {
+            try {
+              resolve(map.getCanvas().toDataURL('image/png'));
+            } catch (err) {
+              console.warn('[monitoring] snapshot failed:', err);
+              resolve(null);
+            }
+          };
+          // One render tick guarantees the WebGL buffer is fresh —
+          // preserveDrawingBuffer only holds the LAST frame, so we
+          // trigger a repaint and grab in the following render event.
+          map.once('render', grab);
+          map.triggerRepaint();
+        }),
+    };
+    return registerMapApi(cellKey, api);
+  }, [cellKey, registerMapApi]);
 
   // Apply broadcast view whenever moveEpoch bumps AND this cell wasn't
   // the origin of that broadcast. `jumpTo` (not `easeTo`) so the sync
@@ -741,26 +824,14 @@ export default function MonitoringMap({ cellKey }) {
   // Click a station dot → sets this cell's selectedStation. Click the
   // same dot again → clears the selection (context handles the toggle
   // to keep the logic in one place). Cursor flips to a pointer over
-  // clickable dots so the interaction is discoverable. Mouseenter also
-  // spawns a themed Mapbox popup with the station name — kept on a
-  // ref so mouseleave (and unmount) can tear it down deterministically.
+  // clickable dots so the interaction is discoverable. The old
+  // mouseenter popup was removed once station names became always-on
+  // labels via the STATIONS_LABEL symbol layer — hover became
+  // redundant, and the popup was covering the label it was trying to
+  // preview.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return undefined;
-
-    // One popup instance per cell, reused for every hover so we don't
-    // churn DOM. `closeButton: false` because the popup lives only
-    // while the cursor is over the dot; `closeOnClick: false` because
-    // the click handler above owns click semantics.
-    // `offset: 12` leaves just enough gap for the tip triangle to
-    // sit between the popup body and the station dot without covering
-    // the dot itself.
-    const popup = new mapboxgl.Popup({
-      closeButton: false,
-      closeOnClick: false,
-      offset: 12,
-      className: 'monitoring-hover-popup',
-    });
 
     const onClick = (e) => {
       const f = e.features?.[0];
@@ -775,72 +846,37 @@ export default function MonitoringMap({ cellKey }) {
         lng: c[0],
         lat: c[1],
       });
-      // Fly to the picked station at a zoom that reveals the
-      // surrounding districts (not so tight the station is the only
-      // thing on screen). The flyTo issues a normal moveend which the
-      // sync layer picks up and propagates to every other cell, so
-      // clicking a dot in one cell rehomes every map in the grid.
-      // `padding` biases the framing slightly so the station sits a
-      // bit above centre, leaving room for label context around it.
+      // Fly to the picked station at a zoom loose enough that the
+      // surrounding district network + a couple of neighbouring
+      // districts stay in view (zoom 8 is roughly ~250 km horizontal
+      // at Pakistan latitudes — enough context, still recognisable
+      // as "this station"). The flyTo issues a normal moveend which
+      // the sync layer picks up and propagates to every other cell,
+      // so clicking a dot in one cell rehomes the whole grid.
       if (Array.isArray(c) && c.length >= 2) {
         mapRef.current?.flyTo({
           center: [c[0], c[1]],
-          zoom: 9,
+          zoom: 8,
           duration: 700,
           essential: true,
-          padding: { top: 60, bottom: 60, left: 60, right: 60 },
+          padding: { top: 80, bottom: 80, left: 80, right: 80 },
         });
       }
     };
-    const onEnter = (e) => {
+    const onEnter = () => {
       map.getCanvas().style.cursor = 'pointer';
-      const f = e.features?.[0];
-      if (!f) return;
-      const p = f.properties ?? {};
-      const c = f.geometry?.coordinates?.slice() ?? [];
-      if (c.length < 2) return;
-      // Escape user-controlled fields — station names are DB-owned but
-      // treating them as HTML would still be a papercut waiting to
-      // happen (any future name change containing `<` would break).
-      const name = String(p.stationName ?? `Station ${p.stationId}`);
-      const dotColor = p.color ?? '#94a3b8';
-      const escaped = name
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-      popup
-        .setLngLat(c)
-        .setHTML(
-          `<span class="mhp-row"><span class="mhp-dot" style="--mhp-dot:${dotColor}"></span>${escaped}</span>`,
-        )
-        .addTo(map);
-    };
-    const onMove = (e) => {
-      // Track the cursor as it drags across neighbouring dots so the
-      // popup snaps to whichever station is currently under it (rather
-      // than sticking to the first one hit).
-      if (!popup.isOpen()) return;
-      const f = e.features?.[0];
-      if (!f) return;
-      const c = f.geometry?.coordinates?.slice() ?? [];
-      if (c.length >= 2) popup.setLngLat(c);
     };
     const onLeave = () => {
       map.getCanvas().style.cursor = '';
-      popup.remove();
     };
 
     map.on('click', STATIONS_LAYER, onClick);
     map.on('mouseenter', STATIONS_LAYER, onEnter);
-    map.on('mousemove', STATIONS_LAYER, onMove);
     map.on('mouseleave', STATIONS_LAYER, onLeave);
     return () => {
       map.off('click', STATIONS_LAYER, onClick);
       map.off('mouseenter', STATIONS_LAYER, onEnter);
-      map.off('mousemove', STATIONS_LAYER, onMove);
       map.off('mouseleave', STATIONS_LAYER, onLeave);
-      popup.remove();
     };
   }, [cellKey, setSelectedStation]);
 

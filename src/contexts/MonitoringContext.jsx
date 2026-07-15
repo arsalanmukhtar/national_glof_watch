@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 
@@ -92,17 +93,52 @@ const DEFAULT_VIEW = {
   pitch: 0,
 };
 
+// localStorage-backed useState. Persists the value under a namespaced,
+// versioned key so a schema change (bump `version`) drops stale
+// entries automatically instead of hydrating an incompatible shape.
+// Skipped during SSR (window guard) — this app doesn't SSR but the
+// guard costs nothing and keeps the hook portable.
+const STORAGE_PREFIX = 'monitoring';
+function usePersistentState(key, initial, { version = 1 } = {}) {
+  const storageKey = `${STORAGE_PREFIX}:${key}:v${version}`;
+  const [value, setValue] = useState(() => {
+    if (typeof window === 'undefined') {
+      return typeof initial === 'function' ? initial() : initial;
+    }
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw != null) return JSON.parse(raw);
+    } catch { /* corrupt entry — fall through to default */ }
+    return typeof initial === 'function' ? initial() : initial;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(value));
+    } catch { /* quota exceeded / private mode — silent */ }
+  }, [storageKey, value]);
+  return [value, setValue];
+}
+
 export function MonitoringProvider({ children }) {
-  const [active, setActive] = useState(false);
-  const [layoutId, setLayoutId] = useState('2x2');
+  // Every user-facing preference below is persisted to localStorage
+  // via usePersistentState so a page reload restores the operator's
+  // exact working state (parameters picked per cell, stations they
+  // clicked, map pan/zoom, basemap, terrain, districts styling,
+  // classification method, chart window). Ephemeral state
+  // (fullscreen, sync counters, refs) stays in-memory only.
+  const [active, setActive] = usePersistentState('active', false);
+  const [layoutId, setLayoutId] = usePersistentState('layoutId', '2x2');
   // Per-cell parameter assignment. Keyed by cell area letter (`a` /
   // `b` / …) so switching layouts doesn't shuffle the map you already
   // configured — the same 'a' cell keeps its parameter when the layout
   // grows or shrinks.
-  const [cellParameters, setCellParameters] = useState({});
+  const [cellParameters, setCellParameters] = usePersistentState('cellParameters', {});
 
   // Fullscreen flag — MonitoringGrid targets its own wrapper so the
-  // parameter pickers + basic controls travel with the maps.
+  // parameter pickers + basic controls travel with the maps. NOT
+  // persisted: fullscreen on reload without operator intent is a
+  // surprise, not a convenience.
   const [fullscreen, setFullscreen] = useState(false);
 
   // Basemap + 3D terrain apply to every cell simultaneously — a
@@ -113,8 +149,8 @@ export function MonitoringProvider({ children }) {
   // and terrain on so the topography around each station is legible
   // at the small cell size; exaggeration is trimmed vs. the main map
   // (1.0 not 1.5) so the effect is subtle rather than dominant.
-  const [basemap, setBasemap] = useState('satellite');
-  const [terrain, setTerrain] = useState(true);
+  const [basemap, setBasemap] = usePersistentState('basemap', 'satellite');
+  const [terrain, setTerrain] = usePersistentState('terrain', true);
 
   // Districts overlay configuration. The overlay sits above the
   // basemap and below the station dots in every cell. Colours are
@@ -123,28 +159,41 @@ export function MonitoringProvider({ children }) {
   // the station colouring for attention. Presets are exported so the
   // config panel can render swatches without duplicating the source
   // of truth.
-  const [districtsColorId, setDistrictsColorId] = useState('beige');
+  const [districtsColorId, setDistrictsColorId] = usePersistentState('districtsColorId', 'beige');
   // Fill opacity is derived as `districtsOpacity * FILL_RATIO` in the
   // map; the slider primarily drives the outline strength (which is
   // what the operator visually reads as "how prominent are the
   // districts"). Range 0–1.
-  const [districtsOpacity, setDistrictsOpacity] = useState(0.8);
+  const [districtsOpacity, setDistrictsOpacity] = usePersistentState('districtsOpacity', 0.8);
   // Outline width in Mapbox line pixels. 1.25 was the original fixed
   // value; slider extends 0.5–3.5 for finer / bolder emphasis.
-  const [districtsOutlineWidth, setDistrictsOutlineWidth] = useState(1.5);
+  const [districtsOutlineWidth, setDistrictsOutlineWidth] = usePersistentState('districtsOutlineWidth', 1.5);
   // Label toggle — labels themselves are a fixed red-on-yellow-halo
   // style (see MonitoringMap) so this is a pure on/off. On by
   // default now that names are InitCap (not shouty uppercase) and the
   // layer's `minzoom: 6` gate keeps them from crowding the small
   // cells at overview zoom.
-  const [districtsLabels, setDistrictsLabels] = useState(true);
+  const [districtsLabels, setDistrictsLabels] = usePersistentState('districtsLabels', true);
+
+  // Trend window shared across every chart row AND used by the report
+  // generator to label + fetch the right slice. Lifted out of the
+  // ChartsPanel local state so the report modal can display the
+  // effective window and hand it to the PDF pipeline.
+  const [chartWindowMode, setChartWindowMode] = usePersistentState('chartWindowMode', 'daily'); // 'daily' | 'weekly' | 'custom'
+  const [chartCustomDays, setChartCustomDays] = usePersistentState('chartCustomDays', 14);
+  const chartDays =
+    chartWindowMode === 'daily'
+      ? 1
+      : chartWindowMode === 'weekly'
+        ? 7
+        : Math.max(1, Math.min(60, Number(chartCustomDays) || 1));
 
   // Independent NDMA early-warning toggle for the Monitoring surface —
   // deliberately NOT wired to ParameterContext's earlyWarning so the
   // operator can compare PMD-classified data on the main dashboard
   // against NDMA-classified data in the monitoring grid at the same
   // time. Factor mirrors the value used elsewhere.
-  const [earlyWarning, setEarlyWarning] = useState(false);
+  const [earlyWarning, setEarlyWarning] = usePersistentState('earlyWarning', false);
   const EARLY_WARNING_FACTOR = 0.9;
 
   const setCellParameter = useCallback((cellKey, elementName) => {
@@ -156,7 +205,7 @@ export function MonitoringProvider({ children }) {
   // per-cell yellow ripple animation on the map AND which station the
   // corresponding chart row plots. Keyed by cellKey so cells stay
   // independent — selecting station X on cell A doesn't touch cell B.
-  const [selectedStations, setSelectedStations] = useState({});
+  const [selectedStations, setSelectedStations] = usePersistentState('selectedStations', {});
   const setSelectedStation = useCallback((cellKey, station) => {
     setSelectedStations((prev) => {
       const cur = prev[cellKey];
@@ -183,11 +232,11 @@ export function MonitoringProvider({ children }) {
   }, [cellParameters]);
 
   // Shared view state broadcast across every cell so pan/zoom/rotate on
-  // any one map propagates to all the others. `moveEpoch` is a monotonic
-  // counter each cell reads to know a change happened; a cell that
-  // originated the move skips its own frame (via `originId`) to avoid
-  // a feedback loop.
-  const [view, setView] = useState(DEFAULT_VIEW);
+  // any one map propagates to all the others. `view` is persisted so
+  // reloads restore the operator's exact map pose. `moveEpoch` and
+  // `originId` are transient sync coordinators — persisting them
+  // would trigger a spurious jumpTo on the first mount after reload.
+  const [view, setView] = usePersistentState('view', DEFAULT_VIEW);
   const [moveEpoch, setMoveEpoch] = useState(0);
   const [originId, setOriginId] = useState(null);
 
@@ -202,6 +251,53 @@ export function MonitoringProvider({ children }) {
     setOriginId(null);
     setMoveEpoch((n) => n + 1);
   }, []);
+
+  // Per-cell map API registry — each MonitoringMap registers a small
+  // interface (currently { snapshot, getMap }) on mount so the report
+  // generator can grab live map pixels + coordinates on demand
+  // without threading refs through a dozen components. Kept as a
+  // mutable Map inside a ref so re-registration doesn't churn React
+  // state and trigger re-renders across the tree.
+  const mapApisRef = useRef(new Map());
+  const registerMapApi = useCallback((cellKey, api) => {
+    mapApisRef.current.set(cellKey, api);
+    return () => {
+      // Only clear if this exact api is still registered — a rapid
+      // remount can otherwise wipe the newly-registered api.
+      if (mapApisRef.current.get(cellKey) === api) {
+        mapApisRef.current.delete(cellKey);
+      }
+    };
+  }, []);
+  const getMapApi = useCallback((cellKey) => mapApisRef.current.get(cellKey), []);
+  const listMapApis = useCallback(
+    () => Array.from(mapApisRef.current.entries()),
+    [],
+  );
+
+  // Same pattern for chart rows — MonitoringChartRow registers
+  // { snapshot, getData } so the report generator can grab the
+  // exact chart image + resolved data the operator is looking at
+  // without re-fetching or off-screen rendering.
+  //
+  // Additionally exposes `chartApisVersion` — a monotonically
+  // increasing counter that bumps on every register/unregister. UI
+  // that wants to react to chart data changes (e.g. the report
+  // modal previewing which station each cell resolved to) can key
+  // a useMemo off it and stay in sync without polling.
+  const chartApisRef = useRef(new Map());
+  const [chartApisVersion, setChartApisVersion] = useState(0);
+  const registerChartApi = useCallback((cellKey, api) => {
+    chartApisRef.current.set(cellKey, api);
+    setChartApisVersion((n) => n + 1);
+    return () => {
+      if (chartApisRef.current.get(cellKey) === api) {
+        chartApisRef.current.delete(cellKey);
+        setChartApisVersion((n) => n + 1);
+      }
+    };
+  }, []);
+  const getChartApi = useCallback((cellKey) => chartApisRef.current.get(cellKey), []);
 
   const value = useMemo(
     () => ({
@@ -228,6 +324,11 @@ export function MonitoringProvider({ children }) {
       earlyWarning,
       setEarlyWarning,
       earlyWarningFactor: EARLY_WARNING_FACTOR,
+      chartWindowMode,
+      setChartWindowMode,
+      chartCustomDays,
+      setChartCustomDays,
+      chartDays,
       selectedStations,
       setSelectedStation,
       view,
@@ -235,6 +336,12 @@ export function MonitoringProvider({ children }) {
       originId,
       broadcastView,
       resetView,
+      registerMapApi,
+      getMapApi,
+      listMapApis,
+      registerChartApi,
+      getChartApi,
+      chartApisVersion,
     }),
     [
       active,
@@ -249,6 +356,9 @@ export function MonitoringProvider({ children }) {
       districtsOutlineWidth,
       districtsLabels,
       earlyWarning,
+      chartWindowMode,
+      chartCustomDays,
+      chartDays,
       selectedStations,
       setSelectedStation,
       view,
@@ -256,6 +366,12 @@ export function MonitoringProvider({ children }) {
       originId,
       broadcastView,
       resetView,
+      registerMapApi,
+      getMapApi,
+      listMapApis,
+      registerChartApi,
+      getChartApi,
+      chartApisVersion,
     ],
   );
 

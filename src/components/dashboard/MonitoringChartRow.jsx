@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Line } from 'react-chartjs-2';
 import { Loader2 } from 'lucide-react';
 import {
@@ -29,9 +29,19 @@ import { cn } from '@/utils/cn';
 // The time window (days) is passed in as a prop from the modal so
 // every row in the grid shares the same span.
 export default function MonitoringChartRow({ cellKey, days }) {
-  const { cellParameters, selectedStations, setSelectedStation } = useMonitoring();
+  const {
+    cellParameters,
+    selectedStations,
+    setSelectedStation,
+    registerChartApi,
+  } = useMonitoring();
   const { elements } = useParameter();
   const { theme } = useTheme();
+
+  // Ref onto the underlying Chart.js instance so the report generator
+  // can grab the currently-rendered chart as a PNG. react-chartjs-2's
+  // ref hands back the Chart.js instance which exposes toBase64Image().
+  const chartRef = useRef(null);
 
   const elementName = cellParameters[cellKey] ?? '';
   const unit = elements.find((e) => e.name === elementName)?.unit ?? '';
@@ -282,6 +292,47 @@ export default function MonitoringChartRow({ cellKey, days }) {
   const noStation = !empty && !stationId && !rosterLoading;
   const noData = !empty && stationId != null && points.length === 0 && !loading;
 
+  // Register this cell's chart API. Kept in a ref-based effect so
+  // successive parameter / station changes don't spawn duplicate
+  // registrations. `getData` returns a plain snapshot object the
+  // PDF pipeline can persist without holding React state hostage.
+  useEffect(() => {
+    const api = {
+      snapshot: () => {
+        const chart = chartRef.current;
+        if (!chart || typeof chart.toBase64Image !== 'function') return null;
+        try {
+          return chart.toBase64Image('image/png', 1);
+        } catch (err) {
+          console.warn('[monitoring chart] snapshot failed:', err);
+          return null;
+        }
+      },
+      getData: () => ({
+        elementName,
+        unit,
+        stationId,
+        stationName,
+        points,
+        days,
+        isAutoPick: !isSelected,
+        dateRangeLabel,
+      }),
+    };
+    return registerChartApi(cellKey, api);
+  }, [
+    cellKey,
+    registerChartApi,
+    elementName,
+    unit,
+    stationId,
+    stationName,
+    points,
+    days,
+    isSelected,
+    dateRangeLabel,
+  ]);
+
   const handleStationChange = (name) => {
     if (!name) {
       // Empty pick = "clear selection". Pass null and let the context
@@ -332,34 +383,30 @@ export default function MonitoringChartRow({ cellKey, days }) {
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-1.5 rounded-md border border-day-border dark:border-night-border p-2 bg-white dark:bg-night-surface">
-      {/* Row header. The left side (badge + parameter name) takes
-          flex-1 so the name has all the room it can get before
-          truncating. The right side (date + AUTO + station picker)
-          is one shrink-0 group so the picker stays anchored to the
-          right edge regardless of parameter-name length. Fonts and
-          the picker width are trimmed vs. the earlier pass so the
-          full triple fits at 460 px without eating the label. */}
-      <div className="flex items-center gap-1.5">
-        <span
-          className="inline-flex items-center justify-center h-5 w-5 shrink-0 rounded text-[9px] font-bold uppercase text-white shadow-sm"
-          style={{ backgroundColor: accent }}
-          title={`Cell ${cellKey.toUpperCase()}`}
-        >
-          {cellKey.toUpperCase()}
-        </span>
-        <span
-          className="flex-1 min-w-0 text-[11px] font-semibold truncate"
-          style={{ color: elementName ? accent : undefined }}
-          title={elementName || 'No parameter'}
-        >
-          {elementName || 'No parameter selected'}
-        </span>
-        {/* Right-anchored group. `ml-auto` on this whole cluster
-            guarantees the picker + metadata always sit against the
-            right edge, and `shrink-0` keeps them at their intrinsic
-            widths so the label on the left is the one that gives
-            when horizontal space runs out. */}
-        <div className="ml-auto flex items-center gap-1 shrink-0">
+      {/* Row header — hard split between a left group (badge + label,
+          truncates) and a right group (date + AUTO + station picker).
+          Uses `justify-between` on the outer flex so the two groups
+          hug their respective edges regardless of what changes width
+          inside them; the station picker's right edge stays flush
+          with the row's inner right edge across all rows. */}
+      <div className="flex items-center justify-between gap-1.5 w-full">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <span
+            className="inline-flex items-center justify-center h-5 w-5 shrink-0 rounded text-[9px] font-bold uppercase text-white shadow-sm"
+            style={{ backgroundColor: accent }}
+            title={`Cell ${cellKey.toUpperCase()}`}
+          >
+            {cellKey.toUpperCase()}
+          </span>
+          <span
+            className="min-w-0 text-[11px] font-semibold truncate"
+            style={{ color: elementName ? accent : undefined }}
+            title={elementName || 'No parameter'}
+          >
+            {elementName || 'No parameter selected'}
+          </span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
           {dateRangeLabel && !empty && stationId ? (
             <span
               className="text-[9px] tabular-nums text-day-muted dark:text-night-muted px-1 py-0.5 rounded bg-day-bg dark:bg-night-bg border border-day-border dark:border-night-border leading-none"
@@ -377,7 +424,7 @@ export default function MonitoringChartRow({ cellKey, days }) {
             </span>
           ) : null}
           {!empty && roster.length > 0 ? (
-            <div className="w-[130px]">
+            <div className="w-[130px] shrink-0">
               <ParameterSelect
                 value={stationName}
                 onChange={handleStationChange}
@@ -412,6 +459,7 @@ export default function MonitoringChartRow({ cellKey, days }) {
           <LoaderState>Loading trend…</LoaderState>
         ) : (
           <Line
+            ref={chartRef}
             data={data}
             options={options}
             plugins={[dayMarkerPlugin, extremeMarkerPlugin]}

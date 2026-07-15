@@ -110,6 +110,106 @@ secondaryRouter.get('/monitoring-districts', async (_req, res) => {
   }
 });
 
+// GET /api/secondary/district-neighbours/:district
+// Returns the requested district's own admin context (province +
+// division) alongside the list of districts whose polygons share a
+// boundary with it (ST_Touches). Used by the monitoring report PDF
+// to describe each station's surroundings — "Station X sits in
+// Skardu, Gilgit Baltistan; neighbouring districts are Kharmang,
+// Shigar, Ghanche." Case-insensitive match on district name so the
+// caller can pass whatever casing they happen to have (the map layer
+// uses INITCAP, the DB is uppercase).
+//
+// Declared BEFORE /:layer so the "district-neighbours" segment isn't
+// swallowed by the generic FeatureCollection route below.
+secondaryRouter.get('/district-neighbours/:district', async (req, res) => {
+  const { district } = req.params;
+  if (!district || district.length > 120) {
+    return res.status(400).json({ error: 'Invalid district name' });
+  }
+  try {
+    const { rows } = await pool.query(
+      `
+      WITH target AS (
+        SELECT geom, districts, division, province
+        FROM secondary.district_boundary
+        WHERE UPPER(districts) = UPPER($1)
+        LIMIT 1
+      )
+      SELECT
+        (SELECT INITCAP(districts) FROM target)   AS district,
+        (SELECT INITCAP(division)  FROM target)   AS division,
+        (SELECT INITCAP(province)  FROM target)   AS province,
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'district', INITCAP(b.districts),
+                'division', INITCAP(b.division),
+                'province', INITCAP(b.province)
+              )
+              ORDER BY b.districts
+            )
+            FROM secondary.district_boundary b, target t
+            WHERE ST_Touches(t.geom, b.geom)
+              AND UPPER(b.districts) <> UPPER(t.districts)
+          ),
+          '[]'::json
+        ) AS neighbours
+      `,
+      [district],
+    );
+    const row = rows[0];
+    if (!row || !row.district) {
+      return res.status(404).json({ error: 'District not found' });
+    }
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json({
+      district: row.district,
+      division: row.division,
+      province: row.province,
+      neighbours: row.neighbours ?? [],
+    });
+  } catch (err) {
+    console.error('GET /api/secondary/district-neighbours failed:', err);
+    res.status(500).json({ error: 'Query failed', detail: err.message });
+  }
+});
+
+// GET /api/secondary/district-at?lng=&lat=
+// Reverse-geocode a point to its containing district. Used by the
+// monitoring report to resolve each station's admin context in one
+// call (station coord in → district / division / province out) so
+// the caller can then look up the neighbours by district name via
+// the endpoint above.
+secondaryRouter.get('/district-at', async (req, res) => {
+  const lng = Number(req.query.lng);
+  const lat = Number(req.query.lat);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    return res.status(400).json({ error: 'lng and lat required' });
+  }
+  try {
+    const { rows } = await pool.query(
+      `
+      SELECT
+        INITCAP(districts) AS district,
+        INITCAP(division)  AS division,
+        INITCAP(province)  AS province
+      FROM secondary.district_boundary
+      WHERE ST_Contains(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326))
+      LIMIT 1
+      `,
+      [lng, lat],
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'No district contains this point' });
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('GET /api/secondary/district-at failed:', err);
+    res.status(500).json({ error: 'Query failed', detail: err.message });
+  }
+});
+
 // GET /api/secondary/:layer
 // Returns a GeoJSON FeatureCollection assembled inside Postgres. The
 // FeatureCollection is shaped on the server so the client can pipe the
