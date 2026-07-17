@@ -79,7 +79,10 @@ export default function ParametersPanel() {
 
       {/* Element list — owns its own bounded scroll (the sidebar section
           does not scroll). */}
-      <div className="flex flex-col gap-1 max-h-[280px] overflow-y-auto pr-0.5">
+      <div
+        data-tour-id="parameters-list"
+        className="flex flex-col gap-1 max-h-[280px] overflow-y-auto pr-0.5"
+      >
         {elements.length === 0 && (
           <p className="px-1 py-3 text-center text-[12px] text-day-muted dark:text-night-muted">
             Loading elements…

@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import Tooltip from '@/components/ui/Tooltip';
 import StationStatusBadge from '@/components/layout/StationStatusBadge';
 import SensorTypesBadge from '@/components/layout/SensorTypesBadge';
+import TourLauncher from '@/components/tour/TourLauncher';
 import { logos } from '@/assets';
 import { useTheme } from '@/hooks/useTheme';
 
@@ -17,7 +18,7 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
   const onDocs = location.pathname.startsWith('/docs');
 
   return (
-    <header className="titlebar">
+    <header className="titlebar" data-tour-id="titlebar">
       <div className="flex items-center gap-3">
         {onDocs && (
           <Tooltip label="Back to dashboard" side="bottom" align="start">
@@ -65,15 +66,29 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
       <div className="ml-auto flex items-center gap-1 sm:gap-2">
         {/* Sensor-type breakdown — total count + colour-coded chip per
             family (ARG, WP, WL-R, DG, WL-L, AWS, AWS-H). Rendered on
-            xl+ widths only so narrower titlebars stay uncluttered. */}
-        {!onDocs && <SensorTypesBadge />}
+            xl+ widths only so narrower titlebars stay uncluttered.
+            Wrapped in a span so the tour overlay has a stable anchor
+            even after the badge internal DOM changes. */}
+        {!onDocs && (
+          // Wrapper must render a real box for the tour overlay to
+          // measure via getBoundingClientRect. `contents` collapses
+          // to zero, so we match the child's own responsive
+          // visibility (`hidden xl:flex`).
+          <span data-tour-id="sensor-types-badge" className="hidden xl:inline-flex">
+            <SensorTypesBadge />
+          </span>
+        )}
         {!onDocs && <span aria-hidden className="hidden xl:block w-2" />}
         {/* PMD GLOF 2 Live feed badge — combined feed identifier +
             station counter. The component handles its own label,
             divider, metrics block, and "Last updated" footer. Only on
             the dashboard — pulling station data on the docs page is
             just noise. */}
-        {!onDocs && <StationStatusBadge />}
+        {!onDocs && (
+          <span data-tour-id="station-status-badge" className="hidden md:inline-flex">
+            <StationStatusBadge />
+          </span>
+        )}
         <span aria-hidden className="hidden md:block w-3" />
 
         <Tooltip label={theme === 'day' ? 'Switch to night' : 'Switch to day'} side="bottom" align="end">
@@ -82,6 +97,7 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
             onClick={toggle}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            data-tour-id="theme-toggle"
             className="btn-icon text-white hover:bg-white/10"
             aria-label="Toggle theme"
           >
@@ -119,6 +135,7 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="inline-flex"
+              data-tour-id="docs-link"
             >
               <Link
                 to="/docs"
@@ -130,6 +147,11 @@ export default function TitleBar({ onOpenMobileMenu, onOpenMediaMenu }) {
             </motion.span>
           </Tooltip>
         )}
+
+        {/* Tour launcher — rightmost, beside Documentation. Only on
+            the dashboard route: the docs page is a static reading
+            surface and doesn't benefit from an overlay tour. */}
+        {!onDocs && <TourLauncher />}
 
         {onOpenMobileMenu && (
           <Tooltip label="Layers" side="bottom" align="end">

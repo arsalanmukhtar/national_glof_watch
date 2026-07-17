@@ -251,6 +251,7 @@ export default function StationsTable() {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
+      data-tour-id="stations-table"
       className={cn(
         'absolute right-2 bottom-2 z-10 w-[410px] rounded-md shadow-md overflow-hidden',
         'bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm',

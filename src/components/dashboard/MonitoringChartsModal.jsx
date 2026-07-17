@@ -34,6 +34,7 @@ export default function MonitoringChartsPanel() {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+      data-tour-id="monitoring-charts-panel"
       className="shrink-0 min-h-0 w-[460px]"
       aria-label="Monitoring Charts"
     >

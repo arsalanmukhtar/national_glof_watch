@@ -619,6 +619,7 @@ export default function ChartsRow() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.1 }}
+      data-tour-id="charts-row"
       className={cn(
         'card-base flex flex-col',
         expanded ? 'flex-1 min-h-0' : 'shrink-0',
@@ -681,6 +682,7 @@ function Tabs({ tab, onChange }) {
             role="tab"
             aria-selected={active}
             onClick={() => onChange(it.id)}
+            data-tour-id={`chart-tab-${it.id}`}
             className={cn(
               'relative px-3 py-1.5 text-[13px] font-medium transition-colors',
               active

@@ -8,6 +8,7 @@ import { AttributeTablesProvider } from '@/contexts/AttributeTablesContext';
 import { CsvDatasetsProvider } from '@/contexts/CsvDatasetsContext';
 import { RasterProvider } from '@/contexts/RasterContext';
 import { MonitoringProvider } from '@/contexts/MonitoringContext';
+import { TourProvider } from '@/contexts/TourContext';
 import AppShell from '@/components/layout/AppShell';
 import Dashboard from '@/components/dashboard/Dashboard';
 import DocsPage from '@/pages/DocsPage';
@@ -39,9 +40,11 @@ export default function App() {
                         <CsvDatasetsProvider>
                           <RasterProvider>
                             <MonitoringProvider>
-                              <AppShell>
-                                <Dashboard />
-                              </AppShell>
+                              <TourProvider>
+                                <AppShell>
+                                  <Dashboard />
+                                </AppShell>
+                              </TourProvider>
                             </MonitoringProvider>
                           </RasterProvider>
                         </CsvDatasetsProvider>

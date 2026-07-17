@@ -106,7 +106,7 @@ export default function MonitoringPanel() {
       {/* Layout picker — icon-only preset thumbnails. Colour flips to
           the lime accent on the active option; hover surfaces the
           layout label via `title`. */}
-      <div className="flex flex-col gap-1">
+      <div data-tour-id="monitoring-layout-picker" className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
           <label className="text-[10px] font-semibold uppercase tracking-wide text-day-muted dark:text-night-muted">
             Grid Layout
@@ -144,7 +144,7 @@ export default function MonitoringPanel() {
       </div>
 
       {/* Per-cell parameter assignment */}
-      <div className="flex flex-col gap-1">
+      <div data-tour-id="monitoring-cell-params" className="flex flex-col gap-1">
         <label className="text-[10px] font-semibold uppercase tracking-wide text-day-muted dark:text-night-muted">
           Cell Parameters
         </label>
@@ -215,7 +215,7 @@ export default function MonitoringPanel() {
           palette), outline width slider, opacity slider, and a labels
           toggle. Labels themselves are a fixed red-on-yellow-halo
           style — the toggle just flips visibility. */}
-      <div className="flex flex-col gap-1">
+      <div data-tour-id="monitoring-districts" className="flex flex-col gap-1">
         <label className="text-[10px] font-semibold uppercase tracking-wide text-day-muted dark:text-night-muted">
           Districts
         </label>
@@ -325,16 +325,18 @@ export default function MonitoringPanel() {
           alert bands and NDMA's tightened (early-warning) bands. Kept
           independent of the main dashboard's toggle so the operator
           can compare the two side-by-side. */}
-      <SegmentedRow
-        icon={<AlertCircle className="h-3 w-3" />}
-        label="Classification"
-        options={[
-          { id: false, label: 'PMD',  title: 'Official PMD classification' },
-          { id: true,  label: 'NDMA', title: 'NDMA early-warning (10% ahead of PMD)' },
-        ]}
-        value={earlyWarning}
-        onChange={setEarlyWarning}
-      />
+      <div data-tour-id="monitoring-classification">
+        <SegmentedRow
+          icon={<AlertCircle className="h-3 w-3" />}
+          label="Classification"
+          options={[
+            { id: false, label: 'PMD',  title: 'Official PMD classification' },
+            { id: true,  label: 'NDMA', title: 'NDMA early-warning (10% ahead of PMD)' },
+          ]}
+          value={earlyWarning}
+          onChange={setEarlyWarning}
+        />
+      </div>
 
       {/* 3D terrain — segmented On/Off pill so the state reads at a
           glance instead of hiding behind a subtle switch dot. */}
@@ -394,6 +396,7 @@ export default function MonitoringPanel() {
             type="button"
             whileTap={{ scale: 0.97 }}
             onClick={() => setReportOpen(true)}
+            data-tour-id="monitoring-report-btn"
             className="inline-flex items-center justify-center gap-1 rounded-md bg-[#84cc16] px-1.5 py-1 text-[10.5px] font-semibold text-[#1a2e05] hover:bg-[#65a30d]"
           >
             <FileDown className="h-3 w-3" />

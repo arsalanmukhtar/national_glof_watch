@@ -6,6 +6,7 @@ import MediaSwitcher from './MediaSwitcher';
 import LayerMenu from '@/components/dashboard/LayerMenu';
 import ParametersPanel from '@/components/dashboard/ParametersPanel';
 import SecondaryPanel from '@/components/dashboard/SecondaryPanel';
+import TourOverlay from '@/components/tour/TourOverlay';
 
 // Section header used inside the mobile drawer. Deliberately heavier
 // than the inline `label-base` subheadings (LAYERS / REGIONS) inside
@@ -65,6 +66,11 @@ export default function AppShell({ children }) {
       >
         <MediaSwitcher />
       </MobileMenu>
+
+      {/* Guided-tour overlay — renders itself only while a tour is
+          active. Mounted here (not inside individual components) so
+          it can spotlight anything anywhere on the dashboard. */}
+      <TourOverlay />
     </div>
   );
 }

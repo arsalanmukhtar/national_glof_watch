@@ -19,6 +19,7 @@ export default function MapLegend({ disabledStates, onToggleState }) {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
+      data-tour-id="map-legend"
       className="absolute left-2 bottom-2 z-10 flex flex-col gap-1"
     >
       <div

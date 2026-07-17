@@ -1045,6 +1045,7 @@ export default function MapPanel({ className, onMapReady }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
+      data-tour-id="map-panel"
       className={cn('card-base overflow-hidden flex flex-col min-h-0', className)}
     >
       <div

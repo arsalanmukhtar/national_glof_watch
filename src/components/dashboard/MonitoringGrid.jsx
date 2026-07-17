@@ -49,6 +49,7 @@ export default function MonitoringGrid({ className }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
+      data-tour-id="monitoring-grid"
       className={cn(
         'card-base p-2 flex-1 min-h-0 min-w-0',
         fullscreen && 'bg-day-bg dark:bg-night-bg',

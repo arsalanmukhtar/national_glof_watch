@@ -64,6 +64,7 @@ export default function RightSidebar({ className }) {
   // the map breathe.
   return (
     <aside
+      data-tour-id="right-sidebar"
       className={cn(
         'hidden lg:flex flex-col items-stretch shrink-0 min-h-0',
         className,

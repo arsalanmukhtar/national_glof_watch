@@ -110,14 +110,14 @@ const SECTIONS = [
 // off by a divider underneath the panel toggles.
 const EXPORT_ID = 'export';
 const ICON_BUTTONS = [
-  { id: 'primary',      label: 'Primary Layers',   icon: Layers },
-  { id: SECONDARY_ID,   label: 'Secondary Layers', icon: Shapes },
-  { id: MONITORING_ID,  label: 'Monitoring',       icon: TbHeartRateMonitor },
-  { id: CSV_ID,         label: 'CSV Data',         icon: FileSpreadsheet },
-  { id: RASTER_ID,      label: 'Raster Layers',    icon: Grid3x3 },
-  { id: GEE_ID,         label: 'GEE Imagery',      icon: CloudDownload },
-  { id: TOOLBOX_ID,     label: 'Geospatial Analysis Toolbox', icon: Hammer },
-  { id: EXPORT_ID,      label: 'Export Layers',    icon: HardDriveDownload },
+  { id: 'primary',      label: 'Primary Layers',   icon: Layers,                 tourId: 'primary-panel-icon'    },
+  { id: SECONDARY_ID,   label: 'Secondary Layers', icon: Shapes,                 tourId: 'secondary-panel-icon'  },
+  { id: MONITORING_ID,  label: 'Monitoring',       icon: TbHeartRateMonitor,     tourId: 'monitoring-panel-icon' },
+  { id: CSV_ID,         label: 'CSV Data',         icon: FileSpreadsheet,        tourId: 'csv-panel-icon'        },
+  { id: RASTER_ID,      label: 'Raster Layers',    icon: Grid3x3,                tourId: 'raster-panel-icon'     },
+  { id: GEE_ID,         label: 'GEE Imagery',      icon: CloudDownload,          tourId: 'gee-panel-icon'        },
+  { id: TOOLBOX_ID,     label: 'Geospatial Analysis Toolbox', icon: Hammer,      tourId: 'toolbox-panel-icon'    },
+  { id: EXPORT_ID,      label: 'Export Layers',    icon: HardDriveDownload,      tourId: 'export-panel-icon'     },
 ];
 
 export default function LeftSidebar({ className }) {
@@ -186,6 +186,7 @@ export default function LeftSidebar({ className }) {
 
   return (
     <aside
+      data-tour-id="left-sidebar"
       className={cn(
         'hidden lg:flex flex-row items-stretch shrink-0 min-h-0 gap-2',
         className,
@@ -193,7 +194,7 @@ export default function LeftSidebar({ className }) {
     >
       {/* Icon strip — always visible on lg+ */}
       <div className="card-base flex flex-col items-center gap-1 p-2 w-14 shrink-0">
-        {ICON_BUTTONS.map(({ id, label, icon: Icon }) => {
+        {ICON_BUTTONS.map(({ id, label, icon: Icon, tourId }) => {
           const on = isIconOn(id);
           return (
             <Fragment key={id}>
@@ -211,6 +212,7 @@ export default function LeftSidebar({ className }) {
                   }}
                   aria-pressed={on}
                   aria-label={label}
+                  data-tour-id={tourId}
                   className={cn(
                     'btn-icon transition-colors',
                     on

@@ -360,6 +360,63 @@
   border-color: rgba(255, 255, 255, 0.35);
 }
 
+/* ---------------------------------------------------------------------------
+   Tour launcher (Sparkles button in the titlebar)
+   ---------------------------------------------------------------------------
+   No background layer — the animation lives inside the icon itself:
+
+     • The Sparkles strokes are painted with a linearGradient defined
+       in TourLauncher (id="tour-icon-gradient"). SMIL <animate>
+       tags on each gradient stop cycle the colours through
+       lime → cyan → violet → pink → amber → lime continuously.
+     • A soft `drop-shadow` follows the icon shape (round-ish because
+       drop-shadow tracks the alpha silhouette of the star tips, not
+       the bounding box). The shadow pulses gently so the icon
+       breathes even if the operator is red-green colour-blind and
+       the stroke shift is muted for them.
+
+   Active-tour state (.tour-launcher-icon-active) swaps the rainbow
+   for a solid lime with a scale pulse so "tour running" reads at
+   a glance without a distracting rainbow. */
+.tour-launcher-icon-idle {
+  /* Presentation attribute `stroke="currentColor"` on the lucide SVG
+     has specificity 0; CSS wins. */
+  stroke: url(#tour-icon-gradient);
+  animation: tour-launcher-glow 3s ease-in-out infinite;
+  will-change: filter;
+}
+
+@keyframes tour-launcher-glow {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.45)); }
+  50%      { filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.85)); }
+}
+
+.tour-launcher-icon-active {
+  color: #a3e635;
+  filter: drop-shadow(0 0 4px rgba(132, 204, 22, 0.95));
+  animation: tour-launcher-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes tour-launcher-pulse {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.14); opacity: 0.9; }
+}
+
+/* Respect operator preference — freeze the glow pulse and pulse
+   scale when the OS has reduced-motion enabled. The gradient stops
+   also freeze because SMIL <animate> honours the same media query
+   in modern browsers. The icon settles on the current stop colour
+   with a subtle static glow. */
+@media (prefers-reduced-motion: reduce) {
+  .tour-launcher-icon-idle,
+  .tour-launcher-icon-active {
+    animation: none !important;
+  }
+  .tour-launcher-icon-idle {
+    filter: drop-shadow(0 0 3px rgba(132, 204, 22, 0.9));
+  }
+}
+
 @keyframes ballStepUp {
   0%   { transform: translate(0, 0); }
   5%   { transform: translate(8px, -14px); }
