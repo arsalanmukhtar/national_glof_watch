@@ -24,6 +24,7 @@ import {
   Settings2,
   Shapes,
   SlidersHorizontal,
+  Sparkles,
   Table2,
   Thermometer,
   Video,
@@ -99,9 +100,22 @@ export const TOC = [
     ],
   },
   {
+    id: 'tour',
+    title: 'Guided Tours',
+    children: [
+      { id: 'tour-overview',       title: 'What it is' },
+      { id: 'tour-first-visit',    title: 'First-visit prompt' },
+      { id: 'tour-chained',        title: 'Chained playback' },
+      { id: 'tour-catalog',        title: 'Tour catalog' },
+      { id: 'tour-overlay',        title: 'Overlay behaviour' },
+      { id: 'tour-persistence',    title: 'Persistence' },
+    ],
+  },
+  {
     id: 'how-to',
     title: 'How-To Guides',
     children: [
+      { id: 'how-to-tour',        title: 'Start a Guided Tour' },
       { id: 'how-to-parameters',  title: 'Browse PMD Parameters' },
       { id: 'how-to-region',      title: 'Toggle Region Layers' },
       { id: 'how-to-secondary',   title: 'Use Secondary Layers' },
@@ -144,6 +158,7 @@ export function ContentBody() {
       <LayersSection />
       <ComponentsSection />
       <MonitoringSection />
+      <TourSection />
       <HowToSection />
       <ApiSection />
       <StackSection />
@@ -218,6 +233,13 @@ function OverviewSection() {
           Click any vector feature or raster pixel to see its full attribute
           set (areas in m² / km², lengths in m / km, classified-pixel labels)
           in a card layout.
+        </FeatureCard>
+        <FeatureCard icon={Sparkles} title="Guided tours" anchor="#tour">
+          A first-visit popover offers to walk you through the whole app:
+          Welcome → Dashboard → Monitoring → PMD Workflow, in sequence,
+          with a spotlight overlay that opens each panel as it goes.
+          Any tour can also be replayed later from the animated Sparkles
+          button in the title bar.
         </FeatureCard>
       </div>
 
@@ -393,10 +415,12 @@ function ComponentsSection() {
         <P>
           Brand bar (deep emerald, both themes). From left to right:
           rotating NDMA logo, app title, and — on wide screens — two
-          live status badges before the day/night toggle and the
-          Documentation link that opened this page. On mobile the
-          title bar gains hamburger / panel buttons that open the
-          off-canvas drawers for Layers and Media.
+          live status badges before the day/night toggle, the
+          Documentation link that opened this page, and the animated{' '}
+          <Kbd>✨ Tour</Kbd> launcher (see{' '}
+          <a href="#tour">Guided Tours</a>). On mobile the title bar
+          gains hamburger / panel buttons that open the off-canvas
+          drawers for Layers and Media.
         </P>
         <UL>
           <LI>
@@ -417,6 +441,15 @@ function ComponentsSection() {
             when the last fetch succeeded and amber when the badge is
             operating on stale data (with the reason in a tooltip and
             the refresh button live).
+          </LI>
+          <LI>
+            <strong>Tour launcher</strong> — animated Sparkles button on
+            the far right. Clicking it opens a picker of every available
+            guided tour (Welcome, Dashboard, Monitoring, PMD Workflow)
+            with a "Seen" tag against ones you've already completed. Its
+            gradient stroke cycles through the accent palette so the
+            button is discoverable at a glance; full behaviour is in{' '}
+            <a href="#tour">Guided Tours</a>.
           </LI>
         </UL>
       </DocsSubsection>
@@ -832,11 +865,239 @@ function MonitoringSection() {
 }
 
 // ---------------------------------------------------------------------------
+// Guided Tours
+// ---------------------------------------------------------------------------
+function TourSection() {
+  return (
+    <DocsSection id="tour" eyebrow="Onboarding" title="Guided Tours">
+      <P>
+        The dashboard ships with a spotlight-overlay tour system that
+        walks a first-time operator through every panel of the app,
+        one target at a time. Tours are launched from the animated{' '}
+        <Kbd>✨</Kbd> button in the title bar (rightmost, next to the
+        Documentation link) or automatically on the very first load
+        via a small opt-in popover.
+      </P>
+
+      <DocsSubsection id="tour-overview" title="What it is">
+        <P>
+          A tour is an ordered list of steps. Each step points at a
+          real element on the page (via a <code>data-tour-id</code>{' '}
+          attribute) and pairs it with a floating tooltip that
+          explains what the element does. When a step starts, the rest
+          of the page dims and a rounded "spotlight" hole opens over
+          the target with a lime border; the tooltip floats beside it
+          with <Kbd>Prev</Kbd> / <Kbd>Next</Kbd> / <Kbd>Skip</Kbd>{' '}
+          controls and a progress dot for each step.
+        </P>
+        <StatGrid
+          items={[
+            { label: 'Trigger',       value: 'Sparkles button in the title bar, or the first-visit popover.' },
+            { label: 'Controls',      value: 'Prev / Next / Skip in the tooltip; Esc / ← / → on the keyboard.' },
+            { label: 'Spotlight',     value: 'SVG mask cutout, follows scroll + resize via rAF-throttled measure().' },
+            { label: 'Panel demos',   value: 'Steps that describe a panel automatically open it via ARIA-guarded click.' },
+          ]}
+        />
+      </DocsSubsection>
+
+      <DocsSubsection id="tour-first-visit" title="First-visit prompt">
+        <P>
+          On the very first load in a browser, the tour system does{' '}
+          <em>not</em> auto-play. Instead, a small popover appears under
+          the Sparkles button after ~600 ms with the text{' '}
+          <strong>"Start the Guided Tour?"</strong> and two buttons:
+        </P>
+        <UL>
+          <LI>
+            <Pill tone="brand">Yes</Pill> — starts the Welcome tour and
+            automatically chains into every subsequent tour once the
+            previous one ends (see below).
+          </LI>
+          <LI>
+            <Pill>Skip</Pill> — dismisses the popover permanently and
+            hands control back to the Sparkles button. Tours can still
+            be played manually from the picker at any time.
+          </LI>
+        </UL>
+        <Callout tone="info">
+          The prompt only ever shows once per browser. A localStorage
+          flag (<code>tour:first-visit-shown:v1</code>) is written the
+          moment the user answers, so the next reload goes straight to
+          the dashboard.
+        </Callout>
+      </DocsSubsection>
+
+      <DocsSubsection id="tour-chained" title="Chained playback">
+        <P>
+          When the user answers <Kbd>Yes</Kbd> on the first-visit
+          prompt, the tours don't run one at a time — they chain
+          together in the same order the picker lists them. Each
+          tour's <em>completed</em> callback schedules the next tour
+          after a short 400 ms breath, so the transition reads as a
+          deliberate hand-off rather than a jarring cut.
+        </P>
+        <UL>
+          <LI>Welcome → Dashboard → Monitoring → PMD Workflow, then done.</LI>
+          <LI>
+            Skipping <em>any</em> tour mid-way (<Kbd>Skip</Kbd> button
+            or <Kbd>Esc</Kbd>) breaks the chain — the next tour will{' '}
+            <em>not</em> auto-launch. The user is expected to pick up
+            manually from the Sparkles button.
+          </LI>
+          <LI>
+            Finishing the final tour normally (clicking <Kbd>Next</Kbd>{' '}
+            on the last step) simply ends the chain — nothing else
+            fires.
+          </LI>
+        </UL>
+        <Callout tone="tip">
+          Manually starting a single tour from the picker never
+          triggers the chain — chaining only happens when the operator
+          explicitly answers <Kbd>Yes</Kbd> on the first-visit
+          prompt.
+        </Callout>
+      </DocsSubsection>
+
+      <DocsSubsection id="tour-catalog" title="Tour catalog">
+        <P>
+          Four tours ship with the dashboard. Each is a self-contained
+          walkthrough of one surface; the picker lists them all with a
+          step count and a <Pill tone="ok">Seen</Pill> tag against the
+          ones the user has already completed at least once.
+        </P>
+        <StatGrid
+          items={[
+            { label: 'Welcome',        value: 'High-level intro: title bar, sidebars, map, charts — where things live.' },
+            { label: 'Dashboard',      value: 'Left-sidebar panels one by one (Layers, Parameters, Secondary, Rasters, CSV, GEE, Tools, Export) — each panel opens as its step begins.' },
+            { label: 'Monitoring',     value: 'Opens the Monitoring surface, then walks the grid picker, cell parameters, districts overlay, PMD/NDMA toggle, charts panel, and PDF report button.' },
+            { label: 'PMD Workflow',   value: 'End-to-end drill: pick a parameter, click a station on the map, read the trend chart, inspect Feature Details.' },
+          ]}
+        />
+        <Callout tone="info">
+          Tour steps use <code>onEnter</code> hooks to demonstrate the
+          panel they describe — e.g. the Parameters step auto-picks
+          the first parameter, the Feature Details step switches the
+          Charts Row to that tab. These actions are idempotent and
+          ARIA-guarded: if a panel is already open, re-entering the
+          step does <em>not</em> toggle it back off.
+        </Callout>
+      </DocsSubsection>
+
+      <DocsSubsection id="tour-overlay" title="Overlay behaviour">
+        <P>
+          The overlay is a full-viewport React portal rendered into{' '}
+          <code>document.body</code>. It composes three layers:
+        </P>
+        <UL>
+          <LI>
+            <strong>Backdrop</strong> — a semi-opaque{' '}
+            <code>rgba(2, 6, 23, 0.68)</code> wash over the page so
+            everything except the target is visibly dimmed.
+          </LI>
+          <LI>
+            <strong>Spotlight</strong> — an SVG mask cuts a padded
+            rounded-rectangle hole over the target's{' '}
+            <code>getBoundingClientRect()</code>. A lime border with a
+            soft drop-shadow traces the hole so the eye lands on it
+            immediately.
+          </LI>
+          <LI>
+            <strong>Tooltip</strong> — a 340 px card with the step
+            title, body, progress dots, and Prev / Next / Skip
+            controls. Positioned to the step's preferred{' '}
+            <code>side</code> (top / right / bottom / left), flipped
+            to the opposite side if there's no room, then clamped
+            inside the viewport.
+          </LI>
+        </UL>
+        <Callout tone="info">
+          The overlay listens for scroll + resize and remeasures the
+          target on every animation frame. The tour target is also
+          auto-scrolled into view when a step begins, so tours work
+          even when the step's target is off-screen or below the
+          fold.
+        </Callout>
+        <Callout tone="tip">
+          Keyboard operators are covered: <Kbd>Esc</Kbd> skips the
+          current tour, <Kbd>→</Kbd> advances, <Kbd>←</Kbd> goes back.
+          The tooltip's action buttons remain the discoverable path
+          for mouse-first users.
+        </Callout>
+      </DocsSubsection>
+
+      <DocsSubsection id="tour-persistence" title="Persistence">
+        <P>
+          The tour system stores two kinds of flag in{' '}
+          <code>localStorage</code>, both under a versioned{' '}
+          <code>tour:*:v1</code> namespace:
+        </P>
+        <UL>
+          <LI>
+            <code>tour:first-visit-shown:v1</code> — set once the user
+            answers the first-visit prompt (either Yes or Skip). Stops
+            the popover from ever appearing again in this browser.
+          </LI>
+          <LI>
+            <code>tour:seen:&lt;tourId&gt;:v1</code> — set when a tour
+            completes normally (last step's <Kbd>Next</Kbd> pressed).
+            Drives the <Pill tone="ok">Seen</Pill> tag in the launcher
+            picker so the operator knows which tours they've already
+            been through.
+          </LI>
+        </UL>
+        <Callout tone="warning">
+          If a user clears localStorage or opens the dashboard in a
+          private window, the first-visit prompt will re-appear on the
+          next load. This is intentional — the flag is scoped to the
+          browser profile, not the user account.
+        </Callout>
+      </DocsSubsection>
+    </DocsSection>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // How-To
 // ---------------------------------------------------------------------------
 function HowToSection() {
   return (
     <DocsSection id="how-to" eyebrow="Workflows" title="How-To Guides">
+      <DocsSubsection id="how-to-tour" title="Start a Guided Tour">
+        <OL>
+          <LI>
+            On the very first load, a small <strong>Start the Guided
+            Tour?</strong> popover appears under the animated{' '}
+            <Kbd>✨</Kbd> button in the title bar. Click <Kbd>Yes</Kbd>{' '}
+            to run Welcome → Dashboard → Monitoring → PMD Workflow
+            back-to-back, or <Kbd>Skip</Kbd> to dismiss the prompt
+            permanently.
+          </LI>
+          <LI>
+            Any time later, click the <Kbd>✨</Kbd> button to open the
+            picker and start a specific tour on its own. Tours you've
+            already completed are tagged <Pill tone="ok">Seen</Pill>{' '}
+            in the picker.
+          </LI>
+          <LI>
+            Inside a tour, use the tooltip's <Kbd>Prev</Kbd> /{' '}
+            <Kbd>Next</Kbd> buttons — or the keyboard's{' '}
+            <Kbd>←</Kbd> / <Kbd>→</Kbd>. Hit <Kbd>Skip</Kbd> (or{' '}
+            <Kbd>Esc</Kbd>) to end the tour early. Skipping mid-chain
+            stops the chain — the next tour will not auto-launch.
+          </LI>
+          <LI>
+            Panels described by a step open automatically as that step
+            begins, so you can watch the panel react in place while
+            you read the tooltip.
+          </LI>
+        </OL>
+        <Callout tone="tip">
+          If you want to see the first-visit prompt again for a demo,
+          clear <code>tour:first-visit-shown:v1</code> from the browser's
+          localStorage (or use a private window) and reload.
+        </Callout>
+      </DocsSubsection>
+
       <DocsSubsection id="how-to-parameters" title="Browse PMD Parameters">
         <OL>
           <LI>Click any chip in the <strong>Parameters</strong> panel (left sidebar) — e.g. <Kbd>Air Temperature</Kbd>.</LI>
