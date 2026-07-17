@@ -1,17 +1,25 @@
 import {
   Activity,
+  AlertCircle,
   ArrowDown,
   Box,
   Cloud,
   CloudUpload,
+  Compass,
+  Database,
+  FileDown,
+  Grid3x3,
   Image as ImageIcon,
   Layers,
   LineChart,
   Map,
+  MapPin,
   MousePointerClick,
   Network,
   PaintBucket,
   Palette,
+  Radio,
+  Save,
   Server,
   Settings2,
   Shapes,
@@ -77,6 +85,20 @@ export const TOC = [
     ],
   },
   {
+    id: 'monitoring',
+    title: 'Monitoring Surface',
+    children: [
+      { id: 'monitoring-overview',      title: 'What it is' },
+      { id: 'monitoring-grid',          title: 'Grid Layouts' },
+      { id: 'monitoring-cells',         title: 'Cells & Sync' },
+      { id: 'monitoring-districts',     title: 'Districts Overlay' },
+      { id: 'monitoring-classification',title: 'PMD vs NDMA' },
+      { id: 'monitoring-charts',        title: 'Charts Panel' },
+      { id: 'monitoring-report',        title: 'PDF Report' },
+      { id: 'monitoring-persistence',   title: 'Persistence' },
+    ],
+  },
+  {
     id: 'how-to',
     title: 'How-To Guides',
     children: [
@@ -89,6 +111,9 @@ export const TOC = [
       { id: 'how-to-classify',    title: 'Classify a Raster' },
       { id: 'how-to-style',       title: 'Style a Layer' },
       { id: 'how-to-feature',     title: 'Inspect a Feature' },
+      { id: 'how-to-monitoring',  title: 'Open the Monitoring Surface' },
+      { id: 'how-to-monitoring-cells', title: 'Configure Cells & Districts' },
+      { id: 'how-to-monitoring-report', title: 'Export a PDF Report' },
     ],
   },
   {
@@ -118,6 +143,7 @@ export function ContentBody() {
       <OverviewSection />
       <LayersSection />
       <ComponentsSection />
+      <MonitoringSection />
       <HowToSection />
       <ApiSection />
       <StackSection />
@@ -149,9 +175,20 @@ function OverviewSection() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 my-5">
         <FeatureCard icon={Thermometer} title="Live PMD parameters" anchor="#layers-stations">
-          Five canonical readings (Air Temperature, Rainfall, Stage Level,
-          Discharge, Battery Voltage) from every station, colour-binned and
-          re-fetched every 10 min by the backend cron.
+          The full Datascape v3 element catalog (40+ elements — air
+          temperature, water level, discharge, rain intensity, atmospheric
+          pressure, and more) fetched every 10 min and coloured per station
+          by its real PMD alert state.
+        </FeatureCard>
+        <FeatureCard icon={Grid3x3} title="Monitoring surface" anchor="#monitoring">
+          A parallel comparison view: up to four synced Mapbox cells, each
+          with its own parameter, all sharing pan and zoom, with a live
+          chart row per cell and one-click PDF export.
+        </FeatureCard>
+        <FeatureCard icon={AlertCircle} title="PMD + NDMA classification" anchor="#monitoring-classification">
+          Flip every cell (or the main dashboard) between PMD's official
+          alert bands and NDMA's early-warning bands (thresholds tightened
+          10 %) so operators can compare the two views side by side.
         </FeatureCard>
         <FeatureCard icon={Layers} title="Region + secondary layers" anchor="#layers">
           16 regional zones with per-region lake / river / glacier / risk
@@ -162,6 +199,12 @@ function OverviewSection() {
           Upload single-band GeoTIFFs and render them as continuous (colormap)
           or classified (per-value swatch) on the map, with live min/max
           stretching and a nodata override.
+        </FeatureCard>
+        <FeatureCard icon={FileDown} title="PDF monitoring report" anchor="#monitoring-report">
+          One-click export of the current Monitoring grid: cover page,
+          per-cell map snapshot, high-resolution trend chart, sampled
+          readings table with min/max highlights, station attributes, and
+          district context (own district plus neighbours).
         </FeatureCard>
         <FeatureCard icon={CloudUpload} title="GeoJSON & shapefile uploads" anchor="#how-to-upload">
           Drop a file in and it appears as a styled overlay alongside the
@@ -190,20 +233,16 @@ function OverviewSection() {
       <Callout tone="warning" title="Application status — under active development">
         The dashboard is shipping continuously. Live PMD parameters,
         region + secondary GIS layers, raster overlays, GeoJSON /
-        shapefile / CSV ingest, and unit-aware Feature Details are all
-        wired and stable today. The following capabilities are on the
-        roadmap and not yet available in this build:
+        shapefile / CSV ingest, unit-aware Feature Details, the
+        Monitoring surface (grid of synced cells + charts panel), and
+        PDF report export are all wired and stable today. The
+        following capabilities are on the roadmap:
         <UL className="mt-2 mb-0">
           <LI>
-            <strong>Real-time alerts</strong> — automated threshold
-            triggers on PMD readings (rainfall spikes, river-stage
-            crossings, battery-voltage drops) with an in-app alerts
-            inbox and notification fan-out.
-          </LI>
-          <LI>
-            <strong>Report generation</strong> — one-click PDF / CSV
-            exports of station summaries, layer attribute extracts, and
-            time-windowed parameter snapshots for stakeholder reporting.
+            <strong>Real-time alerts</strong> — automated fan-out on
+            threshold breaches (rainfall spikes, water-level crossings,
+            classification changes) with an in-app alerts inbox,
+            email/SMS delivery, and one-click acknowledgement.
           </LI>
           <LI>
             <strong>Google Earth Engine integration</strong> — pull
@@ -285,24 +324,36 @@ function LayersSection() {
 
       <DocsSubsection id="layers-stations" title="PMD Stations (Live Parameters)">
         <P>
-          Coloured dots showing the current value of the selected parameter
-          at every PMD station. The active parameter is picked in the
-          Parameters panel; switching parameters re-colours the dots
-          instantly without re-fetching the station list.
+          Coloured dots showing the current <strong>alert state</strong> of
+          the selected parameter at every PMD station. The active parameter
+          is picked in the Parameters panel; switching parameters re-colours
+          the dots instantly without re-fetching the station list.
+        </P>
+        <P>
+          Each station is classified against its own decoded alert bands
+          (from PMD's <code>entryCfgs</code>) into one of six states:{' '}
+          <Pill tone="ok">Normal</Pill> <Pill tone="warn">Warning</Pill>{' '}
+          <Pill tone="warn">Pre-alarm</Pill> <Pill tone="risk">Alarm</Pill>{' '}
+          <Pill>Error</Pill> <Pill>No data</Pill>. A station keeps its
+          real alert-state colour <em>regardless of reading age</em> —
+          only stations with no classified reading at all fall back to
+          the grey "No data" state.
         </P>
         <StatGrid
           items={[
-            { label: 'Refresh cadence',  value: 'Backend cron every 10 minutes (configurable)' },
-            { label: 'Stale threshold',  value: '> 10 hours since last reading → grey dot' },
+            { label: 'Value cron',       value: 'Every 10 minutes (STORE_INTERVAL_MIN)' },
+            { label: 'Threshold cron',   value: 'Every 30 days (THRESHOLD_INTERVAL_DAYS)' },
             { label: 'Endpoint',         value: 'GET /api/parameters/:el/latest' },
-            { label: 'Parameters',       value: 'Air Temperature, Rainfall, Stage Level, Discharge, Battery Voltage' },
+            { label: 'Element catalog',  value: '40+ elements from the Datascape v3 API' },
           ]}
         />
-        <P>
-          Click a dot → it pulses with a radar ripple, the Stations Table
-          jumps to that row, and the Charts Row's <Kbd>PMD Data Trend</Kbd>{' '}
-          tab fetches its time-series.
-        </P>
+        <Callout tone="info" title="Alarm pulsing">
+          Every station currently in the <strong>Alarm</strong> state gets a
+          continuous red radar pulse painted around its dot, so an
+          operator glancing at the map can spot critical stations without
+          opening the legend or the table. Clicking a dot triggers a
+          separate amber selection ripple on that station only.
+        </Callout>
       </DocsSubsection>
 
       <DocsSubsection id="layers-rasters" title="Raster Overlays">
@@ -340,12 +391,34 @@ function ComponentsSection() {
 
       <DocsSubsection id="components-titlebar" title="Title Bar">
         <P>
-          Brand bar (deep emerald, both themes). Holds the app title, the
-          live station-status badge, the day/night theme toggle, and the
-          Documentation link that opened this page. On mobile the title
-          bar gains hamburger / panel buttons that open the off-canvas
-          drawers for Layers and Media.
+          Brand bar (deep emerald, both themes). From left to right:
+          rotating NDMA logo, app title, and — on wide screens — two
+          live status badges before the day/night toggle and the
+          Documentation link that opened this page. On mobile the
+          title bar gains hamburger / panel buttons that open the
+          off-canvas drawers for Layers and Media.
         </P>
+        <UL>
+          <LI>
+            <strong>Sensor Types</strong> badge — a colour-coded chip row
+            broken down by sensor family (ARG, WP, WL-R, DG, WL-L, AWS,
+            AWS-H). Counts come from{' '}
+            <code>/api/parameters/sensor-types</code>, cached one hour
+            because the roster changes on the order of days. Each chip's
+            tooltip expands the abbreviation ("ARG" → "Automatic Rain
+            Gauge").
+          </LI>
+          <LI>
+            <strong>PMD GLOF 2 Live</strong> badge — the network-status
+            pill: total stations, total active, and currently active
+            within the reporting window. Backed by a warm-cache cron in
+            the backend so it always responds in milliseconds even when
+            the upstream PMD API is slow. A pulsing dot goes emerald
+            when the last fetch succeeded and amber when the badge is
+            operating on stale data (with the reason in a tooltip and
+            the refresh button live).
+          </LI>
+        </UL>
       </DocsSubsection>
 
       <DocsSubsection id="components-layer-menu" title="Layer Menu">
@@ -365,17 +438,26 @@ function ComponentsSection() {
 
       <DocsSubsection id="components-parameters" title="Parameters Panel">
         <P>
-          Five pill chips, one per PMD parameter. Click to set the active
-          parameter — the map's station dots recolour, the legend updates,
-          the Stations Table re-sorts. A timestamp under each chip shows
-          when that parameter last had a successful fetch (defaults to the
-          most-recent cron tick).
+          A scrollable, searchable list of every element in the Datascape
+          v3 catalog (40+ names — Air Temperature, Water Level, Cumulative
+          Flow, Rain Intensity, Atmospheric Pressure, and many more).
+          Click a row to set the active parameter: the map's station dots
+          recolour by that element's alert state, the legend updates, the
+          Stations Table re-sorts, and the badge next to each row shows
+          how many stations currently report that element.
         </P>
         <P>
-          The <Kbd>↻ Refresh All</Kbd> button forces the backend to re-fetch
-          every parameter immediately; the <Kbd>↻</Kbd> next to a chip
-          refreshes just that one.
+          The <Kbd>↻ Refresh All</Kbd> button forces the backend to run
+          one full value cycle now; the <Kbd>↻</Kbd> next to a row
+          refreshes just that element. A timestamp under each row shows
+          when that element last had a successful cron tick.
         </P>
+        <Callout tone="info">
+          The element list is <em>dynamic</em> — it comes from the
+          <code>station_elements</code> catalog rebuilt monthly by the
+          threshold cron, not from a hard-coded list. As PMD adds sensors
+          or elements, they appear here automatically.
+        </Callout>
       </DocsSubsection>
 
       <DocsSubsection id="components-secondary" title="Secondary Panel">
@@ -457,6 +539,292 @@ function ComponentsSection() {
           (alphabetic), <strong>Value</strong> (numeric, with unit in the header),
           and <strong>Updated</strong> (recency). Clicking a row flies the
           map to that station and mirrors the click on the dot.
+        </P>
+      </DocsSubsection>
+    </DocsSection>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Monitoring
+// ---------------------------------------------------------------------------
+function MonitoringSection() {
+  return (
+    <DocsSection id="monitoring" eyebrow="Surface" title="Monitoring Surface">
+      <P>
+        A parallel view to the main dashboard, opened from the{' '}
+        <Kbd>Monitoring</Kbd> icon in the left sidebar (between{' '}
+        <Kbd>Secondary</Kbd> and <Kbd>CSV</Kbd>). Instead of one big map
+        with one active parameter, the Monitoring surface shows up to
+        four map cells side by side, each with its own parameter, all
+        sharing pan and zoom, plus an always-visible chart panel and a
+        one-click PDF export.
+      </P>
+
+      <DocsSubsection id="monitoring-overview" title="What it is (and when to use it)">
+        <P>
+          Reach for the Monitoring surface when you need to <em>compare</em>{' '}
+          multiple things at once — the same station across different
+          parameters, or the same parameter across different regions, or
+          both classification methods at the same time. The main
+          dashboard shows one signal at a time; the Monitoring surface
+          shows several, without switching contexts.
+        </P>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 my-4">
+          <FeatureCard icon={Grid3x3} title="3 grid layouts" anchor="#monitoring-grid">
+            Icon-only picker: 2 × 2, 1 | 2 (left column spans both rows),
+            and 2 + 1 (top row spans both columns).
+          </FeatureCard>
+          <FeatureCard icon={Radio} title="Synced view" anchor="#monitoring-cells">
+            Pan, zoom, or rotate any cell and every other cell rehomes
+            to match. Click a station and the whole grid flies to its
+            neighbourhood.
+          </FeatureCard>
+          <FeatureCard icon={MapPin} title="Districts overlay" anchor="#monitoring-districts">
+            Prominent district boundaries under every cell, with
+            configurable colour, opacity, outline width, and toggleable
+            red-on-yellow labels.
+          </FeatureCard>
+          <FeatureCard icon={AlertCircle} title="Classification toggle" anchor="#monitoring-classification">
+            Flip every cell between PMD's official bands and NDMA's
+            early-warning bands in one click.
+          </FeatureCard>
+          <FeatureCard icon={LineChart} title="Live charts panel" anchor="#monitoring-charts">
+            One chart row per cell, all sharing a single time-window
+            control. Charts always visible while Monitoring is active.
+          </FeatureCard>
+          <FeatureCard icon={FileDown} title="One-click PDF" anchor="#monitoring-report">
+            Export the current grid as a polished multi-page report with
+            map snapshots, chart images, and district context per cell.
+          </FeatureCard>
+        </div>
+      </DocsSubsection>
+
+      <DocsSubsection id="monitoring-grid" title="Grid Layouts">
+        <P>
+          Pick one of the three layouts at the top of the config panel.
+          Each layout locks in a fixed cell count so the comparison
+          view stays legible.
+        </P>
+        <StatGrid
+          items={[
+            { label: '2 × 2',  value: '4 cells (a, b, c, d) — the general-purpose comparison view.' },
+            { label: '1 | 2',  value: '3 cells — a big left cell + two stacked cells on the right.' },
+            { label: '2 + 1',  value: '3 cells — a wide top cell + two cells sharing the bottom row.' },
+          ]}
+        />
+        <Callout tone="tip">
+          Layout, parameter picks, pinned stations, map pose, districts
+          config, and classification method all persist through page
+          reloads via <code>localStorage</code>. You come back to
+          exactly the surface you left.
+        </Callout>
+      </DocsSubsection>
+
+      <DocsSubsection id="monitoring-cells" title="Cells & Sync">
+        <P>
+          Each cell owns its own Mapbox instance and its own
+          parameter. Cells are keyed by area letter (<code>a</code>,{' '}
+          <code>b</code>, …) so switching layouts doesn't shuffle the
+          parameters you already assigned — the same cell 'a' keeps
+          its parameter when the layout grows or shrinks.
+        </P>
+        <UL>
+          <LI>
+            <strong>Parameter picker</strong> (top-right of each cell) — themed
+            dropdown with inline search; picks from the same Datascape
+            v3 catalog as the main dashboard.
+          </LI>
+          <LI>
+            <strong>Cell letter badge</strong> (top-left) — accent colour
+            matches the picked parameter so cells stay identifiable at
+            a glance.
+          </LI>
+          <LI>
+            <strong>Basic controls</strong> (bottom-right) — zoom in / out,
+            focus-to-parameter-extent, reset north.
+          </LI>
+          <LI>
+            <strong>Alarm pulse</strong> — every Alarm-classified station
+            in a cell pulses continuously so ops can spot it without
+            hunting.
+          </LI>
+          <LI>
+            <strong>Selection ripple</strong> — clicking a dot pins that
+            station with an amber ripple and flies the grid to it
+            (zoom 8, 80 px padding — enough surrounding context to
+            recognise the network around it).
+          </LI>
+          <LI>
+            <strong>Always-on labels</strong> — station names render as
+            small dark-on-yellow-halo text below each dot, gated at
+            zoom 7+ so overview zoom stays scannable.
+          </LI>
+        </UL>
+        <Callout tone="info">
+          Sync uses an <code>eventData</code> tag on programmatic{' '}
+          <code>jumpTo</code> calls so the origin cell's move doesn't
+          ping-pong back through every follower. Each cell filters its
+          own tagged moveends out and only broadcasts real user input.
+        </Callout>
+      </DocsSubsection>
+
+      <DocsSubsection id="monitoring-districts" title="Districts Overlay">
+        <P>
+          Every cell renders a district polygon layer under its station
+          dots, filtered server-side to just Gilgit Baltistan and
+          Khyber Pakhtunkhwa — the two provinces that hold every
+          monitoring station. The overlay is fully configurable from
+          the config panel.
+        </P>
+        <UL>
+          <LI>
+            <strong>Style</strong> — five out-of-theme colour presets
+            (beige, sand, gray, charcoal, mocha) so the reference
+            boundary never competes with the station palette.
+          </LI>
+          <LI>
+            <strong>Outline</strong> — line-width slider 0.5–3.5 px.
+          </LI>
+          <LI>
+            <strong>Opacity</strong> — 0–100 %; drives line-opacity
+            directly and fill-opacity at ~35 % of that.
+          </LI>
+          <LI>
+            <strong>Labels</strong> — on by default; fixed red-on-yellow
+            style with a slim halo. INITCAP-normalised at the SQL
+            layer, so <code>SKARDU</code> renders as <code>Skardu</code>.
+          </LI>
+        </UL>
+        <Callout tone="tip">
+          Basemap opacity in Monitoring is pinned at 60 % so overlays
+          (districts + stations) always read clearly on top of dense
+          satellite imagery — no per-cell slider.
+        </Callout>
+      </DocsSubsection>
+
+      <DocsSubsection id="monitoring-classification" title="PMD vs NDMA Classification">
+        <P>
+          A segmented toggle in the config panel flips every cell between
+          two classification methods:
+        </P>
+        <UL>
+          <LI>
+            <Pill tone="brand">PMD</Pill> — the official alert bands
+            decoded verbatim from PMD's <code>entryCfgs</code> per
+            station element.
+          </LI>
+          <LI>
+            <Pill tone="risk">NDMA</Pill> — the same bands with every
+            threshold tightened by 10 % (factor 0.9). The same reading
+            that classifies as <em>Pre-alarm</em> under PMD can trip{' '}
+            <em>Alarm</em> under NDMA — that's the point.
+          </LI>
+        </UL>
+        <P>
+          The toggle is deliberately independent of the main
+          dashboard's classification, so an operator can compare
+          PMD-classified data on the main map and NDMA-classified data
+          in the Monitoring grid at the same time.
+        </P>
+      </DocsSubsection>
+
+      <DocsSubsection id="monitoring-charts" title="Charts Panel">
+        <P>
+          A fixed 460 px column on the right side of the Monitoring
+          grid. Always visible while Monitoring is on — no modal, no
+          slide-out, no interaction with the maps. One chart row per
+          active cell.
+        </P>
+        <UL>
+          <LI>
+            <strong>Shared window</strong> at the top: Daily (24 h) /
+            Weekly (7 d) / Custom (1–60 days). Applies to every row so
+            comparisons stay on the same X axis.
+          </LI>
+          <LI>
+            <strong>Row header</strong>: cell letter badge in the
+            parameter accent, parameter name, date range, an{' '}
+            <Kbd>AUTO</Kbd> tag when the station was auto-picked, and
+            a station picker pinned to the right edge.
+          </LI>
+          <LI>
+            <strong>Chart</strong>: same Chart.js config as the main{' '}
+            <Kbd>PMD Data Trend</Kbd> tab (gradient fill, day markers,
+            min/max markers) but scaled to fit inside the row.
+          </LI>
+          <LI>
+            <strong>Auto-pick</strong>: if no station is pinned, the row
+            plots the first station alphabetically that reports the
+            parameter. The pick is <em>not</em> written back to context,
+            so the map ripple stays off until the operator clicks a dot.
+          </LI>
+        </UL>
+      </DocsSubsection>
+
+      <DocsSubsection id="monitoring-report" title="PDF Report">
+        <P>
+          Click the <Kbd>Report</Kbd> button in the config panel. A
+          confirmation modal shows what the export will include (layout,
+          cells with parameters + resolved stations, time window,
+          classification) and streams a live progress line while the
+          PDF renders. On confirm, the report opens a save-as picker
+          (or falls back to the classic download link on browsers that
+          don't support it).
+        </P>
+        <P>What's inside:</P>
+        <UL>
+          <LI>
+            <strong>Cover page</strong> — slim emerald hero band with
+            brand mark and classification pill, title, meta card
+            (layout · window · classification · report ID · generation
+            timestamp), a colour-coded "Cell summary" table, and a
+            justified description paragraph.
+          </LI>
+          <LI>
+            <strong>Per-cell section</strong> — parameter-accent header
+            bar with cell badge + parameter + station, location card
+            (district / province / division / neighbours via{' '}
+            <code>ST_Touches</code>), map snapshot at up to 110 mm
+            tall, high-resolution chart image (rebuilt off-screen at
+            2400 × 750 for print quality), sampled readings table with
+            min/max highlights and a red→green value gradient, station
+            attributes table, and station photos in a 1/2/2×2 grid.
+          </LI>
+          <LI>
+            <strong>Every page</strong> — emerald page header stamp with
+            report ID on the right; footer with generation timestamp
+            and "Page N of M". Classification method is stamped on
+            every page so there's no ambiguity about which bands the
+            report reflects.
+          </LI>
+        </UL>
+        <Callout tone="info">
+          Map snapshots come from <code>preserveDrawingBuffer</code>{' '}
+          on each cell's Mapbox canvas — the report grabs live pixels,
+          not off-screen re-renders. Chart snapshots are rebuilt at
+          higher resolution so they print sharply.
+        </Callout>
+      </DocsSubsection>
+
+      <DocsSubsection id="monitoring-persistence" title="Persistence">
+        <P>
+          Every user-facing setting on the Monitoring surface is stored
+          in <code>localStorage</code> under a versioned{' '}
+          <code>monitoring:*:v1</code> namespace. Persisted:
+        </P>
+        <UL>
+          <LI>Active / not active, layout, parameters per cell, pinned stations per cell.</LI>
+          <LI>Basemap style, 3D terrain toggle, map pan/zoom/bearing/pitch.</LI>
+          <LI>Districts overlay (colour preset, opacity, outline width, labels toggle).</LI>
+          <LI>Classification method (PMD or NDMA).</LI>
+          <LI>Chart window (Daily / Weekly / Custom + custom day count).</LI>
+        </UL>
+        <P>
+          Reload the page and the surface comes back exactly as you
+          left it — every parameter still picked, every station still
+          pinned, the map still in the same pose. Only truly ephemeral
+          state (fullscreen, in-flight sync counters) resets on reload.
         </P>
       </DocsSubsection>
     </DocsSection>
@@ -593,6 +961,97 @@ function HowToSection() {
           the source table didn't carry a unit-suffix column.
         </Callout>
       </DocsSubsection>
+
+      <DocsSubsection id="how-to-monitoring" title="Open the Monitoring Surface">
+        <OL>
+          <LI>
+            Click the <Kbd>Monitoring</Kbd> icon in the left sidebar (between
+            <Kbd>Secondary</Kbd> and <Kbd>CSV</Kbd>). The main dashboard
+            gives way to a grid of map cells + a charts panel on the right.
+          </LI>
+          <LI>
+            Pick a grid layout at the top of the config panel:{' '}
+            <Kbd>2 × 2</Kbd>, <Kbd>1 | 2</Kbd>, or <Kbd>2 + 1</Kbd>. The
+            grid re-shapes immediately.
+          </LI>
+          <LI>
+            The bottom of the config panel shows the alert-state legend
+            (Normal / Warning / Pre-alarm / Alarm / Error / No data /
+            Warning Post) so the dot colours read the same as on the main
+            dashboard.
+          </LI>
+          <LI>
+            Toggle the icon again (or hit <Kbd>Reset View</Kbd> +{' '}
+            <Kbd>Exit Fullscreen</Kbd>) to return to your previous state.
+            Everything you did will still be there next time you open it —
+            settings are persisted per browser.
+          </LI>
+        </OL>
+      </DocsSubsection>
+
+      <DocsSubsection id="how-to-monitoring-cells" title="Configure Cells & Districts">
+        <OL>
+          <LI>
+            In the config panel's <strong>Cell Parameters</strong> row,
+            pick a parameter for each cell letter (A, B, C, D). The map
+            in that cell fetches the parameter's stations and auto-fits
+            to their extent the first time.
+          </LI>
+          <LI>
+            Click any dot in a cell → the whole grid flies to that
+            station's neighbourhood (zoom 8, 80 px padding) and the
+            picked station gets an amber selection ripple in its own
+            cell. Click again to clear.
+          </LI>
+          <LI>
+            In the <strong>Districts</strong> row, pick a colour preset,
+            drag the outline and opacity sliders, and toggle labels on
+            or off. Changes apply to every cell at once.
+          </LI>
+          <LI>
+            In the <strong>Classification</strong> row, flip between{' '}
+            <Kbd>PMD</Kbd> and <Kbd>NDMA</Kbd>. Station colours update
+            everywhere immediately.
+          </LI>
+        </OL>
+        <Callout tone="tip">
+          The chart panel on the right updates in lockstep with the map
+          selection — clicking a dot in a cell also swaps the row's
+          plotted station. Use the row's own station dropdown to pick
+          a station without moving the map.
+        </Callout>
+      </DocsSubsection>
+
+      <DocsSubsection id="how-to-monitoring-report" title="Export a PDF Report">
+        <OL>
+          <LI>
+            Configure the Monitoring grid the way you want it exported —
+            pick parameters, pin stations, set the chart window (Daily
+            / Weekly / Custom), choose PMD or NDMA.
+          </LI>
+          <LI>
+            Click <Kbd>Report</Kbd> in the config panel actions row. A
+            confirmation modal opens listing what will be included per
+            cell and the current classification method.
+          </LI>
+          <LI>
+            Click <Kbd>Yes, export PDF</Kbd>. A progress line streams
+            live ("Snapshotting cell A…", "Snapshotting cell B…", …).
+          </LI>
+          <LI>
+            When the render finishes, a save-as picker opens (Chrome /
+            Edge) — pick where to save. On Firefox or Safari the file
+            downloads to the browser's default folder. Filename pattern:{' '}
+            <code>glof-monitoring-report_YYYY-MM-DD_HHmm_&lt;layout&gt;_&lt;PMD|NDMA&gt;.pdf</code>.
+          </LI>
+        </OL>
+        <Callout tone="warning">
+          Cells without a picked parameter are skipped in the export.
+          The confirmation modal flags them as "no station yet" so you
+          can back out and finish configuring before spending the render
+          time.
+        </Callout>
+      </DocsSubsection>
     </DocsSection>
   );
 }
@@ -611,28 +1070,66 @@ function ApiSection() {
       </P>
 
       <DocsSubsection id="api-parameters" title="PMD Parameters">
-        <ApiPill method="GET" path="/api/parameters" />
-        <ApiPill method="GET" path="/api/parameters/status" />
-        <ApiPill method="GET" path="/api/parameters/:el/latest" />
-        <ApiPill method="GET" path="/api/parameters/:el/geojson" />
-        <ApiPill method="GET" path="/api/parameters/:el/stations/:id/trend?bucket=hour|day&days=N" />
-        <ApiPill method="POST" path="/api/parameters/:el/store" />
+        <ApiPill method="GET"  path="/api/parameters/elements" />
+        <ApiPill method="GET"  path="/api/parameters/status" />
+        <ApiPill method="GET"  path="/api/parameters/sensor-types" />
+        <ApiPill method="GET"  path="/api/parameters/station-status" />
+        <ApiPill method="GET"  path="/api/parameters/:el/latest" />
+        <ApiPill method="GET"  path="/api/parameters/:el/latest?earlyFactor=0.9" />
+        <ApiPill method="GET"  path="/api/parameters/:el/stations/:id/trend?days=N" />
+        <ApiPill method="GET"  path="/api/parameters/element/:elementId/thresholds" />
+        <ApiPill method="GET"  path="/api/parameters/thresholds/status" />
+        <ApiPill method="POST" path="/api/parameters/thresholds/refresh" />
         <ApiPill method="POST" path="/api/parameters/refresh-all" />
+        <ApiPill method="GET"  path="/api/parameters/stations/:id/photos" />
+        <ApiPill method="GET"  path="/api/parameters/station-photo" />
+        <P>
+          <code>/elements</code> returns the full Datascape v3 element
+          catalog with <code>{'{ name, unit, stationCount }'}</code>{' '}
+          per element.{' '}
+          <code>/sensor-types</code> parses the station-name convention{' '}
+          (<code>Region_TYPE_n</code>) into a family breakdown used by
+          the titlebar chip row. <code>/station-status</code> is served
+          from a warm cache refreshed in-process every few minutes so
+          the titlebar badge never blocks on the slow upstream. The
+          <code>earlyFactor</code> query on <code>/latest</code>{' '}
+          switches the response into NDMA-classified mode (defaults to
+          0.9 — every threshold tightened 10 %).
+        </P>
       </DocsSubsection>
 
       <DocsSubsection id="api-region" title="Region & Secondary Layers">
         <ApiPill method="GET" path="/api/region/:region/:layerKey" />
         <ApiPill method="GET" path="/api/secondary/:layer" />
+        <ApiPill method="GET" path="/api/secondary/sensor-counts" />
+        <ApiPill method="GET" path="/api/secondary/monitoring-districts" />
+        <ApiPill method="GET" path="/api/secondary/district-at?lng=&lat=" />
+        <ApiPill method="GET" path="/api/secondary/district-neighbours/:district" />
         <ApiPill method="GET" path="/api/gis/:layer" />
         <P>
-          Region + secondary endpoints attach derived geometry stats —{' '}
-          <code>area_m2</code>, <code>area_km2</code>,{' '}
-          <code>perimeter_m</code>, <code>perimeter_km</code> for
-          polygons; <code>length_m</code>, <code>length_km</code> for
-          lines — computed via PostGIS <code>ST_Area</code> /{' '}
+          Region + <code>/secondary/:layer</code> endpoints attach
+          derived geometry stats — <code>area_m2</code>,{' '}
+          <code>area_km2</code>, <code>perimeter_m</code>,{' '}
+          <code>perimeter_km</code> for polygons;{' '}
+          <code>length_m</code>, <code>length_km</code> for lines —
+          computed via PostGIS <code>ST_Area</code> /{' '}
           <code>ST_Length</code> on the geography cast. The client
           recognises the unit suffix and renders values with their
           proper symbol.
+        </P>
+        <P>
+          The three <code>district-*</code> endpoints power the
+          Monitoring surface's districts overlay and the PDF report's
+          location context.{' '}
+          <code>monitoring-districts</code> returns a FeatureCollection
+          pre-filtered to Gilgit Baltistan + Khyber Pakhtunkhwa (the
+          two provinces that hold every monitoring station).{' '}
+          <code>district-at</code> reverse-geocodes a lng/lat to its
+          containing district via <code>ST_Contains</code>.{' '}
+          <code>district-neighbours/:district</code> returns the
+          district's own admin context alongside the list of districts
+          whose polygons share a boundary with it (via{' '}
+          <code>ST_Touches</code>).
         </P>
       </DocsSubsection>
 
