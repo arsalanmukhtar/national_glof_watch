@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowBigDownDash, Minimize2 } from 'lucide-react';
+import { ArrowBigDownDash, ChevronDown, ChevronUp, Minimize2 } from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
 import {
   Chart as ChartJS,
@@ -17,6 +17,7 @@ import {
 import { Bar, Line } from 'react-chartjs-2';
 import LayerAttributesPanel from '@/components/dashboard/LayerAttributesPanel';
 import FeatureDetailsPanel from '@/components/dashboard/FeatureDetailsPanel';
+import ElevationProfilePanel from '@/components/dashboard/ElevationProfilePanel';
 import {
   lakeAreaData,
   chartYears as lakeChartYears,
@@ -25,6 +26,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useParameter } from '@/contexts/ParameterContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import { useCsvDatasets } from '@/contexts/CsvDatasetsContext';
+import { useFlypath } from '@/contexts/FlypathContext';
 import { applyFilters } from '@/utils/csvParser';
 import { colorFor } from '@/config/parameterColors';
 import { buildLegendGradient } from '@/config/parameterLegends';
@@ -562,6 +564,34 @@ export function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
 //     selection exists) all run through the effect but hit the
 //     "no transition" branch and do nothing.
 // ---------------------------------------------------------------------------
+// Auto-switch to Elevation Profile when the Flypath panel opens; snap
+// back when it closes. Same edge-only invariant as the PMD hook — if
+// the user manually switches away, we respect that.
+function useFlypathTabAutoSwitch(currentTab, setTab) {
+  const { active } = useFlypath();
+  const prevActiveRef = useRef(false);
+  const autoOriginRef = useRef(null);
+
+  useEffect(() => {
+    const wasActive = prevActiveRef.current;
+    if (active && !wasActive) {
+      // Panel just opened — hop onto Elevation Profile unless the
+      // user is already deliberately somewhere non-default. We treat
+      // the same default ('lakesArea') as a safe entry point.
+      if (currentTab === 'lakesArea') {
+        autoOriginRef.current = currentTab;
+        setTab('elevation');
+      }
+    } else if (!active && wasActive) {
+      if (currentTab === 'elevation' && autoOriginRef.current) {
+        setTab(autoOriginRef.current);
+        autoOriginRef.current = null;
+      }
+    }
+    prevActiveRef.current = active;
+  }, [active, currentTab, setTab]);
+}
+
 function useChartTabAutoSwitch(currentTab, setTab) {
   const { selected, selectedStation } = useParameter();
   // Tracks the previous "is PMD data present" value so the effect can
@@ -607,12 +637,19 @@ export default function ChartsRow() {
   // restoring it on switch back.
   const { chartTab: tab, setChartTab: setTab } = useAttributeTables();
   const expanded = tab === 'attributes';
+  // Local collapse — hides the body entirely so the map takes the
+  // freed vertical space. Not persisted; a re-open of the dashboard
+  // returns to the default expanded state.
+  const [collapsed, setCollapsed] = useState(false);
 
   // Auto-switch the chart tab when a PMD station gets selected on the
   // map, and snap back to Lakes Area when it's deselected — but only
   // on *transitions* of the selection state, so manual tab switching
   // is never overridden.
   useChartTabAutoSwitch(tab, setTab);
+  // Same pattern for the Flypath panel — open the panel and the
+  // Elevation Profile tab pops up on its own.
+  useFlypathTabAutoSwitch(tab, setTab);
 
   return (
     <motion.div
@@ -623,19 +660,31 @@ export default function ChartsRow() {
       className={cn(
         'card-base flex flex-col',
         expanded ? 'flex-1 min-h-0' : 'shrink-0',
+        // When the body is collapsed the card has zero-height content
+        // under a rounded border — the bottom arcs of the border-radius
+        // stick out as two little curved lines below the tab strip.
+        // Squaring off the bottom corners hides them without affecting
+        // the top corners.
+        collapsed && 'rounded-b-none',
       )}
     >
-      <Tabs tab={tab} onChange={setTab} />
-      {/* In normal mode the body is fixed-height so map layout doesn't
-          flicker during sub-tab switches. In attributes mode the body
-          fills the rest of the column (the Dashboard collapses the
-          map), giving the table room to breathe. */}
+      <Tabs
+        tab={tab}
+        onChange={setTab}
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed((c) => !c)}
+      />
+      {/* Collapsed → body hidden entirely, tab strip remains as the
+          affordance to expand again. Attributes mode still consumes
+          the whole column when expanded. */}
       <div
         className={cn(
           'flex flex-col',
-          expanded
-            ? 'flex-1 min-h-0'
-            : 'h-[220px] sm:h-[236px] lg:h-[252px]',
+          collapsed
+            ? 'h-0 overflow-hidden'
+            : expanded
+              ? 'flex-1 min-h-0'
+              : 'h-[220px] sm:h-[236px] lg:h-[252px]',
         )}
       >
         {tab === 'attributes' ? (
@@ -646,6 +695,8 @@ export default function ChartsRow() {
           <LakesPanel theme={theme} />
         ) : tab === 'lakesArea' ? (
           <LakesAreaPanel theme={theme} />
+        ) : tab === 'elevation' ? (
+          <ElevationProfilePanel />
         ) : (
           <FeatureDetailsPanel />
         )}
@@ -654,13 +705,14 @@ export default function ChartsRow() {
   );
 }
 
-function Tabs({ tab, onChange }) {
+function Tabs({ tab, onChange, collapsed, onToggleCollapse }) {
   const items = [
     { id: 'attributes', label: 'Attributes Table' },
     { id: 'pmd',        label: 'PMD Data Trend' },
     { id: 'lakes',      label: 'CSV Trend' },
     { id: 'feature',    label: 'Feature Details' },
     { id: 'lakesArea',  label: 'Lakes Area' },
+    { id: 'elevation',  label: 'Elevation Profile' },
   ];
   // The Attributes Table is the only tab that collapses the map — it
   // takes the whole column so the table can breathe. When the user is
@@ -732,6 +784,38 @@ function Tabs({ tab, onChange }) {
           </Tooltip>
         </div>
       )}
+      {/* Collapse/expand toggle — always visible, floats to the
+          right (or after the attributes button when in that mode).
+          Chevron flips to indicate the direction of the impending
+          toggle. */}
+      <div className={cn(isAttributes ? '' : 'ml-auto', 'mb-1')}>
+        <Tooltip
+          label={collapsed ? 'Expand charts' : 'Collapse charts'}
+          side="left"
+          align="center"
+        >
+          <motion.button
+            type="button"
+            onClick={onToggleCollapse}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            transition={{ duration: 0.18 }}
+            aria-label={collapsed ? 'Expand charts' : 'Collapse charts'}
+            className={cn(
+              'inline-flex h-7 w-7 items-center justify-center rounded-md',
+              'text-day-muted dark:text-night-muted',
+              'hover:bg-day-bg dark:hover:bg-night-bg',
+              'transition-colors',
+            )}
+          >
+            {collapsed ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </motion.button>
+        </Tooltip>
+      </div>
     </div>
   );
 }

@@ -11,10 +11,11 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react';
-import { TbHeartRateMonitor } from 'react-icons/tb';
+import { TbHeartRateMonitor, TbHelicopter } from 'react-icons/tb';
 import Tooltip from '@/components/ui/Tooltip';
 import CsvDataPanel from '@/components/dashboard/CsvDataPanel';
 import ExportLayersModal from '@/components/dashboard/ExportLayersModal';
+import FlypathPanel from '@/components/dashboard/FlypathPanel';
 import GeeImageryPanel from '@/components/dashboard/GeeImageryPanel';
 import GeoAnalysisPanel from '@/components/dashboard/GeoAnalysisPanel';
 import LayerMenu from '@/components/dashboard/LayerMenu';
@@ -23,6 +24,7 @@ import ParametersPanel from '@/components/dashboard/ParametersPanel';
 import RasterLayersPanel from '@/components/dashboard/RasterLayersPanel';
 import SecondaryPanel from '@/components/dashboard/SecondaryPanel';
 import { useMonitoring } from '@/contexts/MonitoringContext';
+import { useFlypath } from '@/contexts/FlypathContext';
 import { cn } from '@/utils/cn';
 
 // All non-Primary icons are "solo" modes — turning one on clears the
@@ -30,12 +32,13 @@ import { cn } from '@/utils/cn';
 // once; toggling it off / clicking another icon dismisses it.
 const SECONDARY_ID  = 'secondary';
 const MONITORING_ID = 'monitoring';
+const FLYPATH_ID    = 'flypath';
 const CSV_ID        = 'csv';
 const RASTER_ID     = 'raster';
 const GEE_ID        = 'gee';
 const TOOLBOX_ID    = 'toolbox';
 const PRIMARY_IDS   = ['parameters', 'layers'];
-const SOLO_IDS      = [SECONDARY_ID, MONITORING_ID, CSV_ID, RASTER_ID, GEE_ID, TOOLBOX_ID];
+const SOLO_IDS      = [SECONDARY_ID, MONITORING_ID, FLYPATH_ID, CSV_ID, RASTER_ID, GEE_ID, TOOLBOX_ID];
 
 const SECTIONS = [
   {
@@ -69,6 +72,14 @@ const SECTIONS = [
     title: 'Monitoring',
     grow: true,
     render: () => <MonitoringPanel />,
+  },
+  {
+    id: FLYPATH_ID,
+    label: 'Lake Flypath',
+    headerIcon: TbHelicopter,
+    title: 'Lake Flypath',
+    grow: true,
+    render: () => <FlypathPanel />,
   },
   {
     id: CSV_ID,
@@ -113,6 +124,7 @@ const ICON_BUTTONS = [
   { id: 'primary',      label: 'Primary Layers',   icon: Layers,                 tourId: 'primary-panel-icon'    },
   { id: SECONDARY_ID,   label: 'Secondary Layers', icon: Shapes,                 tourId: 'secondary-panel-icon'  },
   { id: MONITORING_ID,  label: 'Monitoring',       icon: TbHeartRateMonitor,     tourId: 'monitoring-panel-icon' },
+  { id: FLYPATH_ID,     label: 'Lake Flypath',     icon: TbHelicopter,             tourId: 'flypath-panel-icon'    },
   { id: CSV_ID,         label: 'CSV Data',         icon: FileSpreadsheet,        tourId: 'csv-panel-icon'        },
   { id: RASTER_ID,      label: 'Raster Layers',    icon: Grid3x3,                tourId: 'raster-panel-icon'     },
   { id: GEE_ID,         label: 'GEE Imagery',      icon: CloudDownload,          tourId: 'gee-panel-icon'        },
@@ -135,6 +147,12 @@ export default function LeftSidebar({ className }) {
   useEffect(() => {
     setMonitoringActive(activeIds.has(MONITORING_ID));
   }, [activeIds, setMonitoringActive]);
+  // Same pattern for Flypath — ChartsRow's Elevation Profile tab
+  // watches this flag and auto-switches when the panel is open.
+  const { setActive: setFlypathActive } = useFlypath();
+  useEffect(() => {
+    setFlypathActive(activeIds.has(FLYPATH_ID));
+  }, [activeIds, setFlypathActive]);
 
   const toggleIconButton = (id) => {
     setActiveIds((prev) => {

@@ -44,10 +44,13 @@ import MapControls from './MapControls';
 import MapGeocoder from './MapGeocoder';
 import MapLegend from './MapLegend';
 import RasterMapRenderer from './RasterMapRenderer';
+import FlypathMapLayer from './FlypathMapLayer';
+import FlypathDigitizer from './FlypathDigitizer';
+import FlypathFullscreenOverlay from './FlypathFullscreenOverlay';
 import StationsTable from './StationsTable';
 import { cn } from '@/utils/cn';
 
-const DEFAULT_BASEMAP = 'light';
+const DEFAULT_BASEMAP = 'satellite';
 const STATIONS_SOURCE = 'parameter-stations';
 const STATIONS_LAYER = 'parameter-stations-circle';
 const STATIONS_HALO_LAYER = 'parameter-stations-halo';
@@ -1067,6 +1070,9 @@ export default function MapPanel({ className, onMapReady }) {
         />
         <StationsTable />
         <RasterMapRenderer />
+        <FlypathMapLayer map={mapInstance} />
+        <FlypathDigitizer map={mapInstance} />
+        <FlypathFullscreenOverlay />
         <AnimatePresence>
           {isLoading ? (
             <motion.div
