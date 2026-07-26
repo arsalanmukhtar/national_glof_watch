@@ -48,7 +48,6 @@ import {
   removeAttributeFromExpression,
   unitById,
 } from '@/utils/labelExpression';
-import Select from '@/components/ui/Select';
 import { cn } from '@/utils/cn';
 
 // Lake Flypath config panel.
@@ -684,17 +683,34 @@ function FeaturesLabelsCard() {
               onChange={(expression) => setFeaturesLabelStyle({ expression })}
             />
 
-            {/* Row 3 — Unit suffix (inline) */}
+            {/* Row 3 — Unit suffix (inline). Custom-styled native
+                select so the trigger matches the AttributeMultiSelect
+                trigger silhouette exactly (h-7, 11.5 px text, lime
+                hover border). Using the shared Select wrapper baked
+                in a taller input-base and clipped the option text. */}
             <InlineFieldRow icon={Ruler} label="Unit">
-              <Select
-                value={featuresLabelStyle.unit}
-                onChange={(e) => setFeaturesLabelStyle({ unit: e.target.value })}
-                className="h-7 text-[11.5px] w-full"
-              >
-                {LABEL_UNITS.map((u) => (
-                  <option key={u.id} value={u.id}>{u.label}</option>
-                ))}
-              </Select>
+              <div className="relative w-full">
+                <select
+                  value={featuresLabelStyle.unit}
+                  onChange={(e) => setFeaturesLabelStyle({ unit: e.target.value })}
+                  className={cn(
+                    'w-full h-7 pl-2 pr-7 rounded-md text-[11.5px] leading-none',
+                    'bg-day-bg dark:bg-night-bg text-day-text dark:text-night-text',
+                    'border border-day-border dark:border-night-border',
+                    'appearance-none cursor-pointer',
+                    'hover:border-[#84cc16] transition-colors',
+                    'focus:outline-none focus:border-[#84cc16]',
+                  )}
+                >
+                  {LABEL_UNITS.map((u) => (
+                    <option key={u.id} value={u.id}>{u.label}</option>
+                  ))}
+                </select>
+                <ChevronDown
+                  aria-hidden
+                  className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-day-muted dark:text-night-muted"
+                />
+              </div>
             </InlineFieldRow>
 
             {/* Row 4 — Size + Halo width (inline sliders) */}

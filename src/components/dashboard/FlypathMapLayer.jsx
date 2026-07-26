@@ -274,14 +274,26 @@ export default function FlypathMapLayer({ map }) {
 
     const onIdle = () => { if (pending) ensureLayers(); };
 
+    // Keep the labels on the very top of the layer stack. Any other
+    // component that mounts a layer later (raster overlay, station
+    // circles, region fills) would otherwise get painted above the
+    // labels because `addLayer` without `beforeId` pushes to the top.
+    const hoistLabels = () => {
+      if (map.getLayer(FEATURES_LABEL)) {
+        try { map.moveLayer(FEATURES_LABEL); } catch { /* transient */ }
+      }
+    };
+
     ensureLayers();
     map.on('load', ensureLayers);
     map.on('style.load', ensureLayers);
     map.on('idle', onIdle);
+    map.on('styledata', hoistLabels);
     return () => {
       map.off('load', ensureLayers);
       map.off('style.load', ensureLayers);
       map.off('idle', onIdle);
+      map.off('styledata', hoistLabels);
     };
   }, [map]);
 
@@ -313,23 +325,45 @@ export default function FlypathMapLayer({ map }) {
     catch { /* transient */ }
   }, [map, features]);
 
-  // Labels: apply expression + unit + colour + halo whenever the
-  // label style state changes. When labels are disabled we clear the
-  // text-field to '' so nothing renders (rather than removing +
-  // re-adding the layer, which would fight the style-swap logic).
+  // Labels: on every style change, drop the existing symbol layer
+  // and re-add it with the new paint/layout. `setPaintProperty` on
+  // symbol layers with terrain enabled sometimes gets absorbed by
+  // the tile cache — only layout changes force a re-raster, which
+  // is why text-size updated live but text-color / text-halo-color /
+  // text-halo-width silently didn't. Removing + re-adding sidesteps
+  // the cache entirely and is cheap even for large feature counts
+  // (only the glyphs re-raster). We also move the layer to the very
+  // top of the stack afterwards so raster / station layers loaded
+  // after us can never hide the labels.
   useEffect(() => {
     if (!map) return;
     const ls = featuresLabelStyle;
     try {
-      if (!map.getLayer(FEATURES_LABEL)) return;
+      if (map.getLayer(FEATURES_LABEL)) map.removeLayer(FEATURES_LABEL);
+      if (!map.getSource(FEATURES_SRC)) return;
       const textField = ls.enabled
         ? buildMapboxTextField(ls.expression, unitById(ls.unit).suffix)
         : '';
-      map.setLayoutProperty(FEATURES_LABEL, 'text-field', textField);
-      map.setLayoutProperty(FEATURES_LABEL, 'text-size',  Number(ls.size) || 12);
-      map.setPaintProperty (FEATURES_LABEL, 'text-color',      ls.color);
-      map.setPaintProperty (FEATURES_LABEL, 'text-halo-color', ls.haloColor);
-      map.setPaintProperty (FEATURES_LABEL, 'text-halo-width', Number(ls.haloWidth) || 0);
+      map.addLayer({
+        id: FEATURES_LABEL,
+        type: 'symbol',
+        source: FEATURES_SRC,
+        layout: {
+          'text-field':        textField,
+          'text-size':         Number(ls.size) || 12,
+          'text-font':         ['Open Sans Regular', 'Arial Unicode MS Regular'],
+          'text-anchor':       'center',
+          'text-justify':      'center',
+          'text-allow-overlap': false,
+          'symbol-placement':  'point',
+        },
+        paint: {
+          'text-color':      ls.color,
+          'text-halo-color': ls.haloColor,
+          'text-halo-width': Number(ls.haloWidth) || 0,
+        },
+      });
+      map.moveLayer(FEATURES_LABEL); // pin to top of layer stack
       map.triggerRepaint?.();
     } catch { /* transient */ }
   }, [map, featuresLabelStyle]);
