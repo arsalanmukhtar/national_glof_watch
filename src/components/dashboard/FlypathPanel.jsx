@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
+  ChevronDown,
   Crosshair,
   FileArchive,
   FileCode2,
@@ -43,6 +44,8 @@ import {
 import {
   LABEL_UNITS,
   appendAttributeToExpression,
+  attributesInExpression,
+  removeAttributeFromExpression,
   unitById,
 } from '@/utils/labelExpression';
 import Select from '@/components/ui/Select';
@@ -106,7 +109,7 @@ export default function FlypathPanel() {
     // without applying its own overflow-y-auto, so the internal
     // scroll region works cleanly.
     <div className="flex flex-col h-full min-h-0">
-      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 pr-1 -mr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
         <RoutesContainer
           routes={routes}
           selectedId={selectedRouteId}
@@ -661,25 +664,62 @@ function FeaturesLabelsCard() {
           </div>
         ) : (
           <>
-            <AttributeChips
-              attributes={featureAttributes}
-              onPick={(name) => setFeaturesLabelStyle({
-                enabled:    true,
-                expression: appendAttributeToExpression(featuresLabelStyle.expression, name),
-              })}
-            />
+            {/* Row 1 — Attribute multi-select with checkbox rows */}
+            <InlineFieldRow icon={Tag} label="Attrs">
+              <AttributeMultiSelect
+                attributes={featureAttributes}
+                selected={attributesInExpression(featuresLabelStyle.expression)}
+                onToggle={(name, isChecked) => setFeaturesLabelStyle({
+                  enabled: true,
+                  expression: isChecked
+                    ? appendAttributeToExpression(featuresLabelStyle.expression, name)
+                    : removeAttributeFromExpression(featuresLabelStyle.expression, name),
+                })}
+              />
+            </InlineFieldRow>
+
+            {/* Row 2 — Free-form expression (advanced) */}
             <LabelExpressionEditor
               expression={featuresLabelStyle.expression}
               onChange={(expression) => setFeaturesLabelStyle({ expression })}
             />
-            <UnitPicker
-              value={featuresLabelStyle.unit}
-              onChange={(unit) => setFeaturesLabelStyle({ unit })}
+
+            {/* Row 3 — Unit suffix (inline) */}
+            <InlineFieldRow icon={Ruler} label="Unit">
+              <Select
+                value={featuresLabelStyle.unit}
+                onChange={(e) => setFeaturesLabelStyle({ unit: e.target.value })}
+                className="h-7 text-[11.5px] w-full"
+              >
+                {LABEL_UNITS.map((u) => (
+                  <option key={u.id} value={u.id}>{u.label}</option>
+                ))}
+              </Select>
+            </InlineFieldRow>
+
+            {/* Row 4 — Size + Halo width (inline sliders) */}
+            <InlineSliderRow
+              icon={Type} label="Size"
+              min={8} max={28} step={1}
+              value={featuresLabelStyle.size}
+              onChange={(size) => setFeaturesLabelStyle({ size })}
+              display={`${featuresLabelStyle.size}px`}
             />
-            <LabelSymbologyControls
-              style={featuresLabelStyle}
-              onChange={setFeaturesLabelStyle}
+            <InlineSliderRow
+              icon={Waves} label="Halo"
+              min={0} max={6} step={0.25}
+              value={featuresLabelStyle.haloWidth}
+              onChange={(haloWidth) => setFeaturesLabelStyle({ haloWidth })}
+              display={`${featuresLabelStyle.haloWidth}px`}
             />
+
+            {/* Row 5 — Text + Halo colour swatches */}
+            <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-day-border dark:border-night-border">
+              <SwatchRow label="Text" value={featuresLabelStyle.color}
+                onChange={(color) => setFeaturesLabelStyle({ color })} />
+              <SwatchRow label="Halo" value={featuresLabelStyle.haloColor}
+                onChange={(haloColor) => setFeaturesLabelStyle({ haloColor })} />
+            </div>
           </>
         )}
       </div>
@@ -687,47 +727,58 @@ function FeaturesLabelsCard() {
   );
 }
 
-// Attribute list rendered as small clickable chips. Clicking appends
-// the attribute to the expression textarea with a ` || ' ' || `
-// separator between multiples — mirrors the QGIS-style pattern the
-// user asked for.
-function AttributeChips({ attributes, onPick }) {
+// Shared inline row: icon + label (fixed width) + content that grows.
+// Reused by the Attrs multi-select and Unit dropdown so both rows
+// share the same silhouette as SpeedControl / LoopControl at the
+// bottom of the panel.
+function InlineFieldRow({ icon: Icon, label, children }) {
   return (
-    <div className="flex flex-col gap-1">
-      <div className="text-[9.5px] uppercase tracking-wide text-day-muted dark:text-night-muted px-0.5">
-        Attributes (click to add)
+    <div className="flex items-center gap-2 min-h-7">
+      <Icon className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
+      <span className="uppercase tracking-wide text-[10px] text-day-muted dark:text-night-muted w-10 shrink-0">
+        {label}
+      </span>
+      <div className="flex-1 min-w-0">
+        {children}
       </div>
-      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
-        {attributes.map((name) => (
-          <button
-            key={name}
-            type="button"
-            onClick={() => onPick(name)}
-            title={`Append "${name}" to the label expression`}
-            className={cn(
-              'inline-flex items-center h-5 px-1.5 rounded text-[10.5px] font-medium',
-              'bg-day-bg dark:bg-night-bg',
-              'text-day-text dark:text-night-text',
-              'border border-day-border dark:border-night-border',
-              'hover:border-[#84cc16] hover:text-[#4d7c0f] dark:hover:text-[#a3e635]',
-              'transition-colors',
-            )}
-          >
-            {name}
-          </button>
-        ))}
-      </div>
+    </div>
+  );
+}
+
+// Slider variant of InlineFieldRow — matches SpeedControl exactly so
+// the visual language is consistent top-to-bottom.
+function InlineSliderRow({ icon: Icon, label, min, max, step, value, onChange, display }) {
+  return (
+    <div className="flex items-center gap-2 min-h-7 text-[10.5px]">
+      <Icon className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
+      <span className="uppercase tracking-wide text-day-muted dark:text-night-muted w-10 shrink-0">
+        {label}
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="flex-1 h-1 accent-[#84cc16] min-w-0"
+      />
+      <span className="tabular-nums text-day-text dark:text-night-text w-10 text-right shrink-0">
+        {display}
+      </span>
     </div>
   );
 }
 
 // Multi-line textarea that accepts a QGIS/ArcGIS-style expression.
 // Bare identifiers = attribute names. Quoted strings = literals.
-// `||` concatenates.
+// `||` concatenates. Ticking / unticking in the attribute dropdown
+// above regenerates this string via appendAttributeToExpression /
+// removeAttributeFromExpression, so the two stay in sync.
 function LabelExpressionEditor({ expression, onChange }) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1.5 text-[9.5px] uppercase tracking-wide text-day-muted dark:text-night-muted px-0.5">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-day-muted dark:text-night-muted px-0.5">
         <Type className="h-3 w-3" />
         Expression
       </div>
@@ -743,65 +794,104 @@ function LabelExpressionEditor({ expression, onChange }) {
         )}
       />
       <div className="text-[9.5px] text-day-muted dark:text-night-muted px-0.5 leading-tight">
-        Use <code className="font-mono">||</code> to join · quote literals
+        <code className="font-mono">||</code> joins · quote literals
         <span className="whitespace-nowrap"> (<code className="font-mono">'text'</code>)</span>
-        · bare words are attributes.
+        · numbers round to 2 decimals.
       </div>
     </div>
   );
 }
 
-// Themed dropdown that surfaces the LABEL_UNITS catalog. The selected
-// suffix is appended to the label text as-is (using real ² / ³ / °
-// unicode glyphs so Mapbox renders them without any format tricks).
-function UnitPicker({ value, onChange }) {
-  const active = unitById(value);
+// Compact multi-select dropdown. Trigger button shows the number of
+// checked attributes (or the single name when only one is selected);
+// popup panel below lists every attribute with a checkbox row.
+// Click-outside + Escape close the popup — same UX as a native
+// <select multiple> but themed to match the rest of the panel.
+function AttributeMultiSelect({ attributes, selected, onToggle }) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onMouseDown = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false);
+    };
+    const onKeyDown = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  const selectedList = attributes.filter((a) => selected.has(a));
+  const count = selectedList.length;
+  const label = count === 0 ? 'Choose attributes'
+              : count === 1 ? selectedList[0]
+              : `${count} selected`;
+
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1.5 text-[9.5px] uppercase tracking-wide text-day-muted dark:text-night-muted px-0.5">
-        <Ruler className="h-3 w-3" />
-        Unit suffix
-        {active?.suffix ? (
-          <span className="ml-auto normal-case tracking-normal text-[10px] text-day-text dark:text-night-text">
-            Preview:
-            <span className="ml-1 font-mono">value{active.suffix}</span>
-          </span>
-        ) : null}
-      </div>
-      <Select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-8 text-[11.5px]"
+    <div ref={wrapperRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={cn(
+          'w-full flex items-center h-7 px-2 rounded-md text-[11.5px]',
+          'bg-day-bg dark:bg-night-bg text-day-text dark:text-night-text',
+          'border border-day-border dark:border-night-border',
+          'hover:border-[#84cc16] transition-colors',
+        )}
       >
-        {LABEL_UNITS.map((u) => (
-          <option key={u.id} value={u.id}>{u.label}</option>
-        ))}
-      </Select>
-    </div>
-  );
-}
-
-// Colour, halo colour, halo width, and text size — the four
-// symbology dials operators expect for map labels.
-function LabelSymbologyControls({ style, onChange }) {
-  return (
-    <div className="flex flex-col gap-1.5 pt-1 border-t border-day-border dark:border-night-border">
-      <div className="grid grid-cols-2 gap-1.5">
-        <SwatchRow label="Text"  value={style.color}     onChange={(color)     => onChange({ color })} />
-        <SwatchRow label="Halo"  value={style.haloColor} onChange={(haloColor) => onChange({ haloColor })} />
-      </div>
-      <SliderRow
-        label="Halo" min={0} max={5} step={0.25}
-        value={style.haloWidth}
-        onChange={(haloWidth) => onChange({ haloWidth })}
-        display={`${style.haloWidth}px`}
-      />
-      <SliderRow
-        label="Size" min={8} max={22} step={1}
-        value={style.size}
-        onChange={(size) => onChange({ size })}
-        display={`${style.size}px`}
-      />
+        <span className={cn('flex-1 text-left truncate', count === 0 && 'text-day-muted dark:text-night-muted')}>
+          {label}
+        </span>
+        <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open ? (
+        <div
+          className={cn(
+            'absolute z-30 top-full mt-1 left-0 right-0',
+            'bg-day-surface dark:bg-night-surface',
+            'border border-day-border dark:border-night-border',
+            'rounded-md shadow-xl max-h-56 overflow-y-auto',
+          )}
+        >
+          {attributes.map((attr) => {
+            const isChecked = selected.has(attr);
+            return (
+              <label
+                key={attr}
+                className={cn(
+                  'flex items-center gap-2 px-2 py-1.5 cursor-pointer text-[11.5px]',
+                  'hover:bg-day-bg dark:hover:bg-night-bg',
+                  isChecked && 'bg-[#84cc16]/10',
+                )}
+              >
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={isChecked}
+                  onChange={() => onToggle(attr, !isChecked)}
+                />
+                <span
+                  aria-hidden
+                  className={cn(
+                    'inline-flex h-3.5 w-3.5 items-center justify-center rounded shrink-0 border',
+                    isChecked
+                      ? 'bg-[#84cc16] border-[#84cc16]'
+                      : 'bg-day-bg dark:bg-night-bg border-day-border dark:border-night-border',
+                  )}
+                >
+                  {isChecked ? <Check className="h-2.5 w-2.5 text-[#1a2e05]" strokeWidth={3} /> : null}
+                </span>
+                <span className="text-day-text dark:text-night-text truncate">{attr}</span>
+              </label>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

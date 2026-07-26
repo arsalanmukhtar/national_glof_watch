@@ -133,6 +133,11 @@ export function parseLabelExpression(expr) {
 //   • single segment + no unit → the bare `get` expression (Mapbox
 //     handles string/number automatically)
 //   • otherwise → concat array with a trailing unit suffix literal
+//
+// Numeric attribute values are rounded to two decimals via
+// `number-format` — that's the operator-friendly default for lake
+// areas / volumes / elevations. Non-numeric values fall through to
+// `to-string` unchanged.
 // -------------------------------------------------------------------
 export function buildMapboxTextField(expression, unitSuffix = '') {
   const segments = parseLabelExpression(expression);
@@ -145,22 +150,90 @@ export function buildMapboxTextField(expression, unitSuffix = '') {
     if (seg.type === 'literal') {
       parts.push(seg.value);
     } else {
-      // to-string keeps numbers / booleans from crashing the layer,
-      // coalesce turns missing keys into '' rather than 'null'.
-      parts.push(['to-string', ['coalesce', ['get', seg.value], '']]);
+      parts.push(attributeGetterExpr(seg.value));
     }
   }
   if (trailing) parts.push(trailing);
   return parts;
 }
 
+// Attribute getter that:
+//   • returns '' when the key is missing (coalesce guard);
+//   • rounds numeric values to 2 decimals via number-format;
+//   • coerces anything else to string so mixed-type attributes
+//     don't crash the layer.
+function attributeGetterExpr(attrName) {
+  return [
+    'case',
+    ['==', ['typeof', ['get', attrName]], 'number'],
+    ['number-format', ['get', attrName], { 'max-fraction-digits': 2, 'min-fraction-digits': 0 }],
+    ['to-string', ['coalesce', ['get', attrName], '']],
+  ];
+}
+
 // -------------------------------------------------------------------
-// Helper: when the user clicks an attribute chip, append it to the
-// existing expression with a `||` if there's anything there already.
-// Uses the identifier bare (no quotes) — that's the QGIS convention.
+// Helper: when the user picks an attribute (chip / dropdown check),
+// append it to the existing expression with a `||` if there's
+// anything there already. Uses the identifier bare (no quotes) —
+// that's the QGIS convention.
 // -------------------------------------------------------------------
 export function appendAttributeToExpression(expr, attrName) {
   const trimmed = String(expr ?? '').trim();
   if (!trimmed) return attrName;
-  return `${trimmed} || ' ' || ${attrName}`;
+  return `${trimmed} || ' - ' || ${attrName}`;
+}
+
+// -------------------------------------------------------------------
+// Remove the first occurrence of an attribute name from the
+// expression. Also drops one adjacent whitespace-only literal so the
+// remaining string doesn't end up with a dangling `||` or a stray
+// separator like `name || ' - '`. Best-effort — anything the user
+// typed by hand that doesn't survive the round-trip cleanly stays
+// as-is under advanced edits.
+// -------------------------------------------------------------------
+export function removeAttributeFromExpression(expr, attrName) {
+  const segments = parseLabelExpression(expr);
+  const kept = [];
+  let removed = false;
+  for (let i = 0; i < segments.length; i++) {
+    const s = segments[i];
+    if (!removed && s.type === 'attr' && s.value === attrName) {
+      removed = true;
+      // Drop one adjacent whitespace / punctuation-only literal so
+      // we don't leave `name || ' - '` behind.
+      const prev = kept[kept.length - 1];
+      const next = segments[i + 1];
+      if (prev && prev.type === 'literal' && isSeparatorLiteral(prev.value)) {
+        kept.pop();
+      } else if (next && next.type === 'literal' && isSeparatorLiteral(next.value)) {
+        i++;
+      }
+      continue;
+    }
+    kept.push(s);
+  }
+  return kept.map(rebuildSegment).join(' || ');
+}
+
+function isSeparatorLiteral(text) {
+  // Whitespace, dashes, commas, semicolons, parens — the punctuation
+  // people typically use as separators between attributes.
+  return /^[\s\-,;:()\[\]|/]*$/.test(text);
+}
+
+function rebuildSegment(seg) {
+  if (seg.type === 'literal') return `'${seg.value.replace(/'/g, "\\'")}'`;
+  return seg.value;
+}
+
+// -------------------------------------------------------------------
+// Set of attribute names currently referenced in the expression.
+// Used to drive multi-select checkbox states.
+// -------------------------------------------------------------------
+export function attributesInExpression(expr) {
+  return new Set(
+    parseLabelExpression(expr)
+      .filter((s) => s.type === 'attr')
+      .map((s) => s.value),
+  );
 }

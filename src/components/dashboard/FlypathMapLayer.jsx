@@ -214,7 +214,7 @@ export default function FlypathMapLayer({ map }) {
             source: FEATURES_SRC,
             layout: {
               'text-field':        textField,
-              'text-size':         ls.size,
+              'text-size':         Number(ls.size) || 12,
               'text-font':         ['Open Sans Regular', 'Arial Unicode MS Regular'],
               'text-anchor':       'center',
               'text-justify':      'center',
@@ -224,8 +224,9 @@ export default function FlypathMapLayer({ map }) {
             paint: {
               'text-color':      ls.color,
               'text-halo-color': ls.haloColor,
-              'text-halo-width': ls.haloWidth,
-              'text-halo-blur':  0.5,
+              // Coerce because a stale string from a form field
+              // would silently no-op the paint update.
+              'text-halo-width': Number(ls.haloWidth) || 0,
             },
           });
         }
@@ -325,10 +326,10 @@ export default function FlypathMapLayer({ map }) {
         ? buildMapboxTextField(ls.expression, unitById(ls.unit).suffix)
         : '';
       map.setLayoutProperty(FEATURES_LABEL, 'text-field', textField);
-      map.setLayoutProperty(FEATURES_LABEL, 'text-size',  ls.size);
+      map.setLayoutProperty(FEATURES_LABEL, 'text-size',  Number(ls.size) || 12);
       map.setPaintProperty (FEATURES_LABEL, 'text-color',      ls.color);
       map.setPaintProperty (FEATURES_LABEL, 'text-halo-color', ls.haloColor);
-      map.setPaintProperty (FEATURES_LABEL, 'text-halo-width', ls.haloWidth);
+      map.setPaintProperty (FEATURES_LABEL, 'text-halo-width', Number(ls.haloWidth) || 0);
       map.triggerRepaint?.();
     } catch { /* transient */ }
   }, [map, featuresLabelStyle]);
