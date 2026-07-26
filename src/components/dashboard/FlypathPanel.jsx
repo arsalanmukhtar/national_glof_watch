@@ -21,7 +21,11 @@ import {
   X,
 } from 'lucide-react';
 import { useFlypath } from '@/contexts/FlypathContext';
-import { readSpatialFile } from '@/utils/spatialUpload';
+import {
+  readSpatialFile,
+  featureCollectionLengthMeters,
+  formatLength,
+} from '@/utils/spatialUpload';
 import {
   buildShapefileFiles,
   buildZip,
@@ -276,6 +280,13 @@ function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
                  : route.kind === 'kml'       ? FileCode2
                  : FileJson;
   const featCount = route.fc?.features?.length ?? 0;
+  // Total polyline length across every LineString / MultiLineString
+  // in the route — memoised on the fc reference so we don't re-walk
+  // 10 000-vertex tracks on every render.
+  const lengthLabel = useMemo(
+    () => formatLength(featureCollectionLengthMeters(route.fc)),
+    [route.fc],
+  );
 
   return (
     <div
@@ -315,6 +326,7 @@ function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
           </div>
           <div className="text-[10.5px] text-day-muted dark:text-night-muted">
             {featCount} feature{featCount === 1 ? '' : 's'} · {route.kind}
+            {lengthLabel ? ` · ${lengthLabel}` : ''}
           </div>
         </div>
         <span
@@ -545,8 +557,13 @@ function UploadDropZone({ hint, onFile, inputRef, busy, error, dragOver, setDrag
 // Style controls — color, outline, width, opacity for one layer.
 // ---------------------------------------------------------------------------
 function StyleControls({ style, onChange }) {
+  // Old row-first layout, tightened up:
+  //   Row 1  — Color swatch + Outline swatch side-by-side.
+  //   Row 2  — Width slider (own row, full width).
+  //   Row 3  — Opacity slider (own row, full width).
+  // Swatches stay at 20 px (same small size as before).
   return (
-    <div className="px-2.5 py-2 border-t border-day-border dark:border-night-border bg-day-bg/60 dark:bg-night-bg/60 flex flex-col gap-1.5">
+    <div className="px-2 py-1.5 border-t border-day-border dark:border-night-border bg-day-bg/60 dark:bg-night-bg/60 flex flex-col gap-1.5">
       <div className="grid grid-cols-2 gap-1.5">
         <SwatchRow label="Color"   value={style.color}        onChange={(color) => onChange({ color })} />
         <SwatchRow label="Outline" value={style.outlineColor} onChange={(outlineColor) => onChange({ outlineColor })} />
@@ -568,31 +585,30 @@ function StyleControls({ style, onChange }) {
 }
 
 function SwatchRow({ label, value, onChange }) {
-  // Pretty swatch tile — the native colour input is hidden inside a
-  // styled rounded box. The tile shows the current colour with a
-  // subtle diagonal highlight overlay so dark colours still look
-  // interactive.
+  // Small square swatch (h-5 w-5) + label to its right. Same size as
+  // the vertical-stack version, but laid out horizontally so two
+  // pickers share a single row.
   return (
     <label
       className={cn(
-        'flex items-center gap-2 text-[10.5px] uppercase tracking-wide cursor-pointer',
-        'text-day-muted dark:text-night-muted',
+        'flex items-center gap-1.5 cursor-pointer',
+        'text-[10px] uppercase tracking-wide text-day-muted dark:text-night-muted',
       )}
+      title={value}
     >
       <span
         className={cn(
-          'relative inline-flex h-6 w-8 rounded-md overflow-hidden shrink-0',
+          'relative inline-flex h-5 w-5 rounded overflow-hidden shrink-0',
           'ring-1 ring-day-border dark:ring-night-border shadow-inner',
-          'transition-transform hover:scale-105 active:scale-95',
+          'transition-transform hover:scale-110 active:scale-95',
         )}
         style={{ backgroundColor: value }}
-        title={value}
       >
         <span
           aria-hidden
           className="absolute inset-0"
           style={{
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 55%)',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 55%)',
           }}
         />
         <input
@@ -610,8 +626,8 @@ function SwatchRow({ label, value, onChange }) {
 
 function SliderRow({ label, min, max, step, value, onChange, display }) {
   return (
-    <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted">
-      <span className="uppercase tracking-wide w-14 shrink-0">{label}</span>
+    <div className="flex items-center gap-1.5 text-[10px] text-day-muted dark:text-night-muted">
+      <span className="uppercase tracking-wide w-12 shrink-0">{label}</span>
       <input
         type="range"
         min={min}
@@ -619,9 +635,9 @@ function SliderRow({ label, min, max, step, value, onChange, display }) {
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 h-1 accent-[#84cc16]"
+        className="flex-1 h-1 accent-[#84cc16] min-w-0"
       />
-      <span className="tabular-nums text-day-text dark:text-night-text w-10 text-right">
+      <span className="tabular-nums text-day-text dark:text-night-text w-9 text-right shrink-0">
         {display}
       </span>
     </div>

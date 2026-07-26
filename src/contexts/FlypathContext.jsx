@@ -29,31 +29,37 @@ const FlypathContext = createContext(null);
 // casing beneath the main line for legibility. `color` and `width`
 // drive the primary line.
 const DEFAULT_ROUTE_STYLE_BASE = {
-  outlineColor: '#0f172a',
-  width:        3,
-  opacity:      0.9,
+  // Outline colour matches the fill so the "no outline" default
+  // reads as a plain solid line. When outlineColor === color the
+  // casing layer is suppressed on the map (see FlypathMapLayer),
+  // so the visible width matches the width knob exactly.
+  outlineColor: '#dc2626',
+  width:        2,
+  opacity:      1,
 };
 
 // Colour palette used when auto-assigning a colour to a new route.
-// Rotated by the current route count so every added route stands out
-// from its predecessors. Values are all bright, high-contrast picks
-// that read against both dark and satellite basemaps.
+// First slot is sharp red (default per request); subsequent routes
+// cycle through other high-contrast picks so multiples still stay
+// distinguishable.
 const ROUTE_COLOR_CYCLE = [
+  '#dc2626', // red-600 — sharp red, default for the first route
   '#38bdf8', // sky-500
   '#a3e635', // lime-400
   '#f472b6', // pink-400
   '#fbbf24', // amber-400
   '#22d3ee', // cyan-400
   '#c084fc', // violet-400
-  '#f87171', // red-400
   '#4ade80', // green-400
 ];
 
 const DEFAULT_FEATURES_STYLE = {
-  color:        '#f97316',
-  outlineColor: '#0f172a',
-  width:        1.6,
-  opacity:      0.35,
+  color:        '#38bdf8',   // sky-500 — the "custom blue"
+  outlineColor: '#0079fa',   // deeper blue — outline stays crisp on top
+                             // of the translucent fill and reads as a
+                             // clear boundary.
+  width:        2,
+  opacity:      0.25,
 };
 
 // Small stable id generator — crypto.randomUUID where available,
@@ -95,8 +101,10 @@ export function FlypathProvider({ children }) {
   // Shared animation phase.
   const phaseRef = useRef(0);
 
-  // User-configurable flight duration.
-  const [flightDuration, setFlightDurationRaw] = useState(30_000);
+  // User-configurable flight duration — defaults to 1.5 min so a
+  // typical route reads as a leisurely guided tour rather than a
+  // brisk 30-second flyover.
+  const [flightDuration, setFlightDurationRaw] = useState(90_000);
   const setFlightDuration = useCallback((ms) => {
     const num = Number(ms);
     if (!Number.isFinite(num)) return;

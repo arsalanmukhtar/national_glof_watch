@@ -224,8 +224,14 @@ export default function FlypathMapLayer({ map }) {
     const fc = buildRoutesFC(routes);
     routesFCRef.current = fc;
     if (!map) return;
-    try { map.getSource(ROUTES_SRC)?.setData(fc); }
-    catch { /* transient */ }
+    try {
+      map.getSource(ROUTES_SRC)?.setData(fc);
+      // Force a repaint — data-driven paint expressions (['get',
+      // 'opacity'] etc.) can sit on cached tiles until the next
+      // camera move otherwise, which makes slider changes look
+      // like nothing is happening.
+      map.triggerRepaint?.();
+    } catch { /* transient */ }
   }, [map, routes]);
 
   // ---------------------------------------------------------------
@@ -320,6 +326,16 @@ export default function FlypathMapLayer({ map }) {
       rafRef.current = 0;
       phaseRef.current = 0;
       removeMarker(markerRef);
+      // Fly camera back to the selected route's extent so the
+      // operator immediately sees where the flight starts, ready to
+      // restart from a familiar view. `pitch: 0` returns from the
+      // chase-cam tilt to a flat overview.
+      if (selectedRoute?.fc) {
+        fitToFeatureCollection(map, selectedRoute.fc, { pitch: 0 });
+      }
+      // Invalidate cached oriented coords so the next Start
+      // recomputes direction (in case terrain has since loaded).
+      flightCoordsRef.current = null;
       return undefined;
     }
 
@@ -364,7 +380,10 @@ export default function FlypathMapLayer({ map }) {
           });
         } catch { /* transient */ }
       }
-      ensureMarker(map, markerRef, startFrame);
+      ensureMarker(
+        map, markerRef, startFrame,
+        elevationAtPhase(elevationProfile, phaseRef.current),
+      );
     }
 
     lastFrameRef.current = performance.now();
@@ -388,7 +407,10 @@ export default function FlypathMapLayer({ map }) {
             });
           } catch { /* transient — next frame retries */ }
         }
-        ensureMarker(map, markerRef, frame);
+        ensureMarker(
+          map, markerRef, frame,
+          elevationAtPhase(elevationProfile, phaseRef.current),
+        );
       }
 
       if (phaseRef.current >= 1) {
@@ -426,6 +448,14 @@ function buildRoutesFC(routes) {
   const features = [];
   for (const r of routes) {
     const s = r.style ?? {};
+    // Casing width = 0 when the outline colour matches the fill —
+    // suppresses the wider under-line entirely so a "no outline"
+    // configuration renders as a single crisp line at exactly the
+    // width knob value. Any other outline colour keeps the +2 px
+    // halo.
+    const sameColor = String(s.color ?? '').toLowerCase()
+                   === String(s.outlineColor ?? '').toLowerCase();
+    const casingWidth = sameColor ? 0 : (s.width ?? 3) + 2;
     for (const f of r.fc?.features ?? []) {
       if (!f?.geometry) continue;
       features.push({
@@ -435,7 +465,7 @@ function buildRoutesFC(routes) {
           color:        s.color,
           outlineColor: s.outlineColor,
           width:        s.width,
-          casingWidth:  (s.width ?? 3) + 2,
+          casingWidth,
           opacity:      s.opacity,
         },
         geometry: f.geometry,
@@ -593,34 +623,137 @@ function sampleElevationProfile(map, coords, count) {
   return { totalDistance: total, samples };
 }
 
+// Interpolate elevation from the sampled profile at fractional phase
+// (0..1). Skips over any null samples caused by unloaded terrain tiles.
+function elevationAtPhase(profile, phase) {
+  const samples = profile?.samples;
+  if (!samples || samples.length === 0) return null;
+  const idx = Math.max(0, Math.min(samples.length - 1, phase * (samples.length - 1)));
+  const lo = Math.floor(idx);
+  const hi = Math.min(samples.length - 1, lo + 1);
+  const t  = idx - lo;
+  const a  = samples[lo].elevation;
+  const b  = samples[hi].elevation;
+  if (a == null && b == null) return null;
+  if (a == null) return b;
+  if (b == null) return a;
+  return a + (b - a) * t;
+}
+
 // Chevron marker ------------------------------------------------------------
 
-function makeArrowElement() {
+// Pulsating black dot with yellow ripples radiating outwards. The
+// dot itself gently scales in/out to feel alive; three ripple rings
+// are staggered so a new ring is always underway before the previous
+// one has faded — reads as a continuous "sonar" beat rather than a
+// discrete pulse. All timings driven by the Web Animations API so
+// we don't need to inject any global CSS.
+function makeMarkerElement() {
   const el = document.createElement('div');
-  el.style.cssText = 'width:36px;height:36px;pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.45));';
-  el.innerHTML = `
-<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
-  <circle cx="18" cy="18" r="16" fill="rgba(15,23,42,0.55)"/>
-  <path d="M18 4 L28 28 L18 22 L8 28 Z" fill="#22c55e" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round"/>
-</svg>`;
+  el.style.cssText =
+    'width:64px;height:64px;pointer-events:none;position:relative;';
+
+  const RIPPLE_COUNT    = 3;
+  const RIPPLE_DUR_MS   = 2000;
+  const RIPPLE_START_PX = 10;
+  const RIPPLE_END_PX   = 60;
+
+  for (let i = 0; i < RIPPLE_COUNT; i++) {
+    const ring = document.createElement('div');
+    ring.style.cssText =
+      'position:absolute;top:50%;left:50%;' +
+      'transform:translate(-50%,-50%);' +
+      'border-radius:50%;border:2px solid #facc15;' +
+      'width:' + RIPPLE_START_PX + 'px;height:' + RIPPLE_START_PX + 'px;' +
+      'opacity:0;pointer-events:none;' +
+      'box-shadow:0 0 6px rgba(250,204,21,0.35);';
+    el.appendChild(ring);
+    ring.animate(
+      [
+        { width: RIPPLE_START_PX + 'px', height: RIPPLE_START_PX + 'px',
+          borderWidth: '3px', opacity: 0.85 },
+        { width: RIPPLE_END_PX + 'px', height: RIPPLE_END_PX + 'px',
+          borderWidth: '1px', opacity: 0, offset: 1 },
+      ],
+      {
+        duration: RIPPLE_DUR_MS,
+        delay: (i * RIPPLE_DUR_MS) / RIPPLE_COUNT,
+        iterations: Infinity,
+        easing: 'ease-out',
+      },
+    );
+  }
+
+  const dot = document.createElement('div');
+  dot.style.cssText =
+    'position:absolute;top:50%;left:50%;' +
+    'transform:translate(-50%,-50%);' +
+    'width:14px;height:14px;border-radius:50%;' +
+    'background:#000000;' +
+    'border:2px solid #facc15;' +
+    'box-shadow:0 0 6px rgba(0,0,0,0.55), 0 0 12px rgba(250,204,21,0.35);' +
+    'pointer-events:none;';
+  el.appendChild(dot);
+  dot.animate(
+    [
+      { transform: 'translate(-50%,-50%) scale(1)' },
+      { transform: 'translate(-50%,-50%) scale(1.18)' },
+      { transform: 'translate(-50%,-50%) scale(1)' },
+    ],
+    {
+      duration: 1400,
+      iterations: Infinity,
+      easing: 'ease-in-out',
+    },
+  );
+
+  // Live elevation chip — floats just above the dot, yellow chip
+  // with black text (same palette as the ripples). Kept as a
+  // dataset-exposed element so ensureMarker can update its text
+  // per frame without rebuilding the DOM.
+  const chip = document.createElement('div');
+  chip.dataset.role = 'elevation-chip';
+  chip.style.cssText =
+    'position:absolute;left:50%;bottom:calc(50% + 14px);' +
+    'transform:translateX(-50%);' +
+    'padding:2px 6px;border-radius:4px;' +
+    'background:#facc15;color:#0b1220;' +
+    'font:600 11px/1 system-ui,-apple-system,sans-serif;' +
+    'white-space:nowrap;pointer-events:none;' +
+    'box-shadow:0 1px 3px rgba(0,0,0,0.5);' +
+    'display:none;';
+  el.appendChild(chip);
+
   return el;
 }
 
-function ensureMarker(map, markerRef, frame) {
+// Update the chip text on the marker element in place. Called every
+// frame from ensureMarker so the on-map elevation matches the chart's
+// live label.
+function setMarkerElevation(markerElement, elevation) {
+  if (!markerElement) return;
+  const chip = markerElement.querySelector('[data-role="elevation-chip"]');
+  if (!chip) return;
+  if (Number.isFinite(elevation)) {
+    chip.textContent = `${Math.round(elevation)} m`;
+    chip.style.display = 'block';
+  } else {
+    chip.style.display = 'none';
+  }
+}
+
+function ensureMarker(map, markerRef, frame, elevation) {
   if (!markerRef.current) {
-    const marker = new mapboxgl.Marker({
-      element: makeArrowElement(),
-      rotationAlignment: 'map',
-      pitchAlignment: 'map',
-    });
+    // The pulsating dot is rotationally symmetric — no need for
+    // rotationAlignment/pitchAlignment tricks.
+    const marker = new mapboxgl.Marker({ element: makeMarkerElement() });
     marker.setLngLat(frame.center);
-    marker.setRotation(frame.bearing);
     marker.addTo(map);
     markerRef.current = marker;
   } else {
     markerRef.current.setLngLat(frame.center);
-    markerRef.current.setRotation(frame.bearing);
   }
+  setMarkerElevation(markerRef.current.getElement(), elevation);
 }
 
 function removeMarker(markerRef) {
@@ -641,10 +774,12 @@ function fitToRoutes(map, routes, extraOpts) {
 
 function fitToFeatureCollection(map, fc, extraOpts) {
   if (!fc?.features?.length) return;
-  if (!map.isStyleLoaded()) {
-    map.once('load', () => fitToFeatureCollection(map, fc, extraOpts));
-    return;
-  }
+  // No isStyleLoaded guard — fitBounds is a pure camera operation
+  // and works fine while satellite tiles are still streaming.
+  // (`map.once('load', ...)` only fires on the very first load, so
+  // the old guard silently dropped any fit request that happened
+  // during subsequent tile-loading windows — which is why "add a
+  // route" did nothing on the map.)
   let minLng =  Infinity;
   let minLat =  Infinity;
   let maxLng = -Infinity;

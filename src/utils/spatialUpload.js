@@ -135,6 +135,63 @@ function readGeometries(root) {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Length helpers — walk every LineString / MultiLineString feature in
+// a FeatureCollection and sum haversine distances between consecutive
+// vertices. Points and polygons contribute 0. Used by the panel to
+// show a route's total length under its filename.
+// ---------------------------------------------------------------------------
+
+const EARTH_RADIUS_METERS = 6_371_000;
+
+function haversineMeters(a, b) {
+  if (!a || !b) return 0;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b[1] - a[1]);
+  const dLng = toRad(b[0] - a[0]);
+  const lat1 = toRad(a[1]);
+  const lat2 = toRad(b[1]);
+  const h = Math.sin(dLat / 2) ** 2
+          + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(h));
+}
+
+function sumLinePath(coords) {
+  if (!Array.isArray(coords) || coords.length < 2) return 0;
+  let total = 0;
+  for (let i = 0; i < coords.length - 1; i++) {
+    total += haversineMeters(coords[i], coords[i + 1]);
+  }
+  return total;
+}
+
+export function featureCollectionLengthMeters(fc) {
+  if (!fc?.features?.length) return 0;
+  let total = 0;
+  for (const f of fc.features) {
+    const g = f?.geometry;
+    if (!g) continue;
+    if (g.type === 'LineString') {
+      total += sumLinePath(g.coordinates);
+    } else if (g.type === 'MultiLineString') {
+      for (const part of g.coordinates ?? []) total += sumLinePath(part);
+    }
+  }
+  return total;
+}
+
+// Human-friendly length label:
+//   • < 1 000 m         → "245 m"
+//   • ≥ 1 000, < 10 km  → "1.2 km"  (one decimal)
+//   • ≥ 10 km           → "15 km"   (rounded, no decimal)
+export function formatLength(meters) {
+  if (!Number.isFinite(meters) || meters <= 0) return null;
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  const km = meters / 1000;
+  if (km < 10) return `${km.toFixed(1)} km`;
+  return `${Math.round(km)} km`;
+}
+
 function parseCoords(text) {
   if (!text) return [];
   return text
