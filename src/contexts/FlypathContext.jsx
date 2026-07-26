@@ -197,6 +197,10 @@ export function FlypathProvider({ children }) {
             ...DEFAULT_ROUTE_STYLE_BASE,
             color: ROUTE_COLOR_CYCLE[prev.length % ROUTE_COLOR_CYCLE.length],
           },
+          // Manual origin override. When set to 'first' the raw coord
+          // order is kept as-is; 'last' reverses. null falls back to
+          // DEM-based automatic detection.
+          originVertex: null,
         },
       ];
       return next;
@@ -237,6 +241,30 @@ export function FlypathProvider({ children }) {
     setRoutes((prev) => prev.map((r) =>
       r.id === id ? { ...r, style: { ...r.style, ...partial } } : r,
     ));
+  }, []);
+
+  // ---------------------------------------------------------------
+  // Manual origin selection — the "Select origin" mode. When the DEM
+  // isn't tall enough to tell which end is uphill (or the operator
+  // just wants to override), they can flip this on, hover a green
+  // buffer over one of the route's endpoints, and click to lock it
+  // in as the flight origin.
+  // ---------------------------------------------------------------
+  const [selectingOrigin, setSelectingOrigin] = useState(false);
+  const beginSelectOrigin  = useCallback(() => setSelectingOrigin(true), []);
+  const cancelSelectOrigin = useCallback(() => setSelectingOrigin(false), []);
+
+  const setRouteOrigin = useCallback((id, which) => {
+    if (which !== 'first' && which !== 'last' && which !== null) return;
+    setRoutes((prev) => prev.map((r) =>
+      r.id === id ? { ...r, originVertex: which } : r,
+    ));
+    // Any change to the origin implicitly invalidates the current
+    // flight — force a stop + clear the sampled profile so the next
+    // Play re-orients + re-samples against the new origin.
+    setPlayState('stopped');
+    setElevationProfile(null);
+    setSelectingOrigin(false);
   }, []);
 
   // Auto-repair: if selectedRouteId falls out of routes (e.g. after a
@@ -290,6 +318,10 @@ export function FlypathProvider({ children }) {
     removeRoute,
     selectRoute,
     setRouteStyleFor,
+    selectingOrigin,
+    beginSelectOrigin,
+    cancelSelectOrigin,
+    setRouteOrigin,
 
     // Features
     features,
@@ -340,6 +372,7 @@ export function FlypathProvider({ children }) {
   }), [
     routes, selectedRoute, effectiveSelectedId, hasRoute,
     addRoute, removeRoute, selectRoute, setRouteStyleFor,
+    selectingOrigin, beginSelectOrigin, cancelSelectOrigin, setRouteOrigin,
     features, featuresStyle,
     setFeatures, clearFeatures, setFeaturesStyle,
     routesFlyTick, featuresFlyTick,

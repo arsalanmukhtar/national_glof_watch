@@ -369,15 +369,24 @@ export default function FlypathMapLayer({ map }) {
     }
 
     const trySample = () => {
-      // Decide orientation once, from DEM window sampling around each
-      // endpoint. If the terrain tiles aren't in yet we simply skip
-      // this pass — a later idle will try again. This is what keeps
-      // the flight from ever starting bottom-to-top: no orientation,
+      // Decide orientation once. Manual override (originVertex) wins
+      // — the operator explicitly told us which end is the start.
+      // Otherwise fall back to DEM window sampling around each
+      // endpoint. If the terrain tiles aren't in yet we skip this
+      // pass — a later idle will try again. This is what keeps the
+      // flight from ever starting bottom-to-top: no orientation,
       // no sample → sampler retries until DEM is available.
       if (!orientedCoordsRef.current) {
-        const dir = determineOrientation(map, coords);
-        if (dir === 0) return;
-        orientedCoordsRef.current = dir === 1 ? coords : coords.slice().reverse();
+        const manual = selectedRoute?.originVertex;
+        if (manual === 'first') {
+          orientedCoordsRef.current = coords;
+        } else if (manual === 'last') {
+          orientedCoordsRef.current = coords.slice().reverse();
+        } else {
+          const dir = determineOrientation(map, coords);
+          if (dir === 0) return;
+          orientedCoordsRef.current = dir === 1 ? coords : coords.slice().reverse();
+        }
       }
       const oriented = orientedCoordsRef.current;
       const profile = sampleElevationProfile(map, oriented, ELEV_SAMPLES);
@@ -452,18 +461,25 @@ export default function FlypathMapLayer({ map }) {
       // Prefer the sampler's cached orientation — it decided from
       // DEM window sampling under `idle` conditions and is the same
       // orientation the chart is drawn against. If the user hit Play
-      // before the sampler could commit (rare), fall back to a fresh
-      // window-sampled decision here; only if THAT also fails do we
-      // use raw order.
+      // before the sampler could commit (rare), fall back here to
+      // manual override first, then a fresh DEM check; only if all
+      // three fail do we use raw order.
       let oriented = orientedCoordsRef.current;
       if (!oriented) {
-        const dir = determineOrientation(map, raw);
-        if (dir !== 0) {
-          oriented = dir === 1 ? raw : raw.slice().reverse();
-          orientedCoordsRef.current = oriented;
-        } else {
+        const manual = selectedRoute?.originVertex;
+        if (manual === 'first') {
           oriented = raw;
+        } else if (manual === 'last') {
+          oriented = raw.slice().reverse();
+        } else {
+          const dir = determineOrientation(map, raw);
+          if (dir !== 0) {
+            oriented = dir === 1 ? raw : raw.slice().reverse();
+          } else {
+            oriented = raw;
+          }
         }
+        orientedCoordsRef.current = oriented;
       }
       flightCoordsRef.current = oriented;
       if (phaseRef.current >= 1 || phaseRef.current <= 0) phaseRef.current = 0;
