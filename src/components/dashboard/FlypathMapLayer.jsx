@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { mapboxgl } from '@/config/mapbox';
 import { useFlypath } from '@/contexts/FlypathContext';
+import { buildMapboxTextField, unitById } from '@/utils/labelExpression';
 
 // FlypathMapLayer — invisible component. Owns four things on the map:
 //   • one GeoJSON source of every uploaded route (data-driven paint)
@@ -27,6 +28,7 @@ const FEATURES_FILL       = 'flypath-features-fill';
 const FEATURES_POLY_OUTLINE = 'flypath-features-outline';
 const FEATURES_LINESTRING = 'flypath-features-line';
 const FEATURES_POINT      = 'flypath-features-point';
+const FEATURES_LABEL      = 'flypath-features-label';
 
 const DEM_SRC         = 'mapbox-dem';
 const DEM_URL         = 'mapbox://mapbox.mapbox-terrain-dem-v1';
@@ -49,6 +51,7 @@ export default function FlypathMapLayer({ map }) {
     selectedRoute,
     features,
     featuresStyle,
+    featuresLabelStyle,
     playState,
     routesFlyTick,
     featuresFlyTick,
@@ -77,6 +80,8 @@ export default function FlypathMapLayer({ map }) {
   const featuresDataRef   = useRef(emptyFC());
   const featuresStyleRef  = useRef(featuresStyle);
   featuresStyleRef.current = featuresStyle;
+  const featuresLabelStyleRef = useRef(featuresLabelStyle);
+  featuresLabelStyleRef.current = featuresLabelStyle;
 
   // Live mirror of `elevationProfile` state so the RAF tick can read
   // it via ref without forcing the playback effect to re-run whenever
@@ -195,6 +200,35 @@ export default function FlypathMapLayer({ map }) {
             },
           });
         }
+        if (!map.getLayer(FEATURES_LABEL)) {
+          const ls = featuresLabelStyleRef.current;
+          // Initial text-field is '' when the label style isn't
+          // enabled yet — the panel flips it on later and the
+          // dedicated effect below refreshes text-field / paint.
+          const textField = ls.enabled
+            ? buildMapboxTextField(ls.expression, unitById(ls.unit).suffix)
+            : '';
+          map.addLayer({
+            id: FEATURES_LABEL,
+            type: 'symbol',
+            source: FEATURES_SRC,
+            layout: {
+              'text-field':        textField,
+              'text-size':         ls.size,
+              'text-font':         ['Open Sans Regular', 'Arial Unicode MS Regular'],
+              'text-anchor':       'center',
+              'text-justify':      'center',
+              'text-allow-overlap': false,
+              'symbol-placement':  'point',
+            },
+            paint: {
+              'text-color':      ls.color,
+              'text-halo-color': ls.haloColor,
+              'text-halo-width': ls.haloWidth,
+              'text-halo-blur':  0.5,
+            },
+          });
+        }
 
         // Routes — one source, data-driven paint. Each feature carries
         // its own color/width/opacity in its properties so we don't
@@ -277,6 +311,27 @@ export default function FlypathMapLayer({ map }) {
     try { map.getSource(FEATURES_SRC)?.setData(fc); }
     catch { /* transient */ }
   }, [map, features]);
+
+  // Labels: apply expression + unit + colour + halo whenever the
+  // label style state changes. When labels are disabled we clear the
+  // text-field to '' so nothing renders (rather than removing +
+  // re-adding the layer, which would fight the style-swap logic).
+  useEffect(() => {
+    if (!map) return;
+    const ls = featuresLabelStyle;
+    try {
+      if (!map.getLayer(FEATURES_LABEL)) return;
+      const textField = ls.enabled
+        ? buildMapboxTextField(ls.expression, unitById(ls.unit).suffix)
+        : '';
+      map.setLayoutProperty(FEATURES_LABEL, 'text-field', textField);
+      map.setLayoutProperty(FEATURES_LABEL, 'text-size',  ls.size);
+      map.setPaintProperty (FEATURES_LABEL, 'text-color',      ls.color);
+      map.setPaintProperty (FEATURES_LABEL, 'text-halo-color', ls.haloColor);
+      map.setPaintProperty (FEATURES_LABEL, 'text-halo-width', ls.haloWidth);
+      map.triggerRepaint?.();
+    } catch { /* transient */ }
+  }, [map, featuresLabelStyle]);
 
   useEffect(() => {
     if (!map) return;

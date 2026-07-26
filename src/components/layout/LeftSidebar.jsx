@@ -264,6 +264,11 @@ export default function LeftSidebar({ className }) {
                   // divider themselves; suppress the panel-header's bottom
                   // border + padding so they sit flush.
                   const flush = id === 'layers';
+                  // The flypath panel owns its own scroll (it has a
+                  // sticky playback dock at the bottom + a scrollable
+                  // upper section). Handing it `overflow-y-auto` from
+                  // the wrapper would defeat that split.
+                  const ownsScroll = id === FLYPATH_ID;
                   return (
                   <div
                     key={id}
@@ -299,7 +304,11 @@ export default function LeftSidebar({ className }) {
                       className={cn(
                         'px-2.5 pb-2',
                         flush ? 'pt-0' : 'pt-2',
-                        grow ? 'flex-1 min-h-0 overflow-y-auto' : '',
+                        grow
+                          ? (ownsScroll
+                              ? 'flex-1 min-h-0 flex flex-col overflow-hidden'
+                              : 'flex-1 min-h-0 overflow-y-auto')
+                          : '',
                       )}
                     >
                       {render()}

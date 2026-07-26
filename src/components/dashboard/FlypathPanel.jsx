@@ -9,16 +9,18 @@ import {
   Gauge,
   Info,
   Loader2,
-  MapPin,
   Pause,
   Pencil,
   Play,
   Plus,
   Repeat,
+  Ruler,
   Route,
   Save,
   Square,
+  Tag,
   Trash2,
+  Type,
   Undo2,
   Upload,
   Waves,
@@ -38,6 +40,12 @@ import {
   triggerDownload,
   safeFileName,
 } from '@/utils/layerExport';
+import {
+  LABEL_UNITS,
+  appendAttributeToExpression,
+  unitById,
+} from '@/utils/labelExpression';
+import Select from '@/components/ui/Select';
 import { cn } from '@/utils/cn';
 
 // Lake Flypath config panel.
@@ -92,72 +100,83 @@ export default function FlypathPanel() {
   } = useFlypath();
 
   return (
-    <div className="flex flex-col gap-3">
-      <RoutesContainer
-        routes={routes}
-        selectedId={selectedRouteId}
-        onAdd={(parsed) => {
-          addRoute(parsed);
-          requestFlyToRoutes();
-        }}
-        onSelect={selectRoute}
-        onRemove={removeRoute}
-        onStyleChange={setRouteStyleFor}
-        onZoomAll={requestFlyToRoutes}
-        onCreate={startDigitize}
-        digitizing={digitizing}
-      />
-
-      {digitizing ? (
-        <DigitizeToolbar
-          vertexCount={drawnCoords.length}
-          onUndo={undoDrawnVertex}
-          onCancel={cancelDigitize}
-          onFinish={finishDigitize}
-        />
-      ) : null}
-
-      {selectingOrigin ? (
-        <SelectOriginToolbar onCancel={cancelSelectOrigin} />
-      ) : null}
-
-      {pendingDrawn ? (
-        <SaveDrawnPanel
-          coords={pendingDrawn.coords}
-          onCommit={(payload) => {
-            addRoute(payload);
+    // Panel splits into a scrollable middle (routes + features +
+    // labels) and a sticky bottom (playback). The parent panel
+    // wrapper in LeftSidebar was tweaked to hand us the full height
+    // without applying its own overflow-y-auto, so the internal
+    // scroll region works cleanly.
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 pr-1 -mr-1">
+        <RoutesContainer
+          routes={routes}
+          selectedId={selectedRouteId}
+          onAdd={(parsed) => {
+            addRoute(parsed);
             requestFlyToRoutes();
-            clearPendingDrawn();
           }}
-          onCancel={clearPendingDrawn}
+          onSelect={selectRoute}
+          onRemove={removeRoute}
+          onStyleChange={setRouteStyleFor}
+          onZoomAll={requestFlyToRoutes}
+          onCreate={startDigitize}
+          digitizing={digitizing}
         />
-      ) : null}
 
-      <FeaturesUploadCard
-        value={features}
-        style={featuresStyle}
-        onStyleChange={setFeaturesStyle}
-        onFile={(parsed) => {
-          setFeatures(parsed);
-          requestFlyToFeatures();
-        }}
-        onZoomTo={requestFlyToFeatures}
-        onClear={clearFeatures}
-      />
+        {digitizing ? (
+          <DigitizeToolbar
+            vertexCount={drawnCoords.length}
+            onUndo={undoDrawnVertex}
+            onCancel={cancelDigitize}
+            onFinish={finishDigitize}
+          />
+        ) : null}
 
-      <div className="h-px w-full bg-day-border dark:bg-night-border my-1" />
+        {selectingOrigin ? (
+          <SelectOriginToolbar onCancel={cancelSelectOrigin} />
+        ) : null}
 
-      <PlaybackRow
-        playState={playState}
-        awaitingTerrain={awaitingTerrain}
-        hasRoute={hasRoute}
-        onStart={start}
-        onPause={pause}
-        onResume={resume}
-        onStop={stop}
-      />
-      <SpeedControl />
-      <LoopControl />
+        {pendingDrawn ? (
+          <SaveDrawnPanel
+            coords={pendingDrawn.coords}
+            onCommit={(payload) => {
+              addRoute(payload);
+              requestFlyToRoutes();
+              clearPendingDrawn();
+            }}
+            onCancel={clearPendingDrawn}
+          />
+        ) : null}
+
+        <FeaturesUploadCard
+          value={features}
+          style={featuresStyle}
+          onStyleChange={setFeaturesStyle}
+          onFile={(parsed) => {
+            setFeatures(parsed);
+            requestFlyToFeatures();
+          }}
+          onZoomTo={requestFlyToFeatures}
+          onClear={clearFeatures}
+        />
+
+        {features ? <FeaturesLabelsCard /> : null}
+      </div>
+
+      {/* Fixed-bottom playback dock — visually separated with a top
+          border. Stays put while the middle scrolls. */}
+      <div className="shrink-0 flex flex-col gap-2 pt-2 mt-2 border-t border-day-border dark:border-night-border">
+        <PlaybackRow
+          playState={playState}
+          awaitingTerrain={awaitingTerrain}
+          hasRoute={hasRoute}
+          onStart={start}
+          onPause={pause}
+          onResume={resume}
+          onStop={stop}
+        />
+        <SpeedControl />
+        <LoopControl />
+      </div>
     </div>
   );
 }
@@ -348,20 +367,9 @@ function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
           <div className="text-[11.5px] font-medium truncate text-day-text dark:text-night-text">
             {route.name}
           </div>
-          <div className="text-[10.5px] text-day-muted dark:text-night-muted flex items-center gap-1">
-            <span className="truncate">
-              {featCount} feature{featCount === 1 ? '' : 's'} · {route.kind}
-              {lengthLabel ? ` · ${lengthLabel}` : ''}
-            </span>
-            {hasManualOrigin ? (
-              <span
-                className="inline-flex items-center gap-0.5 shrink-0 px-1 py-[1px] rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                title={`Origin pinned to the ${route.originVertex} vertex`}
-              >
-                <MapPin style={{ width: 9, height: 9 }} />
-                <span className="text-[9px] uppercase tracking-wide">origin</span>
-              </span>
-            ) : null}
+          <div className="text-[10.5px] text-day-muted dark:text-night-muted truncate">
+            {featCount} feature{featCount === 1 ? '' : 's'} · {route.kind}
+            {lengthLabel ? ` · ${lengthLabel}` : ''}
           </div>
         </div>
         <span
@@ -590,6 +598,209 @@ function FeaturesUploadCard({ value, style, onStyleChange, onFile, onZoomTo, onC
           if (file) handle(file);
         }}
         className="hidden"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FeaturesLabelsCard — attribute-driven text labels for the uploaded
+// features layer. Reads the union of property keys off the FC and
+// exposes them as one-click chips that append into an expression
+// textarea. The expression uses QGIS-style `||` concatenation
+// (attribute names bare, literals quoted). A units dropdown appends
+// a unit suffix that uses real superscript unicode (m² / m³ / etc)
+// so the map label renders correctly at every zoom.
+// ---------------------------------------------------------------------------
+function FeaturesLabelsCard() {
+  const {
+    featureAttributes,
+    featuresLabelStyle,
+    setFeaturesLabelStyle,
+  } = useFlypath();
+
+  const hasAttrs = featureAttributes.length > 0;
+
+  return (
+    <div className="rounded-md border border-day-border dark:border-night-border overflow-hidden">
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-day-bg dark:bg-night-bg border-b border-day-border dark:border-night-border">
+        <Tag className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200" />
+        <span className="text-[12px] font-semibold text-day-text dark:text-night-text">
+          Labels
+        </span>
+        <span className="ml-auto text-[10px] text-day-muted dark:text-night-muted tabular-nums">
+          {featureAttributes.length} attr{featureAttributes.length === 1 ? '' : 's'}
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={featuresLabelStyle.enabled}
+          onClick={() => setFeaturesLabelStyle({ enabled: !featuresLabelStyle.enabled })}
+          title={featuresLabelStyle.enabled ? 'Turn labels off' : 'Turn labels on'}
+          className={cn(
+            'relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors',
+            featuresLabelStyle.enabled ? 'bg-[#84cc16]' : 'bg-day-border dark:bg-night-border',
+          )}
+        >
+          <span
+            className={cn(
+              'inline-block h-3 w-3 rounded-full bg-white shadow',
+              'transition-transform will-change-transform',
+              featuresLabelStyle.enabled ? 'translate-x-3.5' : 'translate-x-0.5',
+            )}
+            style={{ marginTop: 2 }}
+            aria-hidden
+          />
+        </button>
+      </div>
+
+      <div className="px-2 py-2 flex flex-col gap-2">
+        {!hasAttrs ? (
+          <div className="text-[10.5px] text-day-muted dark:text-night-muted italic px-1 py-2">
+            The uploaded layer has no attribute keys — nothing to label with.
+          </div>
+        ) : (
+          <>
+            <AttributeChips
+              attributes={featureAttributes}
+              onPick={(name) => setFeaturesLabelStyle({
+                enabled:    true,
+                expression: appendAttributeToExpression(featuresLabelStyle.expression, name),
+              })}
+            />
+            <LabelExpressionEditor
+              expression={featuresLabelStyle.expression}
+              onChange={(expression) => setFeaturesLabelStyle({ expression })}
+            />
+            <UnitPicker
+              value={featuresLabelStyle.unit}
+              onChange={(unit) => setFeaturesLabelStyle({ unit })}
+            />
+            <LabelSymbologyControls
+              style={featuresLabelStyle}
+              onChange={setFeaturesLabelStyle}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Attribute list rendered as small clickable chips. Clicking appends
+// the attribute to the expression textarea with a ` || ' ' || `
+// separator between multiples — mirrors the QGIS-style pattern the
+// user asked for.
+function AttributeChips({ attributes, onPick }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="text-[9.5px] uppercase tracking-wide text-day-muted dark:text-night-muted px-0.5">
+        Attributes (click to add)
+      </div>
+      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+        {attributes.map((name) => (
+          <button
+            key={name}
+            type="button"
+            onClick={() => onPick(name)}
+            title={`Append "${name}" to the label expression`}
+            className={cn(
+              'inline-flex items-center h-5 px-1.5 rounded text-[10.5px] font-medium',
+              'bg-day-bg dark:bg-night-bg',
+              'text-day-text dark:text-night-text',
+              'border border-day-border dark:border-night-border',
+              'hover:border-[#84cc16] hover:text-[#4d7c0f] dark:hover:text-[#a3e635]',
+              'transition-colors',
+            )}
+          >
+            {name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Multi-line textarea that accepts a QGIS/ArcGIS-style expression.
+// Bare identifiers = attribute names. Quoted strings = literals.
+// `||` concatenates.
+function LabelExpressionEditor({ expression, onChange }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5 text-[9.5px] uppercase tracking-wide text-day-muted dark:text-night-muted px-0.5">
+        <Type className="h-3 w-3" />
+        Expression
+      </div>
+      <textarea
+        rows={2}
+        spellCheck={false}
+        value={expression}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={"name || ' - ' || area"}
+        className={cn(
+          'input-base font-mono text-[11px] tracking-normal normal-case',
+          'py-1.5 leading-snug resize-y min-h-[38px]',
+        )}
+      />
+      <div className="text-[9.5px] text-day-muted dark:text-night-muted px-0.5 leading-tight">
+        Use <code className="font-mono">||</code> to join · quote literals
+        <span className="whitespace-nowrap"> (<code className="font-mono">'text'</code>)</span>
+        · bare words are attributes.
+      </div>
+    </div>
+  );
+}
+
+// Themed dropdown that surfaces the LABEL_UNITS catalog. The selected
+// suffix is appended to the label text as-is (using real ² / ³ / °
+// unicode glyphs so Mapbox renders them without any format tricks).
+function UnitPicker({ value, onChange }) {
+  const active = unitById(value);
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5 text-[9.5px] uppercase tracking-wide text-day-muted dark:text-night-muted px-0.5">
+        <Ruler className="h-3 w-3" />
+        Unit suffix
+        {active?.suffix ? (
+          <span className="ml-auto normal-case tracking-normal text-[10px] text-day-text dark:text-night-text">
+            Preview:
+            <span className="ml-1 font-mono">value{active.suffix}</span>
+          </span>
+        ) : null}
+      </div>
+      <Select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 text-[11.5px]"
+      >
+        {LABEL_UNITS.map((u) => (
+          <option key={u.id} value={u.id}>{u.label}</option>
+        ))}
+      </Select>
+    </div>
+  );
+}
+
+// Colour, halo colour, halo width, and text size — the four
+// symbology dials operators expect for map labels.
+function LabelSymbologyControls({ style, onChange }) {
+  return (
+    <div className="flex flex-col gap-1.5 pt-1 border-t border-day-border dark:border-night-border">
+      <div className="grid grid-cols-2 gap-1.5">
+        <SwatchRow label="Text"  value={style.color}     onChange={(color)     => onChange({ color })} />
+        <SwatchRow label="Halo"  value={style.haloColor} onChange={(haloColor) => onChange({ haloColor })} />
+      </div>
+      <SliderRow
+        label="Halo" min={0} max={5} step={0.25}
+        value={style.haloWidth}
+        onChange={(haloWidth) => onChange({ haloWidth })}
+        display={`${style.haloWidth}px`}
+      />
+      <SliderRow
+        label="Size" min={8} max={22} step={1}
+        value={style.size}
+        onChange={(size) => onChange({ size })}
+        display={`${style.size}px`}
       />
     </div>
   );

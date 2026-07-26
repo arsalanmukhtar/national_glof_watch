@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { extractFeatureAttributes } from '@/utils/labelExpression';
 
 // FlypathContext — global state for the Lake Flypath surface.
 // ---------------------------------------------------------------------------
@@ -62,6 +63,19 @@ const DEFAULT_FEATURES_STYLE = {
   opacity:      0.30,
 };
 
+// Text-symbology defaults for the Lakes / features layer. Enabled
+// only when the operator picks at least one attribute — the symbol
+// layer's text-field is empty otherwise, so nothing paints.
+const DEFAULT_FEATURES_LABEL_STYLE = {
+  enabled:    false,
+  expression: '',            // SQL-style: `name || ' - ' || area`
+  unit:       'none',        // key from LABEL_UNITS
+  color:      '#ffffff',
+  haloColor:  '#0f172a',
+  haloWidth:  1.5,           // pixels
+  size:       12,            // text-size in pixels
+};
+
 // Small stable id generator — crypto.randomUUID where available,
 // timestamp + random fallback otherwise.
 function genId() {
@@ -81,6 +95,21 @@ export function FlypathProvider({ children }) {
   const [featuresStyle, setFeaturesStyleRaw] = useState(DEFAULT_FEATURES_STYLE);
   const setFeaturesStyle = useCallback((partial) =>
     setFeaturesStyleRaw((prev) => ({ ...prev, ...partial })), []);
+
+  const [featuresLabelStyle, setFeaturesLabelStyleRaw] = useState(DEFAULT_FEATURES_LABEL_STYLE);
+  const setFeaturesLabelStyle = useCallback((partial) =>
+    setFeaturesLabelStyleRaw((prev) => ({ ...prev, ...partial })), []);
+  const resetFeaturesLabelStyle = useCallback(
+    () => setFeaturesLabelStyleRaw(DEFAULT_FEATURES_LABEL_STYLE), []);
+
+  // Property-key union across the uploaded features. This is the
+  // "possible attributes" the operator picks from when building a
+  // label. Recomputed only on features reference change so a 10k-row
+  // shapefile doesn't get walked on every panel re-render.
+  const featureAttributes = useMemo(
+    () => extractFeatureAttributes(features?.fc),
+    [features],
+  );
 
   // Playback state machine: 'stopped' | 'playing' | 'paused'.
   const [playState, setPlayState] = useState('stopped');
@@ -281,10 +310,19 @@ export function FlypathProvider({ children }) {
   );
 
   // ---------------------------------------------------------------
-  // Features actions.
+  // Features actions. Setting or clearing features also wipes the
+  // label expression + unit — a new file almost certainly has
+  // different attribute names so the previous expression would
+  // silently render '' everywhere.
   // ---------------------------------------------------------------
-  const setFeatures    = useCallback((payload) => setFeaturesRaw(payload), []);
-  const clearFeatures  = useCallback(() => setFeaturesRaw(null), []);
+  const setFeatures = useCallback((payload) => {
+    setFeaturesRaw(payload);
+    resetFeaturesLabelStyle();
+  }, [resetFeaturesLabelStyle]);
+  const clearFeatures = useCallback(() => {
+    setFeaturesRaw(null);
+    resetFeaturesLabelStyle();
+  }, [resetFeaturesLabelStyle]);
 
   // ---------------------------------------------------------------
   // Playback transitions. `hasRoute` is now "at least one route
@@ -329,6 +367,9 @@ export function FlypathProvider({ children }) {
     setFeatures,
     clearFeatures,
     setFeaturesStyle,
+    featuresLabelStyle,
+    setFeaturesLabelStyle,
+    featureAttributes,
 
     // Fly-to
     routesFlyTick,
@@ -375,6 +416,7 @@ export function FlypathProvider({ children }) {
     selectingOrigin, beginSelectOrigin, cancelSelectOrigin, setRouteOrigin,
     features, featuresStyle,
     setFeatures, clearFeatures, setFeaturesStyle,
+    featuresLabelStyle, setFeaturesLabelStyle, featureAttributes,
     routesFlyTick, featuresFlyTick,
     requestFlyToRoutes, requestFlyToFeatures,
     active, setActive, elevationProfile,
