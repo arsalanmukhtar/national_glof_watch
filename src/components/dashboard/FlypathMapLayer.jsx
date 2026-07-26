@@ -57,6 +57,7 @@ export default function FlypathMapLayer({ map }) {
     flightDuration,
     loop,
     setElevationProfile,
+    setAwaitingTerrain,
     stop,
   } = useFlypath();
 
@@ -131,6 +132,12 @@ export default function FlypathMapLayer({ map }) {
         const fs = featuresStyleRef.current;
 
         if (!map.getLayer(FEATURES_FILL)) {
+          // The opacity slider had been driving `fill-opacity` — but
+          // once terrain is enabled, Mapbox drapes fill layers onto
+          // the DEM and the composited alpha visibly ignores the
+          // slider (colour reads the same at 5 % as at 95 %). Baking
+          // the alpha into the colour via rgba() sidesteps the drape
+          // path entirely and gives us predictable translucency.
           map.addLayer({
             id: FEATURES_FILL,
             type: 'fill',
@@ -139,7 +146,10 @@ export default function FlypathMapLayer({ map }) {
               ['==', ['geometry-type'], 'Polygon'],
               ['==', ['geometry-type'], 'MultiPolygon'],
             ],
-            paint: { 'fill-color': fs.color, 'fill-opacity': fs.opacity },
+            paint: {
+              'fill-color':   hexToRgba(fs.color, fs.opacity),
+              'fill-opacity': 1,
+            },
           });
         }
         if (!map.getLayer(FEATURES_POLY_OUTLINE)) {
@@ -273,8 +283,11 @@ export default function FlypathMapLayer({ map }) {
     const s = featuresStyle;
     try {
       if (map.getLayer(FEATURES_FILL)) {
-        map.setPaintProperty(FEATURES_FILL, 'fill-color',   s.color);
-        map.setPaintProperty(FEATURES_FILL, 'fill-opacity', s.opacity);
+        // See addLayer comment — alpha lives inside the colour, so
+        // fill-opacity stays at 1 and setPaintProperty targets the
+        // rgba string instead.
+        map.setPaintProperty(FEATURES_FILL, 'fill-color', hexToRgba(s.color, s.opacity));
+        map.setPaintProperty(FEATURES_FILL, 'fill-opacity', 1);
       }
       if (map.getLayer(FEATURES_POLY_OUTLINE)) {
         map.setPaintProperty(FEATURES_POLY_OUTLINE, 'line-color', s.outlineColor);
@@ -523,8 +536,50 @@ export default function FlypathMapLayer({ map }) {
       rafRef.current = requestAnimationFrame(tick);
     };
 
-    rafRef.current = requestAnimationFrame(tick);
+    // Defer the RAF start until DEM tiles + basemap tiles under the
+    // start pose are fully rendered. Playing straight away shows the
+    // marker flying over blank blue-grey terrain for the first second
+    // while satellite tiles stream in. We poll `idle` because tiles
+    // load asynchronously and only `idle` guarantees the current
+    // viewport is fully rendered. Hard timeout at 8 s so a stubborn
+    // tile can never freeze play permanently.
+    const beginRaf = () => {
+      setAwaitingTerrain(false);
+      lastFrameRef.current = performance.now();
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    const isTerrainReady = () => {
+      try {
+        return map.isSourceLoaded(DEM_SRC) && map.areTilesLoaded();
+      } catch { return true; }
+    };
+    let waitTimeout = 0;
+    let idleHandler = null;
+    const clearWait = () => {
+      if (idleHandler) map.off('idle', idleHandler);
+      if (waitTimeout) clearTimeout(waitTimeout);
+      idleHandler = null;
+      waitTimeout = 0;
+    };
+    if (isTerrainReady()) {
+      beginRaf();
+    } else {
+      // Announce to the panel that we're waiting on tiles so the
+      // Play button reads as "Preparing…" instead of appearing dead.
+      setAwaitingTerrain(true);
+      idleHandler = () => {
+        if (isTerrainReady()) {
+          clearWait();
+          beginRaf();
+        }
+      };
+      map.on('idle', idleHandler);
+      waitTimeout = setTimeout(() => { clearWait(); beginRaf(); }, 8000);
+    }
+
     return () => {
+      clearWait();
+      setAwaitingTerrain(false);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     };
@@ -545,6 +600,22 @@ export default function FlypathMapLayer({ map }) {
 
 function emptyFC() {
   return { type: 'FeatureCollection', features: [] };
+}
+
+// Convert a #rgb or #rrggbb hex + [0..1] alpha into an rgba() string.
+// Used to bake alpha into the fill colour instead of relying on the
+// terrain-composited `fill-opacity` paint property.
+function hexToRgba(hex, alpha) {
+  const a = Math.max(0, Math.min(1, Number(alpha)));
+  const fallback = `rgba(56, 189, 248, ${a || 1})`;
+  let h = String(hex || '').trim().replace(/^#/, '');
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  if (h.length !== 6) return fallback;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if (!Number.isFinite(r + g + b)) return fallback;
+  return `rgba(${r}, ${g}, ${b}, ${Number.isFinite(a) ? a : 1})`;
 }
 
 // Flatten every route's FeatureCollection into one FC where each

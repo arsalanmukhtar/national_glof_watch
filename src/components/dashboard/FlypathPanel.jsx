@@ -7,6 +7,7 @@ import {
   Focus,
   Gauge,
   Info,
+  Loader2,
   Pause,
   Pencil,
   Play,
@@ -59,6 +60,7 @@ export default function FlypathPanel() {
     features,
     featuresStyle,
     playState,
+    awaitingTerrain,
     hasRoute,
     addRoute,
     removeRoute,
@@ -137,6 +139,7 @@ export default function FlypathPanel() {
 
       <PlaybackRow
         playState={playState}
+        awaitingTerrain={awaitingTerrain}
         hasRoute={hasRoute}
         onStart={start}
         onPause={pause}
@@ -649,17 +652,28 @@ function SliderRow({ label, min, max, step, value, onChange, display }) {
 // ---------------------------------------------------------------------------
 // Playback row — combined Play/Pause + separate Stop.
 // ---------------------------------------------------------------------------
-function PlaybackRow({ playState, hasRoute, onStart, onPause, onResume, onStop }) {
+function PlaybackRow({ playState, awaitingTerrain, hasRoute, onStart, onPause, onResume, onStop }) {
   const isPlaying = playState === 'playing';
   const isPaused  = playState === 'paused';
   const isStopped = playState === 'stopped';
+  // Awaiting-terrain state — playState is already 'playing' (the
+  // click was accepted) but the RAF hasn't begun because the map is
+  // still streaming DEM / basemap tiles. Swap the Play button into
+  // a spinner so the operator sees the click landed.
+  const waiting = isPlaying && awaitingTerrain;
 
-  const onPrimary = isPlaying ? onPause
+  const onPrimary = waiting   ? onPause
+                  : isPlaying ? onPause
                   : isPaused  ? onResume
                               : onStart;
-  const PrimaryIcon = isPlaying ? Pause : Play;
-  const primaryTone = isPlaying ? 'amber' : 'emerald';
-  const primaryLabel = isPlaying ? 'Pause flypath'
+  const PrimaryIcon = waiting   ? Loader2
+                    : isPlaying ? Pause
+                                : Play;
+  const primaryTone = waiting   ? 'amber'
+                    : isPlaying ? 'amber'
+                                : 'emerald';
+  const primaryLabel = waiting   ? 'Preparing terrain…'
+                     : isPlaying ? 'Pause flypath'
                      : isPaused  ? 'Resume flypath'
                                  : 'Start flypath';
 
@@ -672,6 +686,7 @@ function PlaybackRow({ playState, hasRoute, onStart, onPause, onResume, onStop }
         title={!hasRoute ? 'Upload a flypath route first' : primaryLabel}
         ariaLabel={primaryLabel}
         tone={primaryTone}
+        spinning={waiting}
       />
       <PlaybackButton
         icon={Square}
@@ -691,7 +706,7 @@ const TONE_CLASSES = {
   red:     'bg-red-600    hover:bg-red-700    active:bg-red-800    disabled:bg-red-600/40',
 };
 
-function PlaybackButton({ icon: Icon, onClick, disabled, title, ariaLabel, tone }) {
+function PlaybackButton({ icon: Icon, onClick, disabled, title, ariaLabel, tone, spinning }) {
   return (
     <button
       type="button"
@@ -705,7 +720,11 @@ function PlaybackButton({ icon: Icon, onClick, disabled, title, ariaLabel, tone 
         TONE_CLASSES[tone] ?? TONE_CLASSES.red,
       )}
     >
-      <Icon fill="currentColor" style={{ width: 18, height: 18 }} />
+      <Icon
+        {...(spinning ? {} : { fill: 'currentColor' })}
+        style={{ width: 18, height: 18 }}
+        className={spinning ? 'animate-spin' : undefined}
+      />
     </button>
   );
 }
@@ -1011,6 +1030,12 @@ async function saveWithPicker({ filename, data, mime, ext, label }) {
 function SpeedControl() {
   const { flightDuration, setFlightDuration } = useFlypath();
   const seconds = flightDuration / 1000;
+  // When in seconds range (< 60 s) the readout is an editable number
+  // input so the operator can type an exact value instead of dragging
+  // the slider vertex to a specific tick. Once we cross into minutes
+  // the exact number matters less, so the readout collapses to a
+  // formatted label ("1.5m") to save space.
+  const inSeconds = seconds < 60;
   return (
     <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted">
       <Gauge className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
@@ -1022,12 +1047,39 @@ function SpeedControl() {
         step={1}
         value={seconds}
         onChange={(e) => setFlightDuration(Number(e.target.value) * 1000)}
-        className="flex-1 h-1 accent-[#84cc16]"
+        className="flex-1 h-1 accent-[#84cc16] min-w-0"
         aria-label="Flight duration"
       />
-      <span className="tabular-nums text-day-text dark:text-night-text w-12 text-right">
-        {seconds < 60 ? `${seconds}s` : `${(seconds / 60).toFixed(1)}m`}
-      </span>
+      {inSeconds ? (
+        <div className="flex items-center gap-0.5 shrink-0">
+          <input
+            type="number"
+            min={5}
+            max={59}
+            step={1}
+            value={seconds}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (!Number.isFinite(n)) return;
+              const clamped = Math.max(5, Math.min(180, n));
+              setFlightDuration(clamped * 1000);
+            }}
+            className={cn(
+              'tabular-nums text-day-text dark:text-night-text',
+              'w-9 h-5 rounded border border-day-border dark:border-night-border',
+              'bg-day-bg dark:bg-night-bg',
+              'px-1 text-right text-[11px] outline-none',
+              'focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16]',
+            )}
+            aria-label="Flight duration in seconds"
+          />
+          <span className="text-day-text dark:text-night-text">s</span>
+        </div>
+      ) : (
+        <span className="tabular-nums text-day-text dark:text-night-text w-12 text-right shrink-0">
+          {(seconds / 60).toFixed(1)}m
+        </span>
+      )}
     </div>
   );
 }
@@ -1044,7 +1096,7 @@ function LoopControl() {
       <Repeat className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
       <span className="uppercase tracking-wide w-12 shrink-0">Loop</span>
       <span className="flex-1 text-day-text dark:text-night-text normal-case tracking-normal">
-        {loop ? 'On — flight restarts at the end' : 'Off — stops at the end'}
+        {loop ? 'Animation restarts at finish' : 'Animation stops at finish'}
       </span>
       <button
         type="button"

@@ -119,6 +119,12 @@ export function FlypathProvider({ children }) {
   const setLoop    = useCallback((v) => setLoopRaw(Boolean(v)), []);
   const toggleLoop = useCallback(() => setLoopRaw((v) => !v), []);
 
+  // Broadcast from FlypathMapLayer while it is waiting on the DEM /
+  // basemap tiles to finish streaming before starting the RAF. The
+  // panel uses this to swap the Play button into a "preparing"
+  // affordance so the operator doesn't think the click was ignored.
+  const [awaitingTerrain, setAwaitingTerrain] = useState(false);
+
   // ---------------------------------------------------------------
   // Digitize (on-map draw) state.
   //   • digitizing    — true while the user is actively drawing a
@@ -317,6 +323,8 @@ export function FlypathProvider({ children }) {
     loop,
     setLoop,
     toggleLoop,
+    awaitingTerrain,
+    setAwaitingTerrain,
 
     // Digitize
     digitizing,
@@ -340,6 +348,7 @@ export function FlypathProvider({ children }) {
     playState, start, pause, resume, stop, togglePlayPause,
     flightDuration, setFlightDuration,
     loop, setLoop, toggleLoop,
+    awaitingTerrain,
     digitizing, drawnCoords, pendingDrawn,
     startDigitize, cancelDigitize, finishDigitize,
     addDrawnVertex, undoDrawnVertex, replaceDrawnCoords,
