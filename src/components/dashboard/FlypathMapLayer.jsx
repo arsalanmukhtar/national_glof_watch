@@ -55,12 +55,20 @@ export default function FlypathMapLayer({ map }) {
     elevationProfile,
     phaseRef,
     flightDuration,
+    loop,
     setElevationProfile,
     stop,
   } = useFlypath();
 
   const flightDurationRef = useRef(flightDuration);
   flightDurationRef.current = flightDuration;
+
+  // Loop flag mirrored to a ref so the RAF tick can decide whether
+  // to restart at phase 1 without recreating the effect (which would
+  // cancel + re-jumpTo the camera every time the user toggles it
+  // mid-flight).
+  const loopRef = useRef(loop);
+  loopRef.current = loop;
 
   // Cached FCs so ensureLayers can rebuild sources after a basemap
   // swap without needing to observe context changes.
@@ -80,6 +88,13 @@ export default function FlypathMapLayer({ map }) {
   // Coordinate list the animator flies along — the SELECTED route's
   // first LineString, oriented high → low. Recomputed at Start.
   const flightCoordsRef = useRef(null);
+
+  // Oriented coords cache, shared between the elevation sampler and
+  // the play effect. Populated the moment we can reliably tell which
+  // endpoint is the higher one (from DEM window-sampling). Cleared
+  // when the selected route changes so a new route re-decides
+  // orientation from its own terrain profile.
+  const orientedCoordsRef = useRef(null);
 
   const lastFrameRef = useRef(0);
   const rafRef       = useRef(0);
@@ -285,6 +300,24 @@ export default function FlypathMapLayer({ map }) {
   }, [map, featuresStyle]);
 
   // ---------------------------------------------------------------
+  // Hide the drawn route lines while the animation is playing so the
+  // pulsating marker + terrain read cleanly without a distracting
+  // red trail behind it. Pause / stop restore the configured opacity.
+  // Swapping the paint expression itself keeps per-route data-driven
+  // opacity intact when we transition back.
+  // ---------------------------------------------------------------
+  useEffect(() => {
+    if (!map) return;
+    const hidden = playState === 'playing';
+    const expr   = hidden ? 0 : ['get', 'opacity'];
+    try {
+      if (map.getLayer(ROUTES_LINE))   map.setPaintProperty(ROUTES_LINE,   'line-opacity', expr);
+      if (map.getLayer(ROUTES_CASING)) map.setPaintProperty(ROUTES_CASING, 'line-opacity', expr);
+      map.triggerRepaint?.();
+    } catch { /* transient */ }
+  }, [map, playState]);
+
+  // ---------------------------------------------------------------
   // Fly-to-bounds on demand.
   // ---------------------------------------------------------------
   useEffect(() => {
@@ -299,7 +332,17 @@ export default function FlypathMapLayer({ map }) {
 
   // ---------------------------------------------------------------
   // Elevation profile — sampled from the SELECTED route's coords.
+  // Also owns the orientation decision so both the chart's x-axis
+  // and the flight direction come from the same source of truth.
   // ---------------------------------------------------------------
+  // Invalidate the orientation cache when the selected route changes
+  // (not on every sample tick — otherwise the sampler would keep
+  // re-deciding orientation and could flap if a tile briefly returned
+  // an outlier value).
+  useEffect(() => {
+    orientedCoordsRef.current = null;
+  }, [selectedRoute]);
+
   useEffect(() => {
     if (!map) return undefined;
     if (elevationProfile?.complete) return undefined;
@@ -313,7 +356,17 @@ export default function FlypathMapLayer({ map }) {
     }
 
     const trySample = () => {
-      const oriented = orientHighToLow(coords, map);
+      // Decide orientation once, from DEM window sampling around each
+      // endpoint. If the terrain tiles aren't in yet we simply skip
+      // this pass — a later idle will try again. This is what keeps
+      // the flight from ever starting bottom-to-top: no orientation,
+      // no sample → sampler retries until DEM is available.
+      if (!orientedCoordsRef.current) {
+        const dir = determineOrientation(map, coords);
+        if (dir === 0) return;
+        orientedCoordsRef.current = dir === 1 ? coords : coords.slice().reverse();
+      }
+      const oriented = orientedCoordsRef.current;
       const profile = sampleElevationProfile(map, oriented, ELEV_SAMPLES);
       if (!profile) return;
       const complete = profile.samples.every((p) => Number.isFinite(p.elevation));
@@ -383,7 +436,23 @@ export default function FlypathMapLayer({ map }) {
     // fitBounds tween.
     const fresh = !flightCoordsRef.current || phaseRef.current <= 0 || phaseRef.current >= 1;
     if (fresh) {
-      flightCoordsRef.current = orientHighToLow(raw, map);
+      // Prefer the sampler's cached orientation — it decided from
+      // DEM window sampling under `idle` conditions and is the same
+      // orientation the chart is drawn against. If the user hit Play
+      // before the sampler could commit (rare), fall back to a fresh
+      // window-sampled decision here; only if THAT also fails do we
+      // use raw order.
+      let oriented = orientedCoordsRef.current;
+      if (!oriented) {
+        const dir = determineOrientation(map, raw);
+        if (dir !== 0) {
+          oriented = dir === 1 ? raw : raw.slice().reverse();
+          orientedCoordsRef.current = oriented;
+        } else {
+          oriented = raw;
+        }
+      }
+      flightCoordsRef.current = oriented;
       if (phaseRef.current >= 1 || phaseRef.current <= 0) phaseRef.current = 0;
     }
     const coords = flightCoordsRef.current;
@@ -438,6 +507,16 @@ export default function FlypathMapLayer({ map }) {
       }
 
       if (phaseRef.current >= 1) {
+        if (loopRef.current) {
+          // Wrap: snap the phase back to 0 and let the next tick
+          // pick up rendering at the route start. Camera jumpTo on
+          // the following frame handles the visual reset. Skip the
+          // overshoot leftover — starting exactly at 0 keeps the
+          // loop's timing consistent across iterations.
+          phaseRef.current = 0;
+          rafRef.current = requestAnimationFrame(tick);
+          return;
+        }
         stop();
         return;
       }
@@ -518,25 +597,74 @@ function extractFirstLineString(fc) {
   return null;
 }
 
-function orientHighToLow(coords, map) {
-  if (!coords || coords.length < 2) return coords;
+// Decide flight direction: origin at the higher-elevation endpoint,
+// destination at the lower one. GLOF scenarios always flow downhill,
+// so the animation must start high and drop low — never the reverse.
+//
+// Returns  1  → keep coords as-is (first vertex is higher).
+//         -1  → reverse coords     (last vertex is higher).
+//          0  → cannot decide right now (DEM tiles at both endpoints
+//              still loading). Caller should treat as "try again on
+//              the next idle" rather than falling back to raw order,
+//              since raw order is often low-to-high for user-drawn
+//              paths and defeats the whole downhill contract.
+function determineOrientation(map, coords) {
+  if (!coords || coords.length < 2) return 0;
   const first = coords[0];
   const last  = coords[coords.length - 1];
+
+  // 1. Coord Z. KML / some GeoJSON sources carry altitude as the 3rd
+  //    element of each coord tuple. Cheapest signal, and it beats DEM
+  //    when the source has authored elevations.
   const fz = first[2];
   const lz = last[2];
-  if (Number.isFinite(fz) && Number.isFinite(lz)) {
-    return fz >= lz ? coords : coords.slice().reverse();
+  if (Number.isFinite(fz) && Number.isFinite(lz) && Math.abs(fz - lz) > 0.5) {
+    return fz >= lz ? 1 : -1;
   }
+
+  // 2. DEM window sampling around each endpoint. Querying a single
+  //    coord is fragile — Mapbox `queryTerrainElevation` returns null
+  //    if THAT specific tile hasn't streamed in yet, even when the
+  //    surrounding tiles are loaded. Averaging over a small window
+  //    of nearby vertices makes the decision reliable at the exact
+  //    moment the map first goes idle, so the first Play press
+  //    doesn't get stuck with raw order.
+  const fe = queryTerrainWindow(map, coords, 0);
+  const le = queryTerrainWindow(map, coords, coords.length - 1);
+  if (Number.isFinite(fe) && Number.isFinite(le) && Math.abs(fe - le) > 0.5) {
+    return fe >= le ? 1 : -1;
+  }
+  return 0;
+}
+
+// Query DEM elevation over a small window of coords around `idx`,
+// averaging every valid reading. Falls back to null only when NO
+// point in the window has a loaded tile.
+function queryTerrainWindow(map, coords, idx, window = 4) {
+  if (!map || !coords?.length) return null;
+  let hasTerrain = false;
   try {
-    if (map.getTerrain && map.getTerrain()) {
-      const fe = map.queryTerrainElevation({ lng: first[0], lat: first[1] }, { exaggerated: false });
-      const le = map.queryTerrainElevation({ lng: last[0],  lat: last[1]  }, { exaggerated: false });
-      if (Number.isFinite(fe) && Number.isFinite(le)) {
-        return fe >= le ? coords : coords.slice().reverse();
-      }
-    }
-  } catch { /* terrain not ready */ }
-  return coords;
+    hasTerrain = !!(map.getTerrain && map.getTerrain());
+  } catch { /* ignore */ }
+  if (!hasTerrain) return null;
+
+  const N = coords.length;
+  let sum = 0;
+  let n = 0;
+  for (let k = -window; k <= window; k++) {
+    const i = idx + k;
+    if (i < 0 || i >= N) continue;
+    const c = coords[i];
+    if (!Array.isArray(c) || c.length < 2) continue;
+    try {
+      const e = map.queryTerrainElevation(
+        { lng: c[0], lat: c[1] },
+        { exaggerated: false },
+      );
+      if (Number.isFinite(e)) { sum += e; n++; }
+    } catch { /* skip this coord */ }
+  }
+  return n > 0 ? sum / n : null;
 }
 
 function computeFrame(coords, phase) {

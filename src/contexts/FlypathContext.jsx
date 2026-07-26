@@ -111,6 +111,14 @@ export function FlypathProvider({ children }) {
     setFlightDurationRaw(Math.max(5_000, Math.min(300_000, num)));
   }, []);
 
+  // Loop mode — when true, the animation restarts from the beginning
+  // instead of transitioning to 'stopped' at phase 1. Handy for demo
+  // / kiosk viewing so an operator doesn't have to hit Play every
+  // minute-and-a-half.
+  const [loop, setLoopRaw] = useState(false);
+  const setLoop    = useCallback((v) => setLoopRaw(Boolean(v)), []);
+  const toggleLoop = useCallback(() => setLoopRaw((v) => !v), []);
+
   // ---------------------------------------------------------------
   // Digitize (on-map draw) state.
   //   • digitizing    — true while the user is actively drawing a
@@ -306,6 +314,9 @@ export function FlypathProvider({ children }) {
     togglePlayPause,
     flightDuration,
     setFlightDuration,
+    loop,
+    setLoop,
+    toggleLoop,
 
     // Digitize
     digitizing,
@@ -328,6 +339,7 @@ export function FlypathProvider({ children }) {
     active, setActive, elevationProfile,
     playState, start, pause, resume, stop, togglePlayPause,
     flightDuration, setFlightDuration,
+    loop, setLoop, toggleLoop,
     digitizing, drawnCoords, pendingDrawn,
     startDigitize, cancelDigitize, finishDigitize,
     addDrawnVertex, undoDrawnVertex, replaceDrawnCoords,

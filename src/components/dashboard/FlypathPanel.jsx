@@ -11,6 +11,7 @@ import {
   Pencil,
   Play,
   Plus,
+  Repeat,
   Route,
   Save,
   Square,
@@ -143,6 +144,7 @@ export default function FlypathPanel() {
         onStop={stop}
       />
       <SpeedControl />
+      <LoopControl />
     </div>
   );
 }
@@ -1026,6 +1028,45 @@ function SpeedControl() {
       <span className="tabular-nums text-day-text dark:text-night-text w-12 text-right">
         {seconds < 60 ? `${seconds}s` : `${(seconds / 60).toFixed(1)}m`}
       </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Loop control — toggle chip that restarts the animation at phase 1
+// instead of transitioning to 'stopped'. Same row silhouette as
+// SpeedControl for visual consistency.
+// ---------------------------------------------------------------------------
+function LoopControl() {
+  const { loop, toggleLoop } = useFlypath();
+  return (
+    <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted">
+      <Repeat className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
+      <span className="uppercase tracking-wide w-12 shrink-0">Loop</span>
+      <span className="flex-1 text-day-text dark:text-night-text normal-case tracking-normal">
+        {loop ? 'On — flight restarts at the end' : 'Off — stops at the end'}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={loop}
+        onClick={toggleLoop}
+        title={loop ? 'Disable loop' : 'Enable loop'}
+        className={cn(
+          'relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors',
+          loop ? 'bg-[#84cc16]' : 'bg-day-border dark:bg-night-border',
+        )}
+      >
+        <span
+          className={cn(
+            'inline-block h-3 w-3 rounded-full bg-white shadow',
+            'transition-transform will-change-transform',
+            loop ? 'translate-x-3.5' : 'translate-x-0.5',
+          )}
+          style={{ marginTop: 2 }}
+          aria-hidden
+        />
+      </button>
     </div>
   );
 }
