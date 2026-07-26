@@ -730,7 +730,7 @@ function FeaturesLabelsCard() {
             />
 
             {/* Row 5 — Text + Halo colour swatches */}
-            <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-day-border dark:border-night-border">
+            <div className="grid grid-cols-2 gap-1.5">
               <SwatchRow label="Text" value={featuresLabelStyle.color}
                 onChange={(color) => setFeaturesLabelStyle({ color })} />
               <SwatchRow label="Halo" value={featuresLabelStyle.haloColor}
