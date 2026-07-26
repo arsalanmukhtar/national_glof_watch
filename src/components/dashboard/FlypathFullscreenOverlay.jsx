@@ -50,16 +50,22 @@ export default function FlypathFullscreenOverlay() {
         'flex items-start gap-2 pointer-events-none',
       )}
     >
-      {/* Compact rail — hugs the icon only (no full-height flex),
-          matching the BasemapSwitcher's chip size. */}
+      {/* Compact chip — inline-flex row with items-center + justify-
+          center so the single icon-button lands perfectly centred.
+          `leading-none` on the tooltip trigger kills the line-height
+          descent that was inflating the container height before. */}
       <div
         className={cn(
-          'flex flex-col items-center gap-0.5 p-0.5 rounded-md shadow-sm pointer-events-auto',
+          'inline-flex items-center justify-center p-0.5 rounded-md shadow-sm pointer-events-auto',
           'bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm',
           'border border-day-border dark:border-night-border',
         )}
       >
-        <Tooltip label={expanded ? 'Collapse' : 'Lake Flypath'} side="right">
+        <Tooltip
+          label={expanded ? 'Collapse' : 'Lake Flypath'}
+          side="right"
+          triggerClassName="inline-flex leading-none"
+        >
           <motion.button
             type="button"
             whileHover={{ scale: 1.05 }}

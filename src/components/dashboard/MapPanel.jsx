@@ -47,6 +47,7 @@ import RasterMapRenderer from './RasterMapRenderer';
 import FlypathMapLayer from './FlypathMapLayer';
 import FlypathDigitizer from './FlypathDigitizer';
 import FlypathFullscreenOverlay from './FlypathFullscreenOverlay';
+import ElevationFullscreenOverlay from './ElevationFullscreenOverlay';
 import StationsTable from './StationsTable';
 import { cn } from '@/utils/cn';
 
@@ -1073,6 +1074,7 @@ export default function MapPanel({ className, onMapReady }) {
         <FlypathMapLayer map={mapInstance} />
         <FlypathDigitizer map={mapInstance} />
         <FlypathFullscreenOverlay />
+        <ElevationFullscreenOverlay />
         <AnimatePresence>
           {isLoading ? (
             <motion.div

@@ -69,6 +69,14 @@ export default function FlypathMapLayer({ map }) {
   const featuresStyleRef  = useRef(featuresStyle);
   featuresStyleRef.current = featuresStyle;
 
+  // Live mirror of `elevationProfile` state so the RAF tick can read
+  // it via ref without forcing the playback effect to re-run whenever
+  // the elevation sample updates. Before this ref the profile was in
+  // the effect's dep array, and each incoming `idle`-driven sample
+  // cancelled the RAF + re-jumpTo'd the camera → visible jerk.
+  const elevationProfileRef = useRef(elevationProfile);
+  elevationProfileRef.current = elevationProfile;
+
   // Coordinate list the animator flies along — the SELECTED route's
   // first LineString, oriented high → low. Recomputed at Start.
   const flightCoordsRef = useRef(null);
@@ -268,6 +276,11 @@ export default function FlypathMapLayer({ map }) {
         map.setPaintProperty(FEATURES_POINT, 'circle-stroke-color', s.outlineColor);
         map.setPaintProperty(FEATURES_POINT, 'circle-stroke-width', Math.max(1, s.width * 0.6));
       }
+      // Data-driven paint updates can sit on cached tiles until the
+      // next camera move — force a repaint so the opacity slider
+      // visibly moves the fill as it drags (same fix we shipped
+      // for the routes source).
+      map.triggerRepaint?.();
     } catch { /* transient */ }
   }, [map, featuresStyle]);
 
@@ -306,6 +319,17 @@ export default function FlypathMapLayer({ map }) {
       const complete = profile.samples.every((p) => Number.isFinite(p.elevation));
       setElevationProfile((prev) => {
         if (prev?.complete) return prev;
+        // Skip the state update entirely when neither completeness
+        // nor sample values changed — a stray `idle` firing during
+        // tile streaming shouldn't recreate the profile object and
+        // cascade into re-renders + effect restarts.
+        if (prev
+            && prev.totalDistance === profile.totalDistance
+            && prev.samples.length === profile.samples.length
+            && !complete
+            && sampleValuesEqual(prev.samples, profile.samples)) {
+          return prev;
+        }
         return { ...profile, complete };
       });
     };
@@ -366,29 +390,31 @@ export default function FlypathMapLayer({ map }) {
 
     // First frame: snap the camera onto the route start (chase-cam
     // initial pose) + place the marker. Marker updates are DOM-only
-    // and always safe; `jumpTo` requires a loaded style, so it stays
-    // guarded.
+    // and always safe. Style-loaded gate stays only around jumpTo —
+    // the try/catch below absorbs any transient state.
     const startFrame = computeFrame(coords, phaseRef.current);
     if (startFrame) {
-      if (map.isStyleLoaded()) {
-        try {
-          map.jumpTo({
-            center:  startFrame.center,
-            bearing: startFrame.bearing,
-            pitch:   NAV_PITCH,
-            zoom:    FLIGHT_ZOOM,
-          });
-        } catch { /* transient */ }
-      }
+      try {
+        map.jumpTo({
+          center:  startFrame.center,
+          bearing: startFrame.bearing,
+          pitch:   NAV_PITCH,
+          zoom:    FLIGHT_ZOOM,
+        });
+      } catch { /* transient */ }
       ensureMarker(
         map, markerRef, startFrame,
-        elevationAtPhase(elevationProfile, phaseRef.current),
+        elevationAtPhase(elevationProfileRef.current, phaseRef.current),
       );
     }
 
     lastFrameRef.current = performance.now();
     const tick = (now) => {
-      const dt = now - lastFrameRef.current;
+      // Cap dt so a GC pause, tab-hide, or dropped frame doesn't
+      // teleport the marker 30 % down the route on the next tick —
+      // a big dt reads as jerky "jumps" rather than smooth motion.
+      const raw = now - lastFrameRef.current;
+      const dt  = raw > 100 ? 100 : raw;
       lastFrameRef.current = now;
       phaseRef.current = Math.min(1, phaseRef.current + dt / flightDurationRef.current);
 
@@ -398,18 +424,16 @@ export default function FlypathMapLayer({ map }) {
         // the marker with the marker's heading as the bearing.
         // Google-Maps-turn-by-turn feel. Zoom omitted so the user
         // can pinch to zoom mid-flight without us fighting them.
-        if (map.isStyleLoaded()) {
-          try {
-            map.jumpTo({
-              center:  frame.center,
-              bearing: frame.bearing,
-              pitch:   NAV_PITCH,
-            });
-          } catch { /* transient — next frame retries */ }
-        }
+        try {
+          map.jumpTo({
+            center:  frame.center,
+            bearing: frame.bearing,
+            pitch:   NAV_PITCH,
+          });
+        } catch { /* transient — next frame retries */ }
         ensureMarker(
           map, markerRef, frame,
-          elevationAtPhase(elevationProfile, phaseRef.current),
+          elevationAtPhase(elevationProfileRef.current, phaseRef.current),
         );
       }
 
@@ -425,6 +449,10 @@ export default function FlypathMapLayer({ map }) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     };
+    // `elevationProfile` is intentionally excluded — read via ref
+    // inside tick so mid-flight sample updates don't restart the RAF
+    // (and snap the camera back to FLIGHT_ZOOM).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, playState, selectedRoute, stop, phaseRef]);
 
   useEffect(() => () => removeMarker(markerRef), []);
@@ -623,6 +651,21 @@ function sampleElevationProfile(map, coords, count) {
   return { totalDistance: total, samples };
 }
 
+// Shallow value-equality on two sample arrays. Used to skip a
+// setElevationProfile call when the underlying elevations haven't
+// actually changed — silences pointless re-renders during the
+// tile-loading window.
+function sampleValuesEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const av = a[i]?.elevation;
+    const bv = b[i]?.elevation;
+    if (av !== bv && !(av == null && bv == null)) return false;
+  }
+  return true;
+}
+
 // Interpolate elevation from the sampled profile at fractional phase
 // (0..1). Skips over any null samples caused by unloaded terrain tiles.
 function elevationAtPhase(profile, phase) {
@@ -744,9 +787,16 @@ function setMarkerElevation(markerElement, elevation) {
 
 function ensureMarker(map, markerRef, frame, elevation) {
   if (!markerRef.current) {
-    // The pulsating dot is rotationally symmetric — no need for
-    // rotationAlignment/pitchAlignment tricks.
-    const marker = new mapboxgl.Marker({ element: makeMarkerElement() });
+    // occludedOpacity: 1 keeps the marker fully visible even when
+    // Mapbox's terrain DEM says a ridge / peak sits between the
+    // camera and the anchor point. Without this, in mountainous
+    // sections the pulsating dot fades to ~20 % and briefly reads
+    // as "the marker vanished". The pulsating dot is rotationally
+    // symmetric so no rotationAlignment tricks are needed.
+    const marker = new mapboxgl.Marker({
+      element: makeMarkerElement(),
+      occludedOpacity: 1,
+    });
     marker.setLngLat(frame.center);
     marker.addTo(map);
     markerRef.current = marker;

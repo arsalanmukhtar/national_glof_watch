@@ -59,7 +59,7 @@ const DEFAULT_FEATURES_STYLE = {
                              // of the translucent fill and reads as a
                              // clear boundary.
   width:        2,
-  opacity:      0.25,
+  opacity:      0.30,
 };
 
 // Small stable id generator — crypto.randomUUID where available,

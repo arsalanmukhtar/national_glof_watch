@@ -112,6 +112,28 @@ export default function StationsTable() {
   } = useSecondary();
   const [open, setOpen] = useState(true);
   const [legendOpen, setLegendOpen] = useState(false);
+
+  // Fullscreen-aware render — in fullscreen mode we collapse the
+  // whole "Stations" bar down to two floating chip icons (info +
+  // chevron) and float the legend / table cards above them on demand.
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => {
+      const fs = !!document.fullscreenElement;
+      setIsFullscreen(fs);
+      // Entering fullscreen with a lot of chrome open is jarring —
+      // collapse both floating panels so the user sees just the two
+      // icon chips first. Exiting fullscreen restores the normal
+      // dashboard layout, so no reset needed.
+      if (fs) {
+        setLegendOpen(false);
+        setOpen(false);
+      }
+    };
+    onChange();
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
   // Roster sizes for the sensor legend — populated lazily from
   // /api/secondary/sensor-counts the first time the user opens the
   // legend so we don't burn a request on every dashboard load.
@@ -253,16 +275,30 @@ export default function StationsTable() {
       transition={{ duration: 0.2 }}
       data-tour-id="stations-table"
       className={cn(
-        'absolute right-2 bottom-2 z-10 w-[410px] rounded-md shadow-md overflow-hidden',
-        'bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm',
-        'border border-day-border dark:border-night-border',
+        'absolute right-2 bottom-2 z-10',
+        isFullscreen
+          // Fullscreen: transparent wrapper, panels + toggle chip
+          // stack from bottom up (icons at bottom, opened panels
+          // above). Each panel gets its own card styling below.
+          ? 'flex flex-col-reverse items-end gap-2'
+          : 'w-[410px] rounded-md shadow-md overflow-hidden bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm border border-day-border dark:border-night-border',
       )}
     >
-      <div className="flex items-center gap-2 px-2 py-1.5 border-b border-day-border dark:border-night-border">
-        <h3 className="text-[13px] font-semibold text-day-text dark:text-night-text">
-          Stations
-        </h3>
-        {earlyWarning ? (
+      <div
+        className={cn(
+          isFullscreen
+            // Compact chip — just the two icons in the same rounded
+            // container as the BasemapSwitcher / FlypathOverlay chips.
+            ? 'inline-flex items-center gap-0.5 p-0.5 rounded-md shadow-sm bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm border border-day-border dark:border-night-border'
+            : 'flex items-center gap-2 px-2 py-1.5 border-b border-day-border dark:border-night-border',
+        )}
+      >
+        {!isFullscreen ? (
+          <h3 className="text-[13px] font-semibold text-day-text dark:text-night-text">
+            Stations
+          </h3>
+        ) : null}
+        {!isFullscreen && earlyWarning ? (
           <span
             className={cn(
               'inline-flex items-center justify-center h-5 px-1.5 rounded',
@@ -280,27 +316,31 @@ export default function StationsTable() {
           type="button"
           onClick={() => setLegendOpen((o) => !o)}
           className={cn(
-            'ml-auto relative h-5 w-5 p-0 rounded transition-colors',
+            'relative h-6 w-6 p-0 rounded transition-colors inline-flex items-center justify-center',
+            !isFullscreen && 'ml-auto',
             legendOpen
-              ? 'text-[#84cc16]'
-              : 'text-day-muted dark:text-night-muted',
+              ? isFullscreen
+                ? 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]'
+                : 'text-[#84cc16]'
+              : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
           )}
           aria-label={legendOpen ? 'Hide sensors legend' : 'Show sensors legend'}
           aria-expanded={legendOpen}
+          title={legendOpen ? 'Hide sensors legend' : 'Show sensors legend'}
         >
-          {/* Absolute inset-0 + m-auto centres the fixed-size icon
-              exactly inside the 20x20 button regardless of any flex /
-              grid quirk in the header row. */}
-          <Info
-            className="absolute inset-0 m-auto h-3.5 w-3.5"
-            strokeWidth={1.75}
-          />
+          <Info className="h-3.5 w-3.5" strokeWidth={1.75} />
         </button>
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="h-5 w-5 inline-flex items-center justify-center rounded text-day-muted dark:text-night-muted"
+          className={cn(
+            'h-6 w-6 inline-flex items-center justify-center rounded transition-colors',
+            open && isFullscreen
+              ? 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]'
+              : 'text-day-muted dark:text-night-muted hover:bg-day-bg dark:hover:bg-night-bg',
+          )}
           aria-label={open ? 'Collapse table' : 'Expand table'}
+          title={open ? 'Collapse stations table' : 'Expand stations table'}
         >
           {open ? (
             <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -318,7 +358,12 @@ export default function StationsTable() {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="overflow-hidden border-b border-day-border dark:border-night-border"
+            className={cn(
+              'overflow-hidden',
+              isFullscreen
+                ? 'w-[320px] rounded-md shadow-md bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm border border-day-border dark:border-night-border'
+                : 'border-b border-day-border dark:border-night-border',
+            )}
           >
             <div className="px-2.5 py-2 space-y-1.5">
               {SENSOR_LEGEND.map((item) => {
@@ -400,7 +445,11 @@ export default function StationsTable() {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="overflow-hidden"
+            className={cn(
+              'overflow-hidden',
+              isFullscreen &&
+                'w-[410px] rounded-md shadow-md bg-white/95 dark:bg-night-surface/95 backdrop-blur-sm border border-day-border dark:border-night-border',
+            )}
           >
             {!selected ? (
               <p className="px-3 py-4 text-[12px] text-center text-day-muted dark:text-night-muted">
