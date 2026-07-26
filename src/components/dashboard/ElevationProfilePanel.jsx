@@ -3,6 +3,7 @@ import { Line } from 'react-chartjs-2';
 import { Mountain } from 'lucide-react';
 import { useFlypath } from '@/contexts/FlypathContext';
 import { useTheme } from '@/hooks/useTheme';
+import { cn } from '@/utils/cn';
 
 // ElevationProfilePanel — chart body for the Elevation Profile tab in
 // ChartsRow. Reads the sampled elevation array + shared animation
@@ -277,10 +278,10 @@ export default function ElevationProfilePanel() {
           <Mountain className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200" />
           Elevation Profile
         </div>
-        <StatChip label="High"   value={`${Math.round(stats.max)} m`} />
-        <StatChip label="Low"    value={`${Math.round(stats.min)} m`} />
-        <StatChip label="Drop"   value={`${Math.round(stats.drop)} m`} />
-        <StatChip label="Length" value={`${(elevationProfile.totalDistance / 1000).toFixed(2)} km`} />
+        <StatChip label="High"   tone="high"   value={`${Math.round(stats.max)} m`} />
+        <StatChip label="Low"    tone="low"    value={`${Math.round(stats.min)} m`} />
+        <StatChip label="Drop"   tone="drop"   value={`${Math.round(stats.drop)} m`} />
+        <StatChip label="Length" tone="length" value={`${(elevationProfile.totalDistance / 1000).toFixed(2)} km`} />
         {!elevationProfile.complete ? (
           <span className="text-day-muted dark:text-night-muted italic">refining…</span>
         ) : null}
@@ -297,11 +298,50 @@ export default function ElevationProfilePanel() {
   );
 }
 
-function StatChip({ label, value }) {
+// Sober tonal palette for the four stat chips — each metric gets its
+// own hue so the eye can scan HIGH / LOW / DROP / LENGTH at a glance
+// without the row reading like a wall of muted text.
+//   high   → amber  (summit / peak)
+//   low    → sky    (valley / water)
+//   drop   → rose   (dramatic descent)
+//   length → violet (distance / measurement)
+// Backgrounds sit at ~10 % alpha in both themes so they read as chips
+// without competing with the chart underneath.
+const CHIP_TONES = {
+  high: {
+    wrap:  'bg-amber-500/10 dark:bg-amber-400/10 ring-amber-500/25 dark:ring-amber-400/25',
+    label: 'text-amber-700 dark:text-amber-300',
+    value: 'text-amber-900 dark:text-amber-100',
+  },
+  low: {
+    wrap:  'bg-sky-500/10 dark:bg-sky-400/10 ring-sky-500/25 dark:ring-sky-400/25',
+    label: 'text-sky-700 dark:text-sky-300',
+    value: 'text-sky-900 dark:text-sky-100',
+  },
+  drop: {
+    wrap:  'bg-rose-500/10 dark:bg-rose-400/10 ring-rose-500/25 dark:ring-rose-400/25',
+    label: 'text-rose-700 dark:text-rose-300',
+    value: 'text-rose-900 dark:text-rose-100',
+  },
+  length: {
+    wrap:  'bg-violet-500/10 dark:bg-violet-400/10 ring-violet-500/25 dark:ring-violet-400/25',
+    label: 'text-violet-700 dark:text-violet-300',
+    value: 'text-violet-900 dark:text-violet-100',
+  },
+};
+
+function StatChip({ label, value, tone }) {
+  const t = CHIP_TONES[tone] ?? CHIP_TONES.length;
   return (
-    <span className="inline-flex items-baseline gap-1 text-[10.5px] text-day-muted dark:text-night-muted">
-      <span className="uppercase tracking-wide">{label}</span>
-      <span className="text-day-text dark:text-night-text tabular-nums font-semibold">{value}</span>
+    <span
+      className={cn(
+        'inline-flex items-baseline gap-1 text-[10.5px]',
+        'px-1.5 py-0.5 rounded ring-1',
+        t.wrap,
+      )}
+    >
+      <span className={cn('uppercase tracking-wide', t.label)}>{label}</span>
+      <span className={cn('tabular-nums font-semibold', t.value)}>{value}</span>
     </span>
   );
 }
