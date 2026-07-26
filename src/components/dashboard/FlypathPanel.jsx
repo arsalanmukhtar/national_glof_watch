@@ -1037,7 +1037,12 @@ function SpeedControl() {
   // formatted label ("1.5m") to save space.
   const inSeconds = seconds < 60;
   return (
-    <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted">
+    // min-h-7 locks the row at 28 px whether the readout is the h-5
+    // seconds input or the plain minutes label — otherwise the whole
+    // column jitters (~4 px) as the slider crosses 60 s. The fixed-
+    // width readout container below prevents horizontal jitter for
+    // the same reason.
+    <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted min-h-7">
       <Gauge className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
       <span className="uppercase tracking-wide w-12 shrink-0">Speed</span>
       <input
@@ -1050,36 +1055,48 @@ function SpeedControl() {
         className="flex-1 h-1 accent-[#84cc16] min-w-0"
         aria-label="Flight duration"
       />
-      {inSeconds ? (
-        <div className="flex items-center gap-0.5 shrink-0">
-          <input
-            type="number"
-            min={5}
-            max={59}
-            step={1}
-            value={seconds}
-            onChange={(e) => {
-              const n = Number(e.target.value);
-              if (!Number.isFinite(n)) return;
-              const clamped = Math.max(5, Math.min(180, n));
-              setFlightDuration(clamped * 1000);
-            }}
-            className={cn(
-              'tabular-nums text-day-text dark:text-night-text',
-              'w-9 h-5 rounded border border-day-border dark:border-night-border',
-              'bg-day-bg dark:bg-night-bg',
-              'px-1 text-right text-[11px] outline-none',
-              'focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16]',
-            )}
-            aria-label="Flight duration in seconds"
-          />
-          <span className="text-day-text dark:text-night-text">s</span>
-        </div>
-      ) : (
-        <span className="tabular-nums text-day-text dark:text-night-text w-12 text-right shrink-0">
-          {(seconds / 60).toFixed(1)}m
-        </span>
-      )}
+      <div className="flex items-center justify-end shrink-0 w-[68px] gap-0.5">
+        {inSeconds ? (
+          <>
+            <input
+              type="number"
+              min={5}
+              max={59}
+              step={1}
+              value={seconds}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                if (!Number.isFinite(n)) return;
+                const clamped = Math.max(5, Math.min(180, n));
+                setFlightDuration(clamped * 1000);
+              }}
+              className={cn(
+                'tabular-nums text-day-text dark:text-night-text',
+                // Wider (w-12 = 48 px) so two-digit values + native
+                // spinner overlay never crop the second digit as they
+                // did at w-9. Spinner arrows are suppressed via the
+                // arbitrary variants below so the whole 48 px is
+                // available for the value.
+                'w-12 h-5 rounded border border-day-border dark:border-night-border',
+                'bg-day-bg dark:bg-night-bg',
+                'px-1.5 text-right text-[11px] outline-none',
+                'focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16]',
+                '[appearance:textfield]',
+                '[&::-webkit-outer-spin-button]:appearance-none',
+                '[&::-webkit-inner-spin-button]:appearance-none',
+                '[&::-webkit-outer-spin-button]:m-0',
+                '[&::-webkit-inner-spin-button]:m-0',
+              )}
+              aria-label="Flight duration in seconds"
+            />
+            <span className="text-day-text dark:text-night-text">s</span>
+          </>
+        ) : (
+          <span className="tabular-nums text-day-text dark:text-night-text text-[11px]">
+            {(seconds / 60).toFixed(1)}m
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -1092,7 +1109,8 @@ function SpeedControl() {
 function LoopControl() {
   const { loop, toggleLoop } = useFlypath();
   return (
-    <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted">
+    // Matching min-h-7 so Speed + Loop rows read as a uniform stack.
+    <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted min-h-7">
       <Repeat className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
       <span className="uppercase tracking-wide w-12 shrink-0">Loop</span>
       <span className="flex-1 text-day-text dark:text-night-text normal-case tracking-normal">
