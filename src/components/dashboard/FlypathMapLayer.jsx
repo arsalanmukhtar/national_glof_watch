@@ -215,7 +215,7 @@ export default function FlypathMapLayer({ map }) {
             layout: {
               'text-field':        textField,
               'text-size':         Number(ls.size) || 12,
-              'text-font':         ['Open Sans Regular', 'Arial Unicode MS Regular'],
+              'text-font':         ['DIN Pro Bold', 'Open Sans Semibold', 'Arial Unicode MS Bold'],
               'text-anchor':       'center',
               'text-justify':      'center',
               'text-allow-overlap': false,
@@ -351,7 +351,7 @@ export default function FlypathMapLayer({ map }) {
         layout: {
           'text-field':        textField,
           'text-size':         Number(ls.size) || 12,
-          'text-font':         ['Open Sans Regular', 'Arial Unicode MS Regular'],
+          'text-font':         ['DIN Pro Bold', 'Open Sans Semibold', 'Arial Unicode MS Bold'],
           'text-anchor':       'center',
           'text-justify':      'center',
           'text-allow-overlap': false,

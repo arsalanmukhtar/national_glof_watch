@@ -1478,6 +1478,25 @@ function SpeedControl() {
   // the exact number matters less, so the readout collapses to a
   // formatted label ("1.5m") to save space.
   const inSeconds = seconds < 60;
+
+  // Local text buffer so partial input like "2" (intending "20")
+  // doesn't get committed through the context's min-clamp (which
+  // would floor it to 5, and the next keystroke would then append
+  // onto "5" — turning "20" into "50" mid-type). We only commit to
+  // context when the number is already in the valid range; otherwise
+  // it commits on blur / Enter, at which point the min-clamp is
+  // welcome.
+  const [secondsText, setSecondsText] = useState(String(seconds));
+  useEffect(() => { setSecondsText(String(seconds)); }, [seconds]);
+
+  const commitSecondsText = (raw) => {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) { setSecondsText(String(seconds)); return; }
+    const clamped = Math.max(5, Math.min(180, n));
+    setFlightDuration(clamped * 1000);
+    setSecondsText(String(clamped));
+  };
+
   return (
     // min-h-7 locks the row at 28 px whether the readout is the h-5
     // seconds input or the plain minutes label — otherwise the whole
@@ -1503,14 +1522,27 @@ function SpeedControl() {
             <input
               type="number"
               min={5}
-              max={59}
+              max={180}
               step={1}
-              value={seconds}
+              value={secondsText}
               onChange={(e) => {
-                const n = Number(e.target.value);
-                if (!Number.isFinite(n)) return;
-                const clamped = Math.max(5, Math.min(180, n));
-                setFlightDuration(clamped * 1000);
+                const text = e.target.value;
+                setSecondsText(text);
+                // Only commit through the context (which enforces the
+                // 5 s min) when the current text is already valid, so
+                // partial input like "2" doesn't snap up to 5 and
+                // turn the next digit into "50" instead of "20".
+                const n = Number(text);
+                if (Number.isFinite(n) && n >= 5 && n <= 180) {
+                  setFlightDuration(n * 1000);
+                }
+              }}
+              onBlur={(e) => commitSecondsText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitSecondsText(e.currentTarget.value);
+                }
               }}
               className={cn(
                 'tabular-nums text-day-text dark:text-night-text',
