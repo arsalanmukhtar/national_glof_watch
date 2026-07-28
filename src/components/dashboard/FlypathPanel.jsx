@@ -245,20 +245,121 @@ function RoutesContainer({ routes, selectedId, onAdd, onSelect, onRemove, onStyl
           onFile={onAdd}
         />
       ) : (
-        <ul className="divide-y divide-day-border dark:divide-night-border">
-          {routes.map((r) => (
-            <li key={r.id}>
+        <>
+          {/* Focused row — the currently-selected route gets the
+              full RouteRow with its style + origin controls. */}
+          {(() => {
+            const selected = routes.find((r) => r.id === selectedId) ?? routes[0];
+            if (!selected) return null;
+            return (
               <RouteRow
-                route={r}
-                selected={r.id === selectedId}
-                onSelect={() => onSelect(r.id)}
-                onRemove={() => onRemove(r.id)}
-                onStyleChange={(partial) => onStyleChange(r.id, partial)}
+                route={selected}
+                selected
+                onSelect={() => onSelect(selected.id)}
+                onRemove={() => onRemove(selected.id)}
+                onStyleChange={(partial) => onStyleChange(selected.id, partial)}
               />
-            </li>
-          ))}
-        </ul>
+            );
+          })()}
+
+          {/* Others — a compact scrollable list beneath. Each row
+              is a radio-style selector so one click swaps focus. */}
+          {routes.length > 1 ? (
+            <OthersList
+              others={routes.filter((r) => r.id !== (selectedId ?? routes[0]?.id))}
+              onSelect={onSelect}
+              onRemove={onRemove}
+            />
+          ) : null}
+        </>
       )}
+    </div>
+  );
+}
+
+// Compact scrollable list of the non-focused routes. Each row is a
+// tightly-packed radio + colour dot + name + length + trash chip;
+// clicking anywhere on the row promotes that route into the focused
+// slot above. Height-capped so a long list stays a small congested
+// area rather than pushing the label / playback dock off-screen.
+function OthersList({ others, onSelect, onRemove }) {
+  return (
+    <div className="border-t border-day-border dark:border-night-border">
+      <div className="flex items-center justify-between px-2 py-1 bg-day-bg/60 dark:bg-night-bg/60">
+        <span className="text-[9.5px] uppercase tracking-wide text-day-muted dark:text-night-muted">
+          Other flypaths
+        </span>
+        <span className="text-[9.5px] text-day-muted dark:text-night-muted tabular-nums">
+          {others.length}
+        </span>
+      </div>
+      <ul className="max-h-[132px] overflow-y-auto divide-y divide-day-border/60 dark:divide-night-border/60">
+        {others.map((r) => (
+          <li key={r.id}>
+            <CompactRouteRow
+              route={r}
+              onSelect={() => onSelect(r.id)}
+              onRemove={() => onRemove(r.id)}
+            />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function CompactRouteRow({ route, onSelect, onRemove }) {
+  const featCount = route.fc?.features?.length ?? 0;
+  const lengthLabel = useMemo(
+    () => formatLength(featureCollectionLengthMeters(route.fc)),
+    [route.fc],
+  );
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}
+      className={cn(
+        'flex items-center gap-1.5 px-2 py-1 cursor-pointer',
+        'hover:bg-[#84cc16]/10 transition-colors',
+      )}
+      title={`Select ${route.name}`}
+    >
+      {/* Radio ring — hollow because this row is by definition not
+          the currently-selected one. Clicking fills it (by promoting
+          the row into the focused slot above). */}
+      <span
+        aria-hidden
+        className="inline-flex h-3 w-3 rounded-full ring-1 ring-day-border dark:ring-night-border shrink-0"
+      />
+      <span
+        aria-hidden
+        className="inline-block h-2 w-2 rounded-full shrink-0"
+        style={{ backgroundColor: route.style.color }}
+      />
+      <div className="flex-1 min-w-0">
+        <div className="text-[10.5px] font-medium truncate text-day-text dark:text-night-text leading-tight">
+          {route.name}
+        </div>
+        <div className="text-[9px] text-day-muted dark:text-night-muted leading-tight">
+          {featCount} feat · {route.kind}
+          {lengthLabel ? ` · ${lengthLabel}` : ''}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        className={cn(
+          'inline-flex items-center justify-center h-5 w-5 rounded shrink-0',
+          'text-red-600 dark:text-red-400',
+          'hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors',
+        )}
+        aria-label={`Remove ${route.name}`}
+        title="Remove route"
+      >
+        <Trash2 style={{ width: 11, height: 11 }} />
+      </button>
     </div>
   );
 }
