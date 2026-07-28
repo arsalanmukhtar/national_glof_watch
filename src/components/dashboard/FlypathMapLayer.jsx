@@ -36,7 +36,7 @@ const DEM_MAX_ZOOM    = 14;
 const TERRAIN_EXAG    = 1.3;
 
 const NAV_PITCH       = 50;
-const FLIGHT_ZOOM     = 16.5;   // chase-cam altitude — close enough to feel like flying
+const FLIGHT_ZOOM     = 15;     // chase-cam altitude — pulled back so surrounding ridges stay in view
 const LOOK_AHEAD_FRAC = 0.02;
 const FIT_PADDING     = 60;
 const ELEV_SAMPLES    = 150;

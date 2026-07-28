@@ -130,10 +130,10 @@ export function FlypathProvider({ children }) {
   // Shared animation phase.
   const phaseRef = useRef(0);
 
-  // User-configurable flight duration — defaults to 1.5 min so a
-  // typical route reads as a leisurely guided tour rather than a
-  // brisk 30-second flyover.
-  const [flightDuration, setFlightDurationRaw] = useState(90_000);
+  // User-configurable flight duration — defaults to 30 s, which
+  // reads as a punchy overview for a typical route. Operators can
+  // dial the slider up toward 3 min for a slower guided tour.
+  const [flightDuration, setFlightDurationRaw] = useState(30_000);
   const setFlightDuration = useCallback((ms) => {
     const num = Number(ms);
     if (!Number.isFinite(num)) return;
