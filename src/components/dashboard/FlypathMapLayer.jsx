@@ -45,6 +45,20 @@ const ELEV_SAMPLES    = 150;
 // route from zooming in past what the marker + terrain read well at.
 const FIT_MAX_ZOOM    = 15;
 
+// Adaptive-pitch tuning. In gentle terrain we run at NAV_PITCH (close
+// chase-cam). As soon as the local slope ahead steepens past
+// SLOPE_LOW we ease the pitch down toward TOP_DOWN_PITCH so the
+// marker doesn't disappear behind a ridge — a shallower angle sees
+// over the crest. Values in degrees.
+const TOP_DOWN_PITCH  = 15;   // near-plan view for cliff / steep faces
+const SLOPE_LOW_DEG   = 12;   // below this — full NAV_PITCH
+const SLOPE_HIGH_DEG  = 32;   // above this — full TOP_DOWN_PITCH
+const PITCH_LERP      = 0.10; // per-frame ease factor toward the target
+// Window (in profile-sample count) used to average the local slope
+// ahead of the marker — short enough to respond to a wall coming up,
+// long enough that a single noisy DEM tile doesn't yank the pitch.
+const SLOPE_WINDOW_SAMPLES = 6;
+
 export default function FlypathMapLayer({ map }) {
   const {
     routes,
@@ -105,6 +119,10 @@ export default function FlypathMapLayer({ map }) {
   const lastFrameRef = useRef(0);
   const rafRef       = useRef(0);
   const markerRef    = useRef(null);
+  // Live pitch used by the chase-cam. Eased toward the terrain-derived
+  // target every frame so steep sections tilt to a plan view smoothly
+  // instead of snapping.
+  const currentPitchRef = useRef(NAV_PITCH);
 
   // ---------------------------------------------------------------
   // Bootstrap sources, layers, terrain. Runs on mount + basemap swap.
@@ -579,14 +597,21 @@ export default function FlypathMapLayer({ map }) {
     // First frame: snap the camera onto the route start (chase-cam
     // initial pose) + place the marker. Marker updates are DOM-only
     // and always safe. Style-loaded gate stays only around jumpTo —
-    // the try/catch below absorbs any transient state.
+    // the try/catch below absorbs any transient state. Initial pitch
+    // is decided by the terrain slope at phase 0 — if the flight
+    // starts on a cliff face we open with a top-down view rather
+    // than a chase-cam that immediately points into a mountain.
     const startFrame = computeFrame(coords, phaseRef.current);
     if (startFrame) {
+      const startPitch = pitchForSlope(
+        localSlopeDeg(elevationProfileRef.current, phaseRef.current),
+      );
+      currentPitchRef.current = startPitch;
       try {
         map.jumpTo({
           center:  startFrame.center,
           bearing: startFrame.bearing,
-          pitch:   NAV_PITCH,
+          pitch:   startPitch,
           zoom:    FLIGHT_ZOOM,
         });
       } catch { /* transient */ }
@@ -608,6 +633,16 @@ export default function FlypathMapLayer({ map }) {
 
       const frame = computeFrame(coords, phaseRef.current);
       if (frame) {
+        // Adaptive pitch — sample the local slope ahead and ease
+        // toward NAV_PITCH on gentle ground, TOP_DOWN_PITCH on
+        // cliffs. Prevents the marker from disappearing behind a
+        // ridge in high-relief sections. Eased with PITCH_LERP so
+        // the transition doesn't snap.
+        const targetPitch = pitchForSlope(
+          localSlopeDeg(elevationProfileRef.current, phaseRef.current),
+        );
+        currentPitchRef.current +=
+          (targetPitch - currentPitchRef.current) * PITCH_LERP;
         // Chase cam — jumpTo per frame keeps the camera centred on
         // the marker with the marker's heading as the bearing.
         // Google-Maps-turn-by-turn feel. Zoom omitted so the user
@@ -616,7 +651,7 @@ export default function FlypathMapLayer({ map }) {
           map.jumpTo({
             center:  frame.center,
             bearing: frame.bearing,
-            pitch:   NAV_PITCH,
+            pitch:   currentPitchRef.current,
           });
         } catch { /* transient — next frame retries */ }
         ensureMarker(
@@ -969,6 +1004,38 @@ function sampleValuesEqual(a, b) {
     if (av !== bv && !(av == null && bv == null)) return false;
   }
   return true;
+}
+
+// Average slope angle (degrees, |ascent| or |descent|) over a small
+// window starting at `phase`. Uses the already-sampled elevation
+// profile so no extra terrain queries are needed inside the RAF
+// loop. Returns 0 when the profile isn't available yet — the caller
+// then defaults to NAV_PITCH via pitchForSlope.
+function localSlopeDeg(profile, phase) {
+  const samples = profile?.samples;
+  if (!samples || samples.length < 2) return 0;
+  const N = samples.length;
+  const idx = Math.max(0, Math.min(N - 2, Math.floor(phase * (N - 1))));
+  const end = Math.min(N - 1, idx + SLOPE_WINDOW_SAMPLES);
+  const a = samples[idx];
+  const b = samples[end];
+  if (!a || !b) return 0;
+  if (!Number.isFinite(a.elevation) || !Number.isFinite(b.elevation)) return 0;
+  const dz = Math.abs(b.elevation - a.elevation);
+  const dx = Math.abs(b.distance  - a.distance);
+  if (dx <= 0) return 0;
+  return Math.atan2(dz, dx) * 180 / Math.PI;
+}
+
+// Map slope angle → chase-cam pitch. Below SLOPE_LOW we run the full
+// NAV_PITCH chase-cam; above SLOPE_HIGH we drop to TOP_DOWN_PITCH so
+// the marker stays visible over a cliff / ridge; between the two we
+// linearly interpolate.
+function pitchForSlope(slopeDeg) {
+  if (slopeDeg <= SLOPE_LOW_DEG)  return NAV_PITCH;
+  if (slopeDeg >= SLOPE_HIGH_DEG) return TOP_DOWN_PITCH;
+  const t = (slopeDeg - SLOPE_LOW_DEG) / (SLOPE_HIGH_DEG - SLOPE_LOW_DEG);
+  return NAV_PITCH + (TOP_DOWN_PITCH - NAV_PITCH) * t;
 }
 
 // Interpolate elevation from the sampled profile at fractional phase
