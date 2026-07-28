@@ -451,24 +451,6 @@ export default function FlypathMapLayer({ map }) {
   }, [map, featuresStyle]);
 
   // ---------------------------------------------------------------
-  // Hide the drawn route lines while the animation is playing so the
-  // pulsating marker + terrain read cleanly without a distracting
-  // red trail behind it. Pause / stop restore the configured opacity.
-  // Swapping the paint expression itself keeps per-route data-driven
-  // opacity intact when we transition back.
-  // ---------------------------------------------------------------
-  useEffect(() => {
-    if (!map) return;
-    const hidden = playState === 'playing';
-    const expr   = hidden ? 0 : ['get', 'opacity'];
-    try {
-      if (map.getLayer(ROUTES_LINE))   map.setPaintProperty(ROUTES_LINE,   'line-opacity', expr);
-      if (map.getLayer(ROUTES_CASING)) map.setPaintProperty(ROUTES_CASING, 'line-opacity', expr);
-      map.triggerRepaint?.();
-    } catch { /* transient */ }
-  }, [map, playState]);
-
-  // ---------------------------------------------------------------
   // Fly-to-bounds on demand.
   // ---------------------------------------------------------------
   useEffect(() => {
