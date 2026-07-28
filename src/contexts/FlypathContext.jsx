@@ -148,6 +148,19 @@ export function FlypathProvider({ children }) {
   const setLoop    = useCallback((v) => setLoopRaw(Boolean(v)), []);
   const toggleLoop = useCallback(() => setLoopRaw((v) => !v), []);
 
+  // Camera mode.
+  //   'focused' → chase-cam: adaptive pitch tied to terrain slope,
+  //               bearing follows path tangent responsively.
+  //   'drone'   → near-nadir plan view (fixed ~10 ° pitch), heavily
+  //               damped bearing so the marker glides above the
+  //               route like a drone rather than snapping around
+  //               every bend.
+  const [flightMode, setFlightModeRaw] = useState('focused');
+  const setFlightMode = useCallback((mode) => {
+    if (mode !== 'focused' && mode !== 'drone') return;
+    setFlightModeRaw(mode);
+  }, []);
+
   // Broadcast from FlypathMapLayer while it is waiting on the DEM /
   // basemap tiles to finish streaming before starting the RAF. The
   // panel uses this to swap the Play button into a "preparing"
@@ -396,6 +409,8 @@ export function FlypathProvider({ children }) {
     loop,
     setLoop,
     toggleLoop,
+    flightMode,
+    setFlightMode,
     awaitingTerrain,
     setAwaitingTerrain,
 
@@ -423,6 +438,7 @@ export function FlypathProvider({ children }) {
     playState, start, pause, resume, stop, togglePlayPause,
     flightDuration, setFlightDuration,
     loop, setLoop, toggleLoop,
+    flightMode, setFlightMode,
     awaitingTerrain,
     digitizing, drawnCoords, pendingDrawn,
     startDigitize, cancelDigitize, finishDigitize,

@@ -59,6 +59,26 @@ const PITCH_LERP      = 0.10; // per-frame ease factor toward the target
 // long enough that a single noisy DEM tile doesn't yank the pitch.
 const SLOPE_WINDOW_SAMPLES = 6;
 
+// Drone-view pitch — near nadir. Camera hangs directly above the
+// marker so the whole route reads like a plan view.
+const DRONE_PITCH     = 10;
+
+// Bearing smoothing. The path-tangent bearing snaps at every vertex
+// / sharp bend; the RAF loop eases the actual camera bearing toward
+// that target with these per-frame lerp factors. Lower value = more
+// smoothing (more damping). Drone view damps hard so the marker
+// glides above the route with barely any yaw; Focused view keeps
+// enough responsiveness that the chase-cam still turns with the
+// path.
+const FOCUSED_BEARING_LERP = 0.10;   // ~10 frames to converge (166 ms @ 60fps)
+const DRONE_BEARING_LERP   = 0.025;  // ~40 frames (~660 ms) — silky drone glide
+// Look-ahead used to derive the target bearing. A longer window
+// smears direction changes across more of the path so the bearing
+// input itself is already less spiky before the lerp gets a shot
+// at it. Drone view averages over an even longer stretch.
+const FOCUSED_BEARING_LOOK = 0.02;
+const DRONE_BEARING_LOOK   = 0.06;
+
 export default function FlypathMapLayer({ map }) {
   const {
     routes,
@@ -73,10 +93,16 @@ export default function FlypathMapLayer({ map }) {
     phaseRef,
     flightDuration,
     loop,
+    flightMode,
     setElevationProfile,
     setAwaitingTerrain,
     stop,
   } = useFlypath();
+
+  // Live mirror of the camera mode so the RAF tick can pick it up
+  // without restarting the effect on every mode toggle.
+  const flightModeRef = useRef(flightMode);
+  flightModeRef.current = flightMode;
 
   const flightDurationRef = useRef(flightDuration);
   flightDurationRef.current = flightDuration;
@@ -123,6 +149,10 @@ export default function FlypathMapLayer({ map }) {
   // target every frame so steep sections tilt to a plan view smoothly
   // instead of snapping.
   const currentPitchRef = useRef(NAV_PITCH);
+  // Live bearing — eased per-frame with a mode-dependent lerp so
+  // sharp bends don't snap the camera around. Initialised to the
+  // first-frame tangent on fresh Start.
+  const currentBearingRef = useRef(0);
 
   // ---------------------------------------------------------------
   // Bootstrap sources, layers, terrain. Runs on mount + basemap swap.
@@ -596,17 +626,22 @@ export default function FlypathMapLayer({ map }) {
 
     // First frame: snap the camera onto the route start (chase-cam
     // initial pose) + place the marker. Marker updates are DOM-only
-    // and always safe. Style-loaded gate stays only around jumpTo —
-    // the try/catch below absorbs any transient state. Initial pitch
-    // is decided by the terrain slope at phase 0 — if the flight
-    // starts on a cliff face we open with a top-down view rather
-    // than a chase-cam that immediately points into a mountain.
-    const startFrame = computeFrame(coords, phaseRef.current);
+    // and always safe. Initial pitch is decided by the current mode
+    // — drone view opens near nadir, focused view uses the terrain
+    // slope at phase 0 so a cliff-face start opens top-down rather
+    // than pointing straight into a mountain. Bearing is seeded from
+    // the tangent so the per-frame lerp starts from the correct
+    // heading (no giant swing on frame 1).
+    const startLook = flightModeRef.current === 'drone'
+      ? DRONE_BEARING_LOOK
+      : FOCUSED_BEARING_LOOK;
+    const startFrame = computeFrame(coords, phaseRef.current, startLook);
     if (startFrame) {
-      const startPitch = pitchForSlope(
-        localSlopeDeg(elevationProfileRef.current, phaseRef.current),
-      );
-      currentPitchRef.current = startPitch;
+      const startPitch = flightModeRef.current === 'drone'
+        ? DRONE_PITCH
+        : pitchForSlope(localSlopeDeg(elevationProfileRef.current, phaseRef.current));
+      currentPitchRef.current   = startPitch;
+      currentBearingRef.current = startFrame.bearing;
       try {
         map.jumpTo({
           center:  startFrame.center,
@@ -631,18 +666,31 @@ export default function FlypathMapLayer({ map }) {
       lastFrameRef.current = now;
       phaseRef.current = Math.min(1, phaseRef.current + dt / flightDurationRef.current);
 
-      const frame = computeFrame(coords, phaseRef.current);
+      const isDrone = flightModeRef.current === 'drone';
+      const look = isDrone ? DRONE_BEARING_LOOK : FOCUSED_BEARING_LOOK;
+      const frame = computeFrame(coords, phaseRef.current, look);
       if (frame) {
-        // Adaptive pitch — sample the local slope ahead and ease
-        // toward NAV_PITCH on gentle ground, TOP_DOWN_PITCH on
-        // cliffs. Prevents the marker from disappearing behind a
-        // ridge in high-relief sections. Eased with PITCH_LERP so
-        // the transition doesn't snap.
-        const targetPitch = pitchForSlope(
-          localSlopeDeg(elevationProfileRef.current, phaseRef.current),
-        );
+        // ---- Pitch --------------------------------------------------
+        // Drone mode: fixed near-nadir. Focused mode: adaptive
+        // slope-based pitch that tilts to plan view over cliffs.
+        // Either way, eased toward the target so a mid-flight mode
+        // toggle glides in.
+        const targetPitch = isDrone
+          ? DRONE_PITCH
+          : pitchForSlope(localSlopeDeg(elevationProfileRef.current, phaseRef.current));
         currentPitchRef.current +=
           (targetPitch - currentPitchRef.current) * PITCH_LERP;
+
+        // ---- Bearing ------------------------------------------------
+        // Ease along the shortest-path angular delta so a bend from
+        // 350° → 10° doesn't spin the camera the long way around.
+        // Drone view damps hard for a drone-glide feel; Focused view
+        // stays responsive enough to still turn with the path.
+        const bearingLerp = isDrone ? DRONE_BEARING_LERP : FOCUSED_BEARING_LERP;
+        const dBearing = shortestAngleDelta(currentBearingRef.current, frame.bearing);
+        currentBearingRef.current =
+          (currentBearingRef.current + dBearing * bearingLerp + 360) % 360;
+
         // Chase cam — jumpTo per frame keeps the camera centred on
         // the marker with the marker's heading as the bearing.
         // Google-Maps-turn-by-turn feel. Zoom omitted so the user
@@ -650,7 +698,7 @@ export default function FlypathMapLayer({ map }) {
         try {
           map.jumpTo({
             center:  frame.center,
-            bearing: frame.bearing,
+            bearing: currentBearingRef.current,
             pitch:   currentPitchRef.current,
           });
         } catch { /* transient — next frame retries */ }
@@ -879,15 +927,21 @@ function queryTerrainWindow(map, coords, idx, window = 4) {
   return n > 0 ? sum / n : null;
 }
 
-function computeFrame(coords, phase) {
+function computeFrame(coords, phase, look = LOOK_AHEAD_FRAC) {
   const center = interpolateAlong(coords, phase);
   if (!center) return null;
-  const lookAhead = interpolateAlong(coords, Math.min(1, phase + LOOK_AHEAD_FRAC));
-  const behind    = interpolateAlong(coords, Math.max(0, phase - LOOK_AHEAD_FRAC));
+  const lookAhead = interpolateAlong(coords, Math.min(1, phase + look));
+  const behind    = interpolateAlong(coords, Math.max(0, phase - look));
   const bearing = pointDelta(lookAhead, center) > 1e-9
     ? computeBearing(center, lookAhead)
     : computeBearing(behind, center);
   return { center, bearing };
+}
+
+// Shortest signed angular delta in degrees, wrapping across the
+// 0/360 boundary. Result lies in (-180, 180].
+function shortestAngleDelta(from, to) {
+  return ((((to - from) % 360) + 540) % 360) - 180;
 }
 
 function pointDelta(a, b) {

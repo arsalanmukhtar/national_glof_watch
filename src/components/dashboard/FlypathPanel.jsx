@@ -3,6 +3,7 @@ import {
   Check,
   ChevronDown,
   Crosshair,
+  Eye,
   FileArchive,
   FileCode2,
   FileJson,
@@ -12,6 +13,7 @@ import {
   Loader2,
   Pause,
   Pencil,
+  Plane,
   Play,
   Plus,
   Repeat,
@@ -165,8 +167,10 @@ export default function FlypathPanel() {
       </div>
 
       {/* Fixed-bottom playback dock — visually separated with a top
-          border. Stays put while the middle scrolls. */}
-      <div className="shrink-0 flex flex-col gap-2 pt-2 mt-2 border-t border-day-border dark:border-night-border">
+          border. Stays put while the middle scrolls. Compact vertical
+          spacing so the mode row + speed + loop all fit without
+          pushing the label card off-screen. */}
+      <div className="shrink-0 flex flex-col gap-1.5 pt-1.5 mt-1.5 border-t border-day-border dark:border-night-border">
         <PlaybackRow
           playState={playState}
           awaitingTerrain={awaitingTerrain}
@@ -176,6 +180,7 @@ export default function FlypathPanel() {
           onResume={resume}
           onStop={stop}
         />
+        <ModeRow />
         <SpeedControl />
         <LoopControl />
       </div>
@@ -1157,16 +1162,64 @@ function PlaybackButton({ icon: Icon, onClick, disabled, title, ariaLabel, tone,
       title={title}
       aria-label={ariaLabel}
       className={cn(
-        'flex items-center justify-center h-9 rounded-md text-white',
+        'flex items-center justify-center h-8 rounded-md text-white',
         'disabled:cursor-not-allowed transition-colors',
         TONE_CLASSES[tone] ?? TONE_CLASSES.red,
       )}
     >
       <Icon
         {...(spinning ? {} : { fill: 'currentColor' })}
-        style={{ width: 18, height: 18 }}
+        style={{ width: 16, height: 16 }}
         className={spinning ? 'animate-spin' : undefined}
       />
+    </button>
+  );
+}
+
+// Camera-mode toggle. Two half-width chips under the play/stop row.
+// Focused view = adaptive chase-cam; Drone view = near-nadir plan
+// glide. Reads current mode from context and swaps on click; the map
+// layer applies the mode's pitch / bearing-lerp on the very next
+// RAF tick.
+function ModeRow() {
+  const { flightMode, setFlightMode } = useFlypath();
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      <ModeButton
+        active={flightMode === 'focused'}
+        onClick={() => setFlightMode('focused')}
+        icon={Eye}
+        label="Focused"
+        title="Chase-cam view — pitch adapts to terrain, bearing follows the path"
+      />
+      <ModeButton
+        active={flightMode === 'drone'}
+        onClick={() => setFlightMode('drone')}
+        icon={Plane}
+        label="Drone"
+        title="Top-down drone view — near-vertical pitch, damped rotation"
+      />
+    </div>
+  );
+}
+
+function ModeButton({ icon: Icon, label, active, onClick, title }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      title={title}
+      className={cn(
+        'inline-flex items-center justify-center gap-1 h-7 rounded-md',
+        'text-[11px] font-semibold transition-colors',
+        active
+          ? 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]'
+          : 'bg-day-bg dark:bg-night-bg text-day-text dark:text-night-text border border-day-border dark:border-night-border hover:border-[#84cc16]',
+      )}
+    >
+      <Icon style={{ width: 12, height: 12 }} />
+      {label}
     </button>
   );
 }
@@ -1503,7 +1556,7 @@ function SpeedControl() {
     // column jitters (~4 px) as the slider crosses 60 s. The fixed-
     // width readout container below prevents horizontal jitter for
     // the same reason.
-    <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted min-h-7">
+    <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted min-h-6">
       <Gauge className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
       <span className="uppercase tracking-wide w-12 shrink-0">Speed</span>
       <input
@@ -1584,7 +1637,7 @@ function LoopControl() {
   const { loop, toggleLoop } = useFlypath();
   return (
     // Matching min-h-7 so Speed + Loop rows read as a uniform stack.
-    <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted min-h-7">
+    <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted min-h-6">
       <Repeat className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
       <span className="uppercase tracking-wide w-12 shrink-0">Loop</span>
       <span className="flex-1 text-day-text dark:text-night-text normal-case tracking-normal">
