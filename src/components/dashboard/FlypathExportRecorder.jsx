@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Circle, RotateCcw, Square, X } from 'lucide-react';
+import { Circle, Loader2, RotateCcw, Square, X } from 'lucide-react';
 import { useFlypath } from '@/contexts/FlypathContext';
 import { cn } from '@/utils/cn';
 
@@ -10,21 +10,31 @@ import { cn } from '@/utils/cn';
 // State machine:
 //   idle       → nothing rendered.
 //   selecting  → dark backdrop with a click-drag bounding-box tool.
-//   armed      → bbox locked; toolbar to start / redraw / cancel.
+//   armed      → bbox locked; right-mid ActionRail exposes start /
+//                redraw / cancel.
+//   preparing  → browser is showing the getDisplayMedia picker; user
+//                needs to click "Share" on the current tab.
 //   countdown  → 5-second white countdown, black halo, centred.
 //   recording  → MediaRecorder writing frames from an off-screen
-//                canvas that only holds the cropped map pixels.
-//                Small floating "Stop & save" button + REC indicator.
-//   saving     → same overlay as recording, button disabled while
-//                the MediaRecorder is flushing.
+//                canvas fed by the display-media stream, cropped to
+//                the bbox. NO recorder UI is drawn during this phase
+//                — every DOM element on the tab appears in the
+//                output, so bbox borders / REC pips / stop buttons
+//                would all end up in the video. The operator stops
+//                via the browser's native "Stop sharing" chip or the
+//                Esc key; the track.onended handler catches both.
+//   saving     → MediaRecorder flushing; brief spinner overlay.
 //   error      → dismissible modal with the failure message.
 //
-// The recording surface is an off-screen `<canvas>` that we blit the
-// cropped region of `map.getCanvas()` into on every frame. Everything
-// this component renders — the bbox border, the stop button, the REC
-// pip — lives as normal React DOM on top of the map and is NEVER
-// captured, because the frame source is the WebGL canvas pixel
-// buffer, not a screen-capture stream.
+// The frame source is a screen-capture stream — the operator picks
+// "This tab" (the picker is biased to the current tab via the Chrome-
+// specific `preferCurrentTab: true`), the stream plays into an off-
+// screen `<video>` element, and each RAF tick blits the cropped
+// region of that video into an off-screen `<canvas>` whose
+// captureStream feeds the MediaRecorder. Because we're capturing what
+// the user sees, every HTML overlay — geocoder, basemap toggler,
+// stations table, legend, elevation profile, the pulsating marker —
+// appears in the recording just like on the live tab.
 //
 // Entering the flow is externally triggered: `useFlypath().exportTick`
 // increments once when the Export button is pressed, and we watch
@@ -57,15 +67,18 @@ export default function FlypathExportRecorder({ map }) {
   // Held across the recording lifetime — refs rather than state so
   // an in-flight session doesn't accidentally re-render itself out
   // of existence.
-  const offCanvasRef  = useRef(null);
-  const recorderRef   = useRef(null);
-  const streamRef     = useRef(null);
-  const rafRef        = useRef(null);
-  const chunksRef     = useRef([]);
-  const cancelledRef  = useRef(false);
-  const dragStartRef  = useRef(null);
-  const bboxRef       = useRef(null);
-  bboxRef.current     = bbox;
+  const offCanvasRef       = useRef(null);
+  const videoElRef         = useRef(null);   // hidden <video> playing the display stream
+  const recorderRef        = useRef(null);
+  const outStreamRef       = useRef(null);   // canvas.captureStream() feeding MediaRecorder
+  const displayStreamRef   = useRef(null);   // stream from getDisplayMedia
+  const displayTrackRef    = useRef(null);
+  const rafRef             = useRef(null);
+  const chunksRef          = useRef([]);
+  const cancelledRef       = useRef(false);
+  const dragStartRef       = useRef(null);
+  const bboxRef            = useRef(null);
+  bboxRef.current          = bbox;
 
   // Tear-down helper — safe to call from any phase, idempotent.
   const cleanup = useCallback(() => {
@@ -77,12 +90,39 @@ export default function FlypathExportRecorder({ map }) {
       try { recorderRef.current.stop(); } catch { /* ignore */ }
     }
     recorderRef.current = null;
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => { try { t.stop(); } catch { /* ignore */ } });
-      streamRef.current = null;
+    if (outStreamRef.current) {
+      outStreamRef.current.getTracks().forEach((t) => { try { t.stop(); } catch { /* ignore */ } });
+      outStreamRef.current = null;
+    }
+    if (displayStreamRef.current) {
+      displayStreamRef.current.getTracks().forEach((t) => { try { t.stop(); } catch { /* ignore */ } });
+      displayStreamRef.current = null;
+    }
+    if (displayTrackRef.current) {
+      try { displayTrackRef.current.removeEventListener('ended', onDisplayTrackEnded); } catch { /* ignore */ }
+      displayTrackRef.current = null;
+    }
+    if (videoElRef.current) {
+      try { videoElRef.current.pause(); } catch { /* ignore */ }
+      try { videoElRef.current.srcObject = null; } catch { /* ignore */ }
+      videoElRef.current = null;
     }
     chunksRef.current = [];
     dragStartRef.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handler for the display-track's 'ended' event — fires when the
+  // user clicks the browser's native "Stop sharing" chip. Defined
+  // outside the effect so cleanup can removeEventListener with the
+  // same reference.
+  const onDisplayTrackEnded = useCallback(() => {
+    // Only meaningful when we're actively recording — spurious end
+    // events at teardown are a no-op.
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      stopRecording();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Enter selection on every exportTick change (skip the initial 0).
@@ -99,11 +139,16 @@ export default function FlypathExportRecorder({ map }) {
     cancelledRef.current = false;
   }, [exportTick, map, cleanup]);
 
-  // Escape cancels at any non-idle phase
+  // Escape cancels selection / armed / countdown, and stops an
+  // active recording.
   useEffect(() => {
     if (phase === 'idle') return;
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
+      if (phase === 'recording' || phase === 'saving') {
+        stopRecording();
+        return;
+      }
       cancelledRef.current = true;
       cleanup();
       setBbox(null);
@@ -111,6 +156,7 @@ export default function FlypathExportRecorder({ map }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, cleanup]);
 
   // Unmount safety
@@ -130,12 +176,12 @@ export default function FlypathExportRecorder({ map }) {
     const rect = e.currentTarget.getBoundingClientRect();
     const cx = e.clientX - rect.left;
     const cy = e.clientY - rect.top;
-    const start = dragStartRef.current;
+    const startPt = dragStartRef.current;
     setBbox({
-      x: Math.min(start.x, cx),
-      y: Math.min(start.y, cy),
-      w: Math.abs(cx - start.x),
-      h: Math.abs(cy - start.y),
+      x: Math.min(startPt.x, cx),
+      y: Math.min(startPt.y, cy),
+      w: Math.abs(cx - startPt.x),
+      h: Math.abs(cy - startPt.y),
     });
   };
   const onSelectUp = () => {
@@ -150,36 +196,124 @@ export default function FlypathExportRecorder({ map }) {
   };
 
   // --------- recording lifecycle ---------
-  const beginCountdown = async () => {
+  const beginRecording = async () => {
+    // Ask for screen-share permission first — the browser picker
+    // interrupts anything on-screen, so it's cleaner to resolve
+    // permission up-front and then run the countdown once we know
+    // the stream is ready to go.
+    setPhase('preparing');
+    let displayStream;
+    try {
+      displayStream = await requestDisplayMedia();
+    } catch (err) {
+      if (err && err.name === 'NotAllowedError') {
+        // User dismissed the picker — silently return to armed so
+        // they can re-try or cancel.
+        setPhase('armed');
+        return;
+      }
+      console.error('flypath export: getDisplayMedia failed', err);
+      setError(err?.message || 'Screen capture permission was denied');
+      setPhase('error');
+      return;
+    }
+
+    // Cache the stream + track. Track.onended fires on native
+    // "Stop sharing" — wire that to stopRecording so the flow ends
+    // gracefully in that path too.
+    displayStreamRef.current = displayStream;
+    const displayTrack = displayStream.getVideoTracks()[0];
+    displayTrackRef.current = displayTrack;
+    displayTrack.addEventListener('ended', onDisplayTrackEnded);
+
+    // Countdown — animation begins the moment countdown lands on 0.
     setPhase('countdown');
     for (let s = COUNTDOWN_START; s >= 1; s--) {
-      if (cancelledRef.current) return;
+      if (cancelledRef.current) {
+        cleanup();
+        return;
+      }
       setCountdown(s);
       await sleep(1000);
     }
+    if (cancelledRef.current) {
+      cleanup();
+      return;
+    }
+
     try {
-      await startRecordingSession();
+      await startCapturePipeline(displayStream, displayTrack);
     } catch (err) {
-      console.error('flypath export: recording failed to start', err);
+      console.error('flypath export: capture pipeline failed', err);
       setError(err?.message || 'Recording failed to start');
       setPhase('error');
       cleanup();
     }
   };
 
-  const startRecordingSession = async () => {
+  // Set up the video element that receives the display stream, the
+  // crop math, the off-canvas MediaRecorder, and the frame pump.
+  // Assumes `displayStream` has already been acquired and the
+  // 5-second countdown has just elapsed — this is the last step
+  // before the recording starts running for real.
+  const startCapturePipeline = async (displayStream, displayTrack) => {
     if (!map) throw new Error('Map is not ready');
     const b = bboxRef.current;
     if (!b) throw new Error('No region selected');
 
-    const mapCanvas = map.getCanvas();
-    const canvasRect = mapCanvas.getBoundingClientRect();
-    // devicePixelRatio-aware scale from CSS px → canvas px
-    const scale = mapCanvas.width / canvasRect.width;
-    const sx = Math.max(0, Math.round(b.x * scale));
-    const sy = Math.max(0, Math.round(b.y * scale));
-    const sw = Math.max(1, Math.round(b.w * scale));
-    const sh = Math.max(1, Math.round(b.h * scale));
+    // Hidden video that renders the display stream. It's not in the
+    // DOM — MediaRecorder only needs it as a drawable source. Some
+    // browsers require the video to be attached to the document to
+    // start playback; if that turns out to be an issue we can move
+    // it into a hidden container.
+    const video = document.createElement('video');
+    video.autoplay   = true;
+    video.muted      = true;
+    video.playsInline = true;
+    video.srcObject  = displayStream;
+    videoElRef.current = video;
+
+    await video.play().catch(() => { /* ignore autoplay quirks */ });
+    if (video.readyState < 2) {
+      await new Promise((resolve) => {
+        const onOk = () => { video.removeEventListener('loadedmetadata', onOk); resolve(); };
+        video.addEventListener('loadedmetadata', onOk, { once: true });
+      });
+    }
+
+    // Figure out where the bbox lives inside the captured video.
+    // Only cropping is safe for tab captures — for window / screen
+    // captures the pixel origin is the shared surface, not the tab
+    // viewport, so wrapper-relative math would land somewhere else
+    // entirely. Fall back to recording the whole stream in that case.
+    const trackSettings = (displayTrack.getSettings && displayTrack.getSettings()) || {};
+    const surface = trackSettings.displaySurface || '';
+    const isTab = surface === 'browser';
+
+    const wrapperEl = map.getContainer().parentElement;
+    const wrapperRect = wrapperEl.getBoundingClientRect();
+
+    // videoWidth / videoHeight are the capture resolution in device
+    // pixels; window.innerWidth / innerHeight are in CSS pixels. The
+    // ratio is effectively devicePixelRatio, but computing it from
+    // the video's actual size handles the Chrome case where the
+    // capture is throttled below native resolution.
+    const scaleX = video.videoWidth  / window.innerWidth;
+    const scaleY = video.videoHeight / window.innerHeight;
+
+    let sx, sy, sw, sh;
+    if (isTab) {
+      sx = Math.max(0, Math.round((wrapperRect.left + b.x) * scaleX));
+      sy = Math.max(0, Math.round((wrapperRect.top  + b.y) * scaleY));
+      sw = Math.max(1, Math.min(video.videoWidth  - sx, Math.round(b.w * scaleX)));
+      sh = Math.max(1, Math.min(video.videoHeight - sy, Math.round(b.h * scaleY)));
+    } else {
+      // Not a tab capture — record the whole shared surface.
+      sx = 0;
+      sy = 0;
+      sw = video.videoWidth;
+      sh = video.videoHeight;
+    }
 
     const offCanvas = offCanvasRef.current;
     if (!offCanvas) throw new Error('Offscreen canvas not ready');
@@ -188,22 +322,20 @@ export default function FlypathExportRecorder({ map }) {
     const ctx = offCanvas.getContext('2d');
     if (!ctx) throw new Error('2D context unavailable');
 
-    // Prime a first frame so the recorder has a non-blank source
-    try { ctx.drawImage(mapCanvas, sx, sy, sw, sh, 0, 0, sw, sh); } catch { /* ignore */ }
+    // Prime a first frame so the recorder has a non-blank source.
+    try { ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh); } catch { /* ignore */ }
 
-    const stream = offCanvas.captureStream(RECORDING_FPS);
-    streamRef.current = stream;
-    // Some browsers expose `requestFrame()` on the video track so we
-    // can push a frame the moment drawImage completes — this couples
-    // the recorded frame timing to the map's render clock instead of
-    // the 60 Hz auto-sampler, which typically yields visibly smoother
-    // output. Falls back silently if unavailable (older Firefox).
-    const videoTrack = stream.getVideoTracks?.()[0];
-    const canRequestFrame =
-      !!videoTrack && typeof videoTrack.requestFrame === 'function';
+    const outStream = offCanvas.captureStream(RECORDING_FPS);
+    outStreamRef.current = outStream;
+
+    // requestFrame() couples the recorded frame timing to the
+    // drawImage tick instead of the browser's async sampler — makes
+    // for visibly smoother output.
+    const outTrack = outStream.getVideoTracks?.()[0];
+    const canRequestFrame = !!outTrack && typeof outTrack.requestFrame === 'function';
 
     const mimeType = pickMimeType();
-    const recorder = new MediaRecorder(stream, {
+    const recorder = new MediaRecorder(outStream, {
       mimeType: mimeType || undefined,
       videoBitsPerSecond: RECORDING_BPS,
     });
@@ -216,15 +348,13 @@ export default function FlypathExportRecorder({ map }) {
     recorder.onstop = async () => {
       const chunks = chunksRef.current.slice();
       chunksRef.current = [];
-      // Drop the blob on the floor if the user cancelled the session
       if (cancelledRef.current) return;
       const blob = new Blob(chunks, { type: mimeType || 'video/webm' });
       // Save-file picker will exit fullscreen (browser security);
       // remember which element was in fullscreen so we can re-enter
       // after the picker closes. The requestFullscreen call is
       // best-effort — transient user activation may have expired by
-      // the time saveBlob resolves, in which case the browser will
-      // reject silently and the user just re-clicks Fullscreen.
+      // the time saveBlob resolves.
       const fsTargetBeforeSave =
         typeof document !== 'undefined' ? document.fullscreenElement : null;
       try {
@@ -241,28 +371,21 @@ export default function FlypathExportRecorder({ map }) {
       }
     };
 
-    // MediaRecorder chunks flushed every 500 ms
-    recorder.start(500);
+    recorder.start(500);   // chunks flushed every 500 ms
 
-    // Frame pump — one blit per RAF tick (typically 60 Hz on the
-    // operator's monitor), plus an explicit `requestFrame()` on the
-    // video track when available so the recorded stream is locked
-    // to the map's actual render clock rather than the browser's
-    // async 60 Hz sampler.
     const pump = () => {
       try {
-        ctx.drawImage(mapCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+        ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
         if (canRequestFrame) {
-          try { videoTrack.requestFrame(); } catch { /* ignore */ }
+          try { outTrack.requestFrame(); } catch { /* ignore */ }
         }
       } catch { /* ignore */ }
       rafRef.current = requestAnimationFrame(pump);
     };
     rafRef.current = requestAnimationFrame(pump);
 
-    // Reset the flypath so recording captures the whole run from t=0.
-    // The tiny sleep lets the stop → idle transition settle before the
-    // start() call flips the state back to 'playing'.
+    // Reset + start the flypath so the recording captures the whole
+    // run from t=0.
     try { stop(); } catch { /* ignore */ }
     await sleep(80);
     try { start(); } catch { /* ignore */ }
@@ -315,6 +438,30 @@ export default function FlypathExportRecorder({ map }) {
     );
   }
 
+  // During 'recording' and 'saving' phases, NO recorder UI is drawn
+  // inside the tab — every DOM element would show up in the video
+  // output. The offscreen canvas stays mounted for the frame pump.
+  // The browser's own "Stop sharing" chip is the primary stop
+  // affordance; Esc is the keyboard equivalent.
+  if (phase === 'recording' || phase === 'saving') {
+    return (
+      <>
+        <canvas ref={offCanvasRef} aria-hidden className="hidden" />
+        {phase === 'saving' ? (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 pointer-events-none"
+            aria-hidden
+          >
+            <div className="flex items-center gap-2 px-4 py-2 rounded-md bg-black/80 text-white text-[13px] font-medium shadow-2xl">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Saving recording…
+            </div>
+          </div>
+        ) : null}
+      </>
+    );
+  }
+
   return (
     <div className="absolute inset-0 z-30 pointer-events-none">
       <canvas ref={offCanvasRef} aria-hidden className="hidden" />
@@ -324,10 +471,7 @@ export default function FlypathExportRecorder({ map }) {
           no draft yet, in which case it's a full-cover backdrop). */}
       {phase !== 'idle' && phase !== 'error' && (
         <div
-          className={cn(
-            'absolute inset-0 pointer-events-none',
-            phase === 'recording' || phase === 'saving' ? 'bg-black/35' : 'bg-black/45',
-          )}
+          className="absolute inset-0 pointer-events-none bg-black/45"
           style={clipPath ? { clipPath } : undefined}
         />
       )}
@@ -362,90 +506,75 @@ export default function FlypathExportRecorder({ map }) {
         </div>
       )}
 
-      {/* Armed — bbox outline stays, action buttons live in the
-          vertical right-mid rail (see ActionRail below) so they
-          don't cover the region the user just framed. */}
-      {phase === 'armed' && bbox && (
+      {/* Armed / countdown — bbox outline stays visible. Action
+          buttons live in the vertical right-mid rail. */}
+      {(phase === 'armed' || phase === 'countdown') && bbox && (
         <div
-          className="absolute border-2 border-[#84cc16] pointer-events-none"
+          className={cn(
+            'absolute border-2 pointer-events-none',
+            phase === 'countdown' ? 'border-[#84cc16]/70' : 'border-[#84cc16]',
+          )}
           style={{ left: bbox.x, top: bbox.y, width: bbox.w, height: bbox.h }}
         />
       )}
 
       {/* Countdown — big centred number with white fill + black halo */}
       {phase === 'countdown' && (
-        <>
-          {bbox && (
-            <div
-              className="absolute border-2 border-[#84cc16]/70 pointer-events-none"
-              style={{ left: bbox.x, top: bbox.y, width: bbox.w, height: bbox.h }}
-            />
-          )}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={countdown}
-                initial={{ scale: 1.4, opacity: 0 }}
-                animate={{ scale: 1,   opacity: 1 }}
-                exit={{    scale: 0.6, opacity: 0 }}
-                transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
-                style={{
-                  fontFamily:
-                    '"DIN Pro", "DIN Alternate", "DIN Condensed", ' +
-                    '"Helvetica Neue Condensed", "Arial Narrow", ' +
-                    '"Inter", "Segoe UI", system-ui, sans-serif',
-                  fontSize: '180px',
-                  fontWeight: 700,
-                  color: '#ffffff',
-                  lineHeight: 1,
-                  letterSpacing: '-0.02em',
-                  textShadow:
-                    '-3px -3px 0 rgba(0,0,0,0.9),' +
-                    ' 3px -3px 0 rgba(0,0,0,0.9),' +
-                    '-3px  3px 0 rgba(0,0,0,0.9),' +
-                    ' 3px  3px 0 rgba(0,0,0,0.9),' +
-                    ' 0 0 24px rgba(0,0,0,0.6),' +
-                    ' 0 6px 20px rgba(0,0,0,0.55)',
-                }}
-              >
-                {countdown}
-              </motion.span>
-            </AnimatePresence>
-          </div>
-        </>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={countdown}
+              initial={{ scale: 1.4, opacity: 0 }}
+              animate={{ scale: 1,   opacity: 1 }}
+              exit={{    scale: 0.6, opacity: 0 }}
+              transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+              style={{
+                fontFamily:
+                  '"DIN Pro", "DIN Alternate", "DIN Condensed", ' +
+                  '"Helvetica Neue Condensed", "Arial Narrow", ' +
+                  '"Inter", "Segoe UI", system-ui, sans-serif',
+                fontSize: '180px',
+                fontWeight: 700,
+                color: '#ffffff',
+                lineHeight: 1,
+                letterSpacing: '-0.02em',
+                textShadow:
+                  '-3px -3px 0 rgba(0,0,0,0.9),' +
+                  ' 3px -3px 0 rgba(0,0,0,0.9),' +
+                  '-3px  3px 0 rgba(0,0,0,0.9),' +
+                  ' 3px  3px 0 rgba(0,0,0,0.9),' +
+                  ' 0 0 24px rgba(0,0,0,0.6),' +
+                  ' 0 6px 20px rgba(0,0,0,0.55)',
+              }}
+            >
+              {countdown}
+            </motion.span>
+          </AnimatePresence>
+        </div>
       )}
 
-      {/* Recording / saving — bbox outline + REC pip. The Stop &
-          save action button lives in the right-mid ActionRail. */}
-      {(phase === 'recording' || phase === 'saving') && bbox && (
-        <>
-          <div
-            className="absolute border-2 border-red-500 pointer-events-none"
-            style={{ left: bbox.x, top: bbox.y, width: bbox.w, height: bbox.h }}
-          />
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur text-white text-[11px] font-semibold tracking-wide">
-            <motion.span
-              animate={{ opacity: [1, 0.25, 1] }}
-              transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-              className="inline-block h-2 w-2 rounded-full bg-red-500"
-              aria-hidden
-            />
-            {phase === 'saving' ? 'SAVING' : 'REC'}
+      {/* Preparing — waiting on the browser's screen-share picker.
+          A small spinner + hint in the middle so the operator knows
+          the click was received and to look for the picker chrome. */}
+      {phase === 'preparing' && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-md bg-black/85 text-white text-[13px] font-medium shadow-2xl">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Choose &quot;This tab&quot; in the sharing picker
           </div>
-        </>
+        </div>
       )}
 
       {/* ActionRail — vertical column of icon-only buttons pinned to
-          the right-middle of the map wrapper. Same silhouette across
-          armed / recording / saving so the operator's hand doesn't
-          have to hunt for the next control. */}
+          the right-middle of the map wrapper. Only shown while armed;
+          during recording/saving it's hidden so it never appears in
+          the exported video. */}
       <ActionRail
         phase={phase}
         hasRoute={hasRoute}
-        onStart={beginCountdown}
+        onStart={beginRecording}
         onRedraw={() => { setBbox(null); setPhase('selecting'); }}
         onCancel={cancelSession}
-        onStop={stopRecording}
       />
 
       {/* Selection hint — the pill at the top */}
@@ -487,6 +616,27 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Request a display-media stream biased toward the current tab.
+// The Chrome-specific hints (`preferCurrentTab`, `selfBrowserSurface`,
+// `monitorTypeSurfaces`, `surfaceSwitching`) push the picker toward
+// a one-click "Share this tab" affordance; browsers that don't
+// understand them fall back to the standard picker.
+async function requestDisplayMedia() {
+  if (!navigator?.mediaDevices?.getDisplayMedia) {
+    throw new Error('Screen capture is not supported in this browser');
+  }
+  return navigator.mediaDevices.getDisplayMedia({
+    video: {
+      frameRate: { ideal: 60, max: 60 },
+    },
+    audio: false,
+    preferCurrentTab: true,
+    selfBrowserSurface: 'include',
+    monitorTypeSurfaces: 'exclude',
+    surfaceSwitching: 'exclude',
+  });
+}
+
 // Pick the highest-quality codec MediaRecorder can encode. Falls
 // back through VP9 → VP8 → default. Returns '' if the platform
 // somehow supports none of them, in which case we let MediaRecorder
@@ -525,16 +675,11 @@ function bboxClipPath(bbox) {
 }
 
 // ActionRail — vertical column of icon-only chips pinned to the
-// right-middle of the map wrapper. Renders nothing during selection
-// (the drag surface owns the whole map) and nothing at idle / error;
-// during armed / recording / saving it presents phase-appropriate
-// buttons. Icon-only per the operator's request — every button has
-// a native `title` tooltip so the action is still discoverable.
-function ActionRail({ phase, hasRoute, onStart, onRedraw, onCancel, onStop }) {
-  if (phase !== 'armed' && phase !== 'recording' && phase !== 'saving') return null;
-
-  const armed = phase === 'armed';
-  const saving = phase === 'saving';
+// right-middle of the map wrapper. Only shown during 'armed' — the
+// recording / saving phases hide it because every DOM overlay is
+// captured by the display-media stream.
+function ActionRail({ phase, hasRoute, onStart, onRedraw, onCancel }) {
+  if (phase !== 'armed') return null;
 
   return (
     <div
@@ -542,52 +687,37 @@ function ActionRail({ phase, hasRoute, onStart, onRedraw, onCancel, onStop }) {
       role="toolbar"
       aria-label="Export animation controls"
     >
-      {armed ? (
-        <>
-          <RailButton
-            icon={Circle}
-            iconFill
-            onClick={onStart}
-            disabled={!hasRoute}
-            title={hasRoute
-              ? 'Start recording (5-second countdown)'
-              : 'Add a flypath route first'}
-            ariaLabel="Start recording"
-            tone="record"
-          />
-          <RailButton
-            icon={RotateCcw}
-            onClick={onRedraw}
-            title="Redraw the region"
-            ariaLabel="Redraw the region"
-            tone="neutral"
-          />
-          <RailButton
-            icon={X}
-            onClick={onCancel}
-            title="Cancel export"
-            ariaLabel="Cancel export"
-            tone="neutral"
-          />
-        </>
-      ) : (
-        <RailButton
-          icon={Square}
-          iconFill
-          onClick={onStop}
-          disabled={saving}
-          title={saving ? 'Saving…' : 'Stop recording and save'}
-          ariaLabel={saving ? 'Saving' : 'Stop recording and save'}
-          tone="stop"
-        />
-      )}
+      <RailButton
+        icon={Circle}
+        iconFill
+        onClick={onStart}
+        disabled={!hasRoute}
+        title={hasRoute
+          ? 'Start recording (5-second countdown after picker)'
+          : 'Add a flypath route first'}
+        ariaLabel="Start recording"
+        tone="record"
+      />
+      <RailButton
+        icon={RotateCcw}
+        onClick={onRedraw}
+        title="Redraw the region"
+        ariaLabel="Redraw the region"
+        tone="neutral"
+      />
+      <RailButton
+        icon={X}
+        onClick={onCancel}
+        title="Cancel export"
+        ariaLabel="Cancel export"
+        tone="neutral"
+      />
     </div>
   );
 }
 
 // Single button in the ActionRail. `tone` chooses the palette:
 //   record  → filled red circle (Start recording)
-//   stop    → filled red square (Stop & save)
 //   neutral → dark chrome, subtle border, white icon
 function RailButton({ icon: Icon, iconFill, onClick, disabled, title, ariaLabel, tone }) {
   const base = 'inline-flex items-center justify-center h-9 w-9 rounded-md shadow-2xl transition-colors';
@@ -595,9 +725,7 @@ function RailButton({ icon: Icon, iconFill, onClick, disabled, title, ariaLabel,
     ? 'bg-black/60 text-white/40 border border-white/10 cursor-not-allowed'
     : tone === 'record'
       ? 'bg-red-600 text-white hover:bg-red-700'
-      : tone === 'stop'
-        ? 'bg-red-600 text-white hover:bg-red-700'
-        : 'bg-black/80 text-white border border-white/20 hover:bg-black/90';
+      : 'bg-black/80 text-white border border-white/20 hover:bg-black/90';
   return (
     <button
       type="button"
