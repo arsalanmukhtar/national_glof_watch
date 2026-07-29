@@ -1266,7 +1266,7 @@ function LabelExpressionEditor({ expression, onChange }) {
         spellCheck={false}
         value={expression}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={"name || ' - ' || area"}
+        placeholder={"name || '\\n' || area"}
         className={cn(
           'input-base font-mono text-[11px] tracking-normal normal-case',
           'py-1.5 leading-snug resize-y min-h-[38px]',

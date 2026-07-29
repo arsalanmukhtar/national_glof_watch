@@ -98,13 +98,27 @@ export function parseLabelExpression(expr) {
     // `||` concat operator — skipped; it's implicit in the segment list.
     if (s[i] === '|' && s[i + 1] === '|') { i += 2; continue; }
 
-    // Quoted literal.
+    // Quoted literal. Escape sequences follow JS conventions:
+    //   \n → newline, \t → tab, \r → CR, \\ → \, \' \" → the quote.
+    // Anything else after \ passes through as the literal character.
+    // Newline support matters because the default multi-attribute
+    // separator is '\n', which needs to render as an actual line
+    // break in the Mapbox text-field.
     if (s[i] === "'" || s[i] === '"') {
       const q = s[i]; i++;
       let lit = '';
       while (i < s.length && s[i] !== q) {
-        if (s[i] === '\\' && i + 1 < s.length) { lit += s[i + 1]; i += 2; }
-        else { lit += s[i]; i++; }
+        if (s[i] === '\\' && i + 1 < s.length) {
+          const esc = s[i + 1];
+          if      (esc === 'n')  lit += '\n';
+          else if (esc === 't')  lit += '\t';
+          else if (esc === 'r')  lit += '\r';
+          else                   lit += esc;
+          i += 2;
+        } else {
+          lit += s[i];
+          i++;
+        }
       }
       if (s[i] === q) i++;
       segments.push({ type: 'literal', value: lit });
@@ -180,7 +194,11 @@ function attributeGetterExpr(attrName) {
 export function appendAttributeToExpression(expr, attrName) {
   const trimmed = String(expr ?? '').trim();
   if (!trimmed) return attrName;
-  return `${trimmed} || ' - ' || ${attrName}`;
+  // '\n' separator so each subsequent attribute lands on its own
+  // line under the previous one — makes multi-attribute labels
+  // scannable on the map instead of running everything onto a single
+  // line separated by dashes.
+  return `${trimmed} || '\\n' || ${attrName}`;
 }
 
 // -------------------------------------------------------------------
@@ -222,7 +240,19 @@ function isSeparatorLiteral(text) {
 }
 
 function rebuildSegment(seg) {
-  if (seg.type === 'literal') return `'${seg.value.replace(/'/g, "\\'")}'`;
+  if (seg.type === 'literal') {
+    // Escape the outer quote plus common whitespace control chars so
+    // the round-trip through the textarea stays readable — otherwise
+    // a literal containing an actual newline would render as a
+    // hard line break inside the quotes, which reads as broken source.
+    const escaped = seg.value
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g,  "\\'")
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/\t/g, '\\t');
+    return `'${escaped}'`;
+  }
   return seg.value;
 }
 
