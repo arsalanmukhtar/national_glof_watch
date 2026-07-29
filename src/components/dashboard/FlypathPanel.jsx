@@ -1052,7 +1052,12 @@ function FeaturesLabelsCard() {
         </button>
       </div>
 
-      <div className="px-2 py-2 flex flex-col gap-2">
+      {/* Body — bounded height with internal scroll. The header row
+          above stays pinned, and the fields (attrs, expression, unit,
+          size, halo, colour swatches) scroll inside this box when
+          they don't fit. Previously the whole card grew unbounded and
+          the swatch row got clipped behind the fixed playback dock. */}
+      <div className="px-2 py-2 flex flex-col gap-2 max-h-[240px] overflow-y-auto">
         {!hasAttrs ? (
           <div className="text-[10.5px] text-day-muted dark:text-night-muted italic px-1 py-2">
             The uploaded layer has no attribute keys — nothing to label with.
