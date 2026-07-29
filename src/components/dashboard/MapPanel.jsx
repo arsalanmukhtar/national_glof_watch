@@ -54,7 +54,7 @@ import ElevationFullscreenOverlay from './ElevationFullscreenOverlay';
 import StationsTable from './StationsTable';
 import { cn } from '@/utils/cn';
 
-const DEFAULT_BASEMAP = 'satellite';
+const DEFAULT_BASEMAP = 'esri';
 const STATIONS_SOURCE = 'parameter-stations';
 const STATIONS_LAYER = 'parameter-stations-circle';
 const STATIONS_HALO_LAYER = 'parameter-stations-halo';
