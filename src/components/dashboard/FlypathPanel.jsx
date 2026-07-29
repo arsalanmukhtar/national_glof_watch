@@ -19,11 +19,13 @@ import {
   Play,
   Plus,
   Repeat,
+  RotateCcw,
   Ruler,
   Route,
   Save,
   Square,
   Tag,
+  Target,
   Trash2,
   Type,
   Undo2,
@@ -778,47 +780,70 @@ function ColorRadio({ color, selected, small }) {
 // the operator can hand orientation back to the automatic DEM check.
 // ---------------------------------------------------------------------------
 function OriginRow({ active, hasManualOrigin, onActivate, onCancel, onClear }) {
+  const statusText = active
+    ? 'Click a green marker on the map'
+    : hasManualOrigin
+      ? 'Manually pinned'
+      : 'Auto (DEM-based)';
+  const statusTone = active
+    ? 'text-emerald-700 dark:text-emerald-300 font-medium'
+    : hasManualOrigin
+      ? 'text-day-text dark:text-night-text font-medium'
+      : 'text-day-muted dark:text-night-muted italic';
   return (
-    <div className="px-2 pb-2 pt-1.5 border-t border-day-border dark:border-night-border bg-day-bg/60 dark:bg-night-bg/60 flex items-center gap-1.5">
+    // Same silhouette + padding as the RouteRow above (px-2.5 py-2)
+    // so the two sit flush without a subtle offset. `min-h-9` locks
+    // the vertical rhythm even when the Reset button is absent, so
+    // the row height doesn't shift as the operator toggles states.
+    <div
+      className={cn(
+        'px-2.5 py-2 min-h-9 border-t border-day-border dark:border-night-border',
+        'bg-day-bg/60 dark:bg-night-bg/60',
+        'flex items-center gap-2',
+      )}
+    >
       <Crosshair className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
       <span className="text-[10px] uppercase tracking-wide text-day-muted dark:text-night-muted w-12 shrink-0">
         Origin
       </span>
-      <span className="flex-1 text-[10.5px] text-day-text dark:text-night-text truncate">
-        {active
-          ? 'Click a green marker on the map'
-          : hasManualOrigin
-            ? 'Manually pinned'
-            : 'Auto (DEM-based)'}
+      <span className={cn('flex-1 min-w-0 text-[10.5px] truncate', statusTone)}>
+        {statusText}
       </span>
-      {hasManualOrigin && !active ? (
+      <div className="flex items-center gap-1 shrink-0">
+        {hasManualOrigin && !active ? (
+          <button
+            type="button"
+            onClick={onClear}
+            aria-label="Reset to automatic DEM-based origin"
+            title="Reset to automatic DEM-based origin"
+            className={cn(
+              'inline-flex items-center justify-center h-6 w-6 rounded',
+              'text-day-text dark:text-night-text',
+              'hover:bg-day-border dark:hover:bg-night-border transition-colors',
+            )}
+          >
+            <RotateCcw style={{ width: 12, height: 12 }} />
+          </button>
+        ) : null}
         <button
           type="button"
-          onClick={onClear}
+          onClick={active ? onCancel : onActivate}
+          aria-label={active ? 'Cancel origin selection' : 'Pick the origin vertex on the map'}
+          title={active ? 'Cancel origin selection' : 'Pick the origin vertex on the map'}
           className={cn(
-            'inline-flex items-center justify-center h-6 px-2 rounded text-[10.5px] font-medium',
-            'bg-day-bg dark:bg-night-bg text-day-text dark:text-night-text',
-            'border border-day-border dark:border-night-border',
-            'hover:bg-day-border dark:hover:bg-night-border transition-colors',
+            'inline-flex items-center justify-center h-6 w-6 rounded transition-colors',
+            active
+              ? 'bg-red-600 text-white hover:bg-red-700'
+              : 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
           )}
-          title="Fall back to automatic DEM-based origin detection"
         >
-          Reset
+          {active ? (
+            <X style={{ width: 13, height: 13 }} strokeWidth={2.5} />
+          ) : (
+            <Target style={{ width: 13, height: 13 }} strokeWidth={2.25} />
+          )}
         </button>
-      ) : null}
-      <button
-        type="button"
-        onClick={active ? onCancel : onActivate}
-        className={cn(
-          'inline-flex items-center justify-center h-6 px-2 rounded text-[10.5px] font-medium transition-colors',
-          active
-            ? 'bg-red-600 text-white hover:bg-red-700'
-            : 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]',
-        )}
-        title={active ? 'Cancel origin selection' : 'Pick the origin vertex on the map'}
-      >
-        {active ? 'Cancel' : 'Select on map'}
-      </button>
+      </div>
     </div>
   );
 }

@@ -32,8 +32,13 @@ import { cn } from '@/utils/cn';
 
 const MIN_BBOX_PX      = 80;   // reject accidental tiny drags
 const COUNTDOWN_START  = 5;    // seconds shown centred on the map
-const RECORDING_FPS    = 30;
-const RECORDING_BPS    = 8_000_000;
+// 60 fps target with a generous bitrate — the recorded stream at
+// 30 fps read as visibly juddery next to the 60 Hz on-screen
+// playback. VP9 at ~16 Mbps holds detail on the mountain terrain at
+// this rate; increase if the operator's monitor is > 1080p and the
+// output looks soft.
+const RECORDING_FPS    = 60;
+const RECORDING_BPS    = 16_000_000;
 
 export default function FlypathExportRecorder({ map }) {
   const {
@@ -188,6 +193,14 @@ export default function FlypathExportRecorder({ map }) {
 
     const stream = offCanvas.captureStream(RECORDING_FPS);
     streamRef.current = stream;
+    // Some browsers expose `requestFrame()` on the video track so we
+    // can push a frame the moment drawImage completes — this couples
+    // the recorded frame timing to the map's render clock instead of
+    // the 60 Hz auto-sampler, which typically yields visibly smoother
+    // output. Falls back silently if unavailable (older Firefox).
+    const videoTrack = stream.getVideoTracks?.()[0];
+    const canRequestFrame =
+      !!videoTrack && typeof videoTrack.requestFrame === 'function';
 
     const mimeType = pickMimeType();
     const recorder = new MediaRecorder(stream, {
@@ -231,11 +244,18 @@ export default function FlypathExportRecorder({ map }) {
     // MediaRecorder chunks flushed every 500 ms
     recorder.start(500);
 
-    // Frame pump — matches the map's own refresh rate; on frames
-    // where the map hasn't repainted yet, we simply blit the same
-    // pixels again, which is exactly what a real capture would do.
+    // Frame pump — one blit per RAF tick (typically 60 Hz on the
+    // operator's monitor), plus an explicit `requestFrame()` on the
+    // video track when available so the recorded stream is locked
+    // to the map's actual render clock rather than the browser's
+    // async 60 Hz sampler.
     const pump = () => {
-      try { ctx.drawImage(mapCanvas, sx, sy, sw, sh, 0, 0, sw, sh); } catch { /* ignore */ }
+      try {
+        ctx.drawImage(mapCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+        if (canRequestFrame) {
+          try { videoTrack.requestFrame(); } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
       rafRef.current = requestAnimationFrame(pump);
     };
     rafRef.current = requestAnimationFrame(pump);
