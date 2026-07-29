@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import { extractFeatureAttributes } from '@/utils/labelExpression';
+import { featureCollectionLengthMeters } from '@/utils/spatialUpload';
 
 // FlypathContext — global state for the Lake Flypath surface.
 // ---------------------------------------------------------------------------
@@ -132,14 +133,24 @@ export function FlypathProvider({ children }) {
   // Shared animation phase.
   const phaseRef = useRef(0);
 
-  // User-configurable flight duration — defaults to 30 s, which
-  // reads as a punchy overview for a typical route. Operators can
-  // dial the slider up toward 3 min for a slower guided tour.
-  const [flightDuration, setFlightDurationRaw] = useState(30_000);
-  const setFlightDuration = useCallback((ms) => {
-    const num = Number(ms);
+  // Speed model — the operator sets a relative multiplier (0.25 × …
+  // 8 ×) and the actual flight duration is derived from the selected
+  // route's length. Baseline is a soft linear curve: short routes
+  // (< 10 km) land around 15 s; a 100 km melt path around a minute;
+  // a Pakistan-scale route around 10 minutes at 1 ×. The multiplier
+  // then scales inversely (2 × = half duration, 0.5 × = double).
+  //
+  // Why relative: a fixed 5-180 s range couldn't accommodate long
+  // routes at all — the tiles / DEM never had time to stream in
+  // before the marker had already flown past. A distance-driven
+  // baseline makes "1 ×" feel consistent regardless of extent, and
+  // the operator still gets one obvious knob (Nx) rather than
+  // having to eyeball the right absolute duration.
+  const [speedMultiplier, setSpeedMultiplierRaw] = useState(1);
+  const setSpeedMultiplier = useCallback((n) => {
+    const num = Number(n);
     if (!Number.isFinite(num)) return;
-    setFlightDurationRaw(Math.max(5_000, Math.min(300_000, num)));
+    setSpeedMultiplierRaw(Math.max(0.1, Math.min(10, num)));
   }, []);
 
   // Loop mode — when true, the animation restarts from the beginning
@@ -341,6 +352,27 @@ export function FlypathProvider({ children }) {
     [routes, effectiveSelectedId],
   );
 
+  // Base duration for the selected route at 1 × speed. Recomputed
+  // whenever the operator switches routes. See setSpeedMultiplier
+  // above for the design rationale — this baseline plus the Nx knob
+  // replaces the old absolute 5-180 s slider.
+  const baseDurationMs = useMemo(() => {
+    if (!selectedRoute?.fc) return 30_000;
+    const km = (featureCollectionLengthMeters(selectedRoute.fc) || 0) / 1000;
+    // 8 s startup + ~0.55 s per km ≈ 15 s at 12 km, 63 s at 100 km,
+    // 558 s (~9m 20s) at 1000 km, 1108 s (~18m 30s) at 2000 km.
+    const seconds = 8 + km * 0.55;
+    return Math.max(6_000, Math.round(seconds * 1000));
+  }, [selectedRoute]);
+
+  // What the animation loop actually reads — clamped to a floor of
+  // 3 s so a 100 × multiplier can't reduce a 5 km route to sub-frame
+  // duration.
+  const flightDuration = useMemo(
+    () => Math.max(3_000, Math.round(baseDurationMs / speedMultiplier)),
+    [baseDurationMs, speedMultiplier],
+  );
+
   // ---------------------------------------------------------------
   // Features actions. Setting or clearing features also wipes the
   // label expression + unit — a new file almost certainly has
@@ -426,7 +458,9 @@ export function FlypathProvider({ children }) {
     stop,
     togglePlayPause,
     flightDuration,
-    setFlightDuration,
+    baseDurationMs,
+    speedMultiplier,
+    setSpeedMultiplier,
     loop,
     setLoop,
     toggleLoop,
@@ -461,7 +495,7 @@ export function FlypathProvider({ children }) {
     requestFlyToRoutes, requestFlyToSelectedRoute, requestFlyToFeatures,
     active, setActive, elevationProfile,
     playState, start, pause, resume, stop, togglePlayPause,
-    flightDuration, setFlightDuration,
+    flightDuration, baseDurationMs, speedMultiplier, setSpeedMultiplier,
     loop, setLoop, toggleLoop,
     flightMode, setFlightMode,
     awaitingTerrain,

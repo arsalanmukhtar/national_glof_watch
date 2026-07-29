@@ -802,13 +802,13 @@ function OriginRow({ active, hasManualOrigin, onActivate, onCancel, onClear }) {
       className={cn(
         'px-2.5 py-2 min-h-9 border-t border-day-border dark:border-night-border',
         'bg-day-bg/60 dark:bg-night-bg/60',
-        'flex items-center gap-2',
+        'flex items-center gap-2 text-[10.5px] leading-none',
       )}
     >
-      <span className="text-[10px] uppercase tracking-wide text-day-muted dark:text-night-muted w-12 shrink-0">
+      <span className="uppercase tracking-wide text-day-muted dark:text-night-muted w-12 shrink-0">
         Origin
       </span>
-      <span className={cn('flex-1 min-w-0 text-[10.5px] truncate', statusTone)}>
+      <span className={cn('flex-1 min-w-0 truncate', statusTone)}>
         {statusText}
       </span>
       <div className="flex items-center gap-1 shrink-0">
@@ -1953,112 +1953,67 @@ async function saveWithPicker({ filename, data, mime, ext, label }) {
 }
 
 // ---------------------------------------------------------------------------
-// Speed control — duration slider from 5 s to 180 s.
+// Speed control — Nx multiplier over a distance-derived baseline.
+// The slider moves in log space between 0.25 × and 8 × so that both
+// halves of the range have similar visual weight (the geometric
+// midpoint of the range is 1 ×). Actual flight duration is computed
+// in the context from the selected route's length; this control just
+// picks the multiplier. Readout shows both the multiplier and the
+// resulting duration so the operator can eyeball the effect.
 // ---------------------------------------------------------------------------
+const SPEED_LOG_MIN = -2;   // 2^-2 = 0.25×
+const SPEED_LOG_MAX =  3;   // 2^3  = 8×
+const SPEED_LOG_STEP = 0.05;
+
 function SpeedControl() {
-  const { flightDuration, setFlightDuration } = useFlypath();
-  const seconds = flightDuration / 1000;
-  // When in seconds range (< 60 s) the readout is an editable number
-  // input so the operator can type an exact value instead of dragging
-  // the slider vertex to a specific tick. Once we cross into minutes
-  // the exact number matters less, so the readout collapses to a
-  // formatted label ("1.5m") to save space.
-  const inSeconds = seconds < 60;
-
-  // Local text buffer so partial input like "2" (intending "20")
-  // doesn't get committed through the context's min-clamp (which
-  // would floor it to 5, and the next keystroke would then append
-  // onto "5" — turning "20" into "50" mid-type). We only commit to
-  // context when the number is already in the valid range; otherwise
-  // it commits on blur / Enter, at which point the min-clamp is
-  // welcome.
-  const [secondsText, setSecondsText] = useState(String(seconds));
-  useEffect(() => { setSecondsText(String(seconds)); }, [seconds]);
-
-  const commitSecondsText = (raw) => {
-    const n = Number(raw);
-    if (!Number.isFinite(n)) { setSecondsText(String(seconds)); return; }
-    const clamped = Math.max(5, Math.min(180, n));
-    setFlightDuration(clamped * 1000);
-    setSecondsText(String(clamped));
-  };
+  const { speedMultiplier, setSpeedMultiplier, flightDuration } = useFlypath();
+  const logPos = Math.log2(Math.max(0.05, speedMultiplier));
 
   return (
-    // min-h-7 locks the row at 28 px whether the readout is the h-5
-    // seconds input or the plain minutes label — otherwise the whole
-    // column jitters (~4 px) as the slider crosses 60 s. The fixed-
-    // width readout container below prevents horizontal jitter for
-    // the same reason.
     <div className="flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted min-h-6">
       <Gauge className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
       <span className="uppercase tracking-wide w-12 shrink-0">Speed</span>
       <input
         type="range"
-        min={5}
-        max={180}
-        step={1}
-        value={seconds}
-        onChange={(e) => setFlightDuration(Number(e.target.value) * 1000)}
+        min={SPEED_LOG_MIN}
+        max={SPEED_LOG_MAX}
+        step={SPEED_LOG_STEP}
+        value={logPos}
+        onChange={(e) => setSpeedMultiplier(2 ** Number(e.target.value))}
+        onDoubleClick={() => setSpeedMultiplier(1)}
         className="flex-1 h-1 accent-[#84cc16] min-w-0"
-        aria-label="Flight duration"
+        aria-label="Flight speed multiplier"
+        title="Drag to change speed · double-click to reset to 1×"
       />
-      <div className="flex items-center justify-end shrink-0 w-[68px] gap-0.5">
-        {inSeconds ? (
-          <>
-            <input
-              type="number"
-              min={5}
-              max={180}
-              step={1}
-              value={secondsText}
-              onChange={(e) => {
-                const text = e.target.value;
-                setSecondsText(text);
-                // Only commit through the context (which enforces the
-                // 5 s min) when the current text is already valid, so
-                // partial input like "2" doesn't snap up to 5 and
-                // turn the next digit into "50" instead of "20".
-                const n = Number(text);
-                if (Number.isFinite(n) && n >= 5 && n <= 180) {
-                  setFlightDuration(n * 1000);
-                }
-              }}
-              onBlur={(e) => commitSecondsText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  commitSecondsText(e.currentTarget.value);
-                }
-              }}
-              className={cn(
-                'tabular-nums text-day-text dark:text-night-text',
-                // Wider (w-12 = 48 px) so two-digit values + native
-                // spinner overlay never crop the second digit as they
-                // did at w-9. Spinner arrows are suppressed via the
-                // arbitrary variants below so the whole 48 px is
-                // available for the value.
-                'w-12 h-5 rounded border border-day-border dark:border-night-border',
-                'bg-day-bg dark:bg-night-bg',
-                'px-1.5 text-right text-[11px] outline-none',
-                'focus:border-[#84cc16] focus:ring-1 focus:ring-[#84cc16]',
-                '[appearance:textfield]',
-                '[&::-webkit-outer-spin-button]:appearance-none',
-                '[&::-webkit-inner-spin-button]:appearance-none',
-                '[&::-webkit-outer-spin-button]:m-0',
-                '[&::-webkit-inner-spin-button]:m-0',
-              )}
-              aria-label="Flight duration in seconds"
-            />
-            <span className="text-day-text dark:text-night-text">s</span>
-          </>
-        ) : (
-          <span className="tabular-nums text-day-text dark:text-night-text text-[11px]">
-            {(seconds / 60).toFixed(1)}m
-          </span>
-        )}
+      <div className="flex items-center justify-end shrink-0 w-[92px] gap-1 tabular-nums">
+        <span className="text-day-text dark:text-night-text text-[11px] font-semibold">
+          {formatMultiplier(speedMultiplier)}×
+        </span>
+        <span className="text-day-muted dark:text-night-muted text-[10px]">
+          · {formatDurationLabel(flightDuration)}
+        </span>
       </div>
     </div>
   );
+}
+
+// Compact label for the multiplier readout — 0.25 stays as "0.25",
+// integers drop the decimal, everything else prints one decimal.
+function formatMultiplier(x) {
+  if (!Number.isFinite(x)) return '1';
+  if (x >= 10)  return x.toFixed(0);
+  if (x >= 1)   return x % 1 === 0 ? x.toFixed(0) : x.toFixed(1);
+  return x.toFixed(2).replace(/0$/, '');
+}
+
+// "18s" / "1m 24s" / "12m" — never longer than 5 chars.
+function formatDurationLabel(ms) {
+  const totalSec = Math.max(1, Math.round(ms / 1000));
+  if (totalSec < 60) return `${totalSec}s`;
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  if (m >= 10 || s === 0) return `${m}m`;
+  return `${m}m ${s}s`;
 }
 
 // ---------------------------------------------------------------------------

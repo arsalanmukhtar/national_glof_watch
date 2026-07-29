@@ -378,7 +378,8 @@ export default function FlypathExportRecorder({ map }) {
       const chunks = chunksRef.current.slice();
       chunksRef.current = [];
       if (cancelledRef.current) return;
-      const blob = new Blob(chunks, { type: mimeType || 'video/webm' });
+      const container = containerFor(mimeType);
+      const blob = new Blob(chunks, { type: container.mime });
       // Save-file picker will exit fullscreen (browser security);
       // remember which element was in fullscreen so we can re-enter
       // after the picker closes. The requestFullscreen call is
@@ -387,7 +388,7 @@ export default function FlypathExportRecorder({ map }) {
       const fsTargetBeforeSave =
         typeof document !== 'undefined' ? document.fullscreenElement : null;
       try {
-        await saveBlob(blob, defaultFileName(selectedRoute?.name));
+        await saveBlob(blob, defaultFileName(selectedRoute?.name, container.ext), container);
       } catch (err) {
         console.warn('flypath export: save failed', err);
       } finally {
@@ -663,13 +664,19 @@ async function requestDisplayMedia() {
   });
 }
 
-// Pick the highest-quality codec MediaRecorder can encode. Falls
-// back through VP9 → VP8 → default. Returns '' if the platform
-// somehow supports none of them, in which case we let MediaRecorder
-// choose its own default.
+// Pick the highest-quality codec MediaRecorder can encode. MP4 /
+// H.264 is preferred where available (Chromium 128+, recent Edge,
+// Safari) because it plays back natively in every major video
+// player and desktop OS without a re-encode. Falls back through VP9
+// → VP8 → default WebM. Returns '' if the platform somehow supports
+// none, in which case we let MediaRecorder choose its own default.
 function pickMimeType() {
   if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
   const candidates = [
+    'video/mp4;codecs=avc1.42E01E',
+    'video/mp4;codecs=avc1',
+    'video/mp4;codecs=h264',
+    'video/mp4',
     'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp9',
     'video/webm;codecs=vp8,opus',
@@ -680,6 +687,18 @@ function pickMimeType() {
     if (MediaRecorder.isTypeSupported(m)) return m;
   }
   return '';
+}
+
+// Container info derived from the negotiated mime type. Drives the
+// filename extension AND the save-picker's accepted-types dialog so
+// what the user picks matches what MediaRecorder is actually
+// emitting.
+function containerFor(mimeType) {
+  const m = String(mimeType || '').toLowerCase();
+  if (m.includes('mp4')) {
+    return { ext: '.mp4', mime: 'video/mp4', description: 'MP4 video' };
+  }
+  return { ext: '.webm', mime: 'video/webm', description: 'WebM video' };
 }
 
 // clip-path definition of "full container minus the bbox rect" —
@@ -770,9 +789,10 @@ function RailButton({ icon: Icon, iconFill, onClick, disabled, title, ariaLabel,
   );
 }
 
-// Suggested output filename. Includes the route name (sanitised) and
-// an ISO-ish timestamp so successive recordings don't collide.
-function defaultFileName(routeName) {
+// Suggested output filename. Includes the route name (sanitised),
+// an ISO-ish timestamp so successive recordings don't collide, and
+// the container's extension (`.mp4` or `.webm`).
+function defaultFileName(routeName, ext = '.webm') {
   const stamp = new Date()
     .toISOString()
     .replace(/[:.]/g, '-')
@@ -782,22 +802,24 @@ function defaultFileName(routeName) {
     .replace(/[^A-Za-z0-9_-]+/g, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 64) || 'flypath';
-  return `${safe}_${stamp}.webm`;
+  return `${safe}_${stamp}${ext}`;
 }
 
 // Save a blob to disk. Prefers the File System Access API — which
 // pops the native Save-As dialog and lets the user pick any folder
 // — and falls back to a download-attribute anchor click on browsers
-// that don't support it (Firefox, Safari).
-async function saveBlob(blob, suggestedName) {
+// that don't support it (Firefox, Safari). The `container` arg lets
+// the picker advertise the correct file type so what the operator
+// picks matches what MediaRecorder is actually emitting.
+async function saveBlob(blob, suggestedName, container = { ext: '.webm', mime: 'video/webm', description: 'WebM video' }) {
   if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
     try {
       const handle = await window.showSaveFilePicker({
         suggestedName,
         types: [
           {
-            description: 'WebM video',
-            accept: { 'video/webm': ['.webm'] },
+            description: container.description,
+            accept: { [container.mime]: [container.ext] },
           },
         ],
       });
