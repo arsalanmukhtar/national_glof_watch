@@ -31,24 +31,32 @@ export default function FlypathRouteLabel() {
             animate={{ opacity: 1, y: 0,  scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            className="px-6 py-2 rounded-xl bg-black/35 backdrop-blur-md border border-white/25 shadow-2xl"
+            className="px-5 py-1.5 rounded-lg bg-black/40 backdrop-blur-md border border-white/20 shadow-2xl"
           >
             <span
               style={{
-                fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
-                fontSize: '30px',
-                fontWeight: 600,
+                // System stack — SF Pro on Apple, Segoe UI on Windows,
+                // Roboto on Android/Linux. All ship with a clean bold
+                // weight that renders crisply at large sizes without
+                // the stroke-outline artefacts the previous
+                // -webkit-text-stroke was baking in.
+                fontFamily:
+                  'system-ui, -apple-system, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                fontSize: '28px',
+                fontWeight: 700,
                 color: '#ffffff',
-                lineHeight: 1.1,
+                lineHeight: 1.15,
                 letterSpacing: '0.005em',
-                WebkitTextStroke: '1px #000',
+                // Directional halo — four solid pixel offsets give a
+                // crisp 1 px outline, then two soft blurs deepen the
+                // contrast against bright basemap patches (snow, sand).
                 textShadow:
-                  '-1px -1px 0 #000,' +
-                  ' 1px -1px 0 #000,' +
-                  '-1px  1px 0 #000,' +
-                  ' 1px  1px 0 #000,' +
-                  ' 0 0 4px rgba(0,0,0,0.85),' +
-                  ' 0 2px 10px rgba(0,0,0,0.75)',
+                  '-1px -1px 0 rgba(0,0,0,0.9),' +
+                  ' 1px -1px 0 rgba(0,0,0,0.9),' +
+                  '-1px  1px 0 rgba(0,0,0,0.9),' +
+                  ' 1px  1px 0 rgba(0,0,0,0.9),' +
+                  ' 0 0 6px rgba(0,0,0,0.75),' +
+                  ' 0 2px 10px rgba(0,0,0,0.55)',
               }}
             >
               {name}

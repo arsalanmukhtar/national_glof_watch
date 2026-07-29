@@ -31,15 +31,24 @@ export default function FlypathFullscreenOverlay() {
     const onChange = () => {
       const fs = !!document.fullscreenElement;
       setIsFullscreen(fs);
-      if (!fs) setExpanded(false);
+      // Do NOT reset `expanded` here — the browser exits fullscreen
+      // whenever a file picker opens (security-sandbox), so if we
+      // collapsed the panel on every fullscreen exit the file
+      // input inside FlypathPanel would unmount before its change
+      // event could fire. Leaving expanded state alone lets the
+      // panel keep its DOM (including refs and event handlers)
+      // through the round-trip; the upload handlers below call
+      // `requestFullscreen` again the moment the picker closes.
     };
     onChange();
     document.addEventListener('fullscreenchange', onChange);
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
-  if (!isFullscreen) return null;
-
+  // Never return null — we keep the whole overlay mounted so its
+  // panel state (file inputs, popovers, drafts) survives the
+  // fullscreen transition. Visibility is CSS-controlled via
+  // `hidden` when we're not in fullscreen.
   return (
     <div
       className={cn(
@@ -48,6 +57,7 @@ export default function FlypathFullscreenOverlay() {
         // ~16 px breathing gap so the two chips don't touch.
         'absolute top-12 left-2 z-10',
         'flex items-start gap-2 pointer-events-none',
+        !isFullscreen && 'hidden',
       )}
     >
       {/* Compact chip — inline-flex row with items-center + justify-

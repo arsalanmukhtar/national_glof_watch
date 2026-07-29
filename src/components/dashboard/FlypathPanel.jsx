@@ -312,18 +312,10 @@ function CompactRouteRow({ route, onSelect, onRemove }) {
       )}
       title={`Select ${route.name}`}
     >
-      {/* Radio ring — hollow because this row is by definition not
-          the currently-selected one. Clicking fills it (by promoting
-          the row into the focused slot above). */}
-      <span
-        aria-hidden
-        className="inline-flex h-3 w-3 rounded-full ring-1 ring-day-border dark:ring-night-border shrink-0"
-      />
-      <span
-        aria-hidden
-        className="inline-block h-2 w-2 rounded-full shrink-0"
-        style={{ backgroundColor: route.style.color }}
-      />
+      {/* Color-filled radio — always shows the route's colour so the
+          eye scans by hue. Selection is implied by position (top /
+          focused slot), so the compact rows never show a check. */}
+      <ColorRadio color={route.style.color} selected={false} small />
       <div className="flex-1 min-w-0">
         <div className="text-[10.5px] font-medium truncate text-day-text dark:text-night-text leading-tight">
           {route.name}
@@ -350,9 +342,34 @@ function CompactRouteRow({ route, onSelect, onRemove }) {
   );
 }
 
+// Chrome exits fullscreen the moment a native file picker opens
+// (security sandbox — the picker chrome can't paint over a fullscreen
+// document). This tiny hook captures whichever element was in
+// fullscreen just before the picker click, then re-requests
+// fullscreen on it once the change event fires. The change event
+// itself counts as a user gesture, so the second requestFullscreen
+// is allowed.
+function useFullscreenSafeUpload() {
+  const capturedRef = useRef(null);
+  const rememberFullscreen = () => {
+    capturedRef.current = document.fullscreenElement || null;
+  };
+  const restoreFullscreen = async () => {
+    const target = capturedRef.current;
+    capturedRef.current = null;
+    if (!target) return;
+    if (document.fullscreenElement) return;
+    if (!target.isConnected) return;
+    try { await target.requestFullscreen(); }
+    catch { /* gesture window may have expired */ }
+  };
+  return { rememberFullscreen, restoreFullscreen };
+}
+
 function AddRouteButton({ onAdd }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
+  const { rememberFullscreen, restoreFullscreen } = useFullscreenSafeUpload();
 
   const handle = async (file) => {
     if (!file) return;
@@ -375,7 +392,7 @@ function AddRouteButton({ onAdd }) {
     <>
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
+        onClick={() => { rememberFullscreen(); inputRef.current?.click(); }}
         className={cn(
           'inline-flex items-center justify-center h-8 w-8 rounded-md',
           'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d] active:bg-[#4d7c0f] transition-colors',
@@ -391,10 +408,11 @@ function AddRouteButton({ onAdd }) {
         ref={inputRef}
         type="file"
         accept=".geojson,.json,.zip,.kml,.kmz,application/json,application/geo+json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz"
-        onChange={(e) => {
+        onChange={async (e) => {
           const file = e.target.files?.[0];
           e.target.value = '';
-          if (file) handle(file);
+          if (file) await handle(file);
+          await restoreFullscreen();
         }}
         className="hidden"
       />
@@ -417,6 +435,17 @@ function StylePopover({ anchorRef, initialStyle, title, onApply, onClose }) {
   const [draft, setDraft] = useState(initialStyle);
   const popoverRef = useRef(null);
   const [pos, setPos] = useState(null);
+  // Portal target — in fullscreen only descendants of the fullscreen
+  // element paint, so document.body would be invisible. Track the
+  // fullscreen state so the portal re-parents when it toggles.
+  const [portalTarget, setPortalTarget] = useState(
+    () => (typeof document !== 'undefined' && document.fullscreenElement) || (typeof document !== 'undefined' ? document.body : null),
+  );
+  useEffect(() => {
+    const update = () => setPortalTarget(document.fullscreenElement || document.body);
+    document.addEventListener('fullscreenchange', update);
+    return () => document.removeEventListener('fullscreenchange', update);
+  }, []);
 
   useLayoutEffect(() => {
     const el = anchorRef.current;
@@ -531,7 +560,8 @@ function StylePopover({ anchorRef, initialStyle, title, onApply, onClose }) {
     </div>
   );
 
-  return createPortal(popover, document.body);
+  if (!portalTarget) return null;
+  return createPortal(popover, portalTarget);
 }
 
 function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
@@ -578,23 +608,7 @@ function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
         aria-pressed={selected}
         title={selected ? 'Selected for animation' : 'Click to select for animation'}
       >
-        <span
-          className={cn(
-            'inline-flex h-4 w-4 items-center justify-center rounded-full shrink-0',
-            'ring-1',
-            selected
-              ? 'ring-[#84cc16] bg-[#84cc16]'
-              : 'ring-day-border dark:ring-night-border bg-transparent',
-          )}
-          aria-hidden
-        >
-          {selected ? <Check style={{ width: 10, height: 10 }} className="text-[#1a2e05]" /> : null}
-        </span>
-        <span
-          className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-          style={{ backgroundColor: route.style.color }}
-          aria-hidden
-        />
+        <ColorRadio color={route.style.color} selected={selected} />
         <KindIcon className="h-3.5 w-3.5 text-day-muted dark:text-night-muted shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-[11.5px] font-medium truncate text-day-text dark:text-night-text">
@@ -605,24 +619,26 @@ function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
             {lengthLabel ? ` · ${lengthLabel}` : ''}
           </div>
         </div>
-        <RowIconButton
-          icon={Focus}
-          title="Zoom to this route"
-          onClick={requestFlyToSelectedRoute}
-        />
-        <RowIconButton
-          ref={paletteRef}
-          icon={Palette}
-          title="Edit route style"
-          active={paletteOpen}
-          onClick={() => setPaletteOpen((v) => !v)}
-        />
-        <RowIconButton
-          icon={Trash2}
-          title="Remove route"
-          tone="danger"
-          onClick={onRemove}
-        />
+        <div className="flex items-center shrink-0 -mr-0.5">
+          <RowIconButton
+            icon={Focus}
+            title="Zoom to this route"
+            onClick={requestFlyToSelectedRoute}
+          />
+          <RowIconButton
+            ref={paletteRef}
+            icon={Palette}
+            title="Edit route style"
+            active={paletteOpen}
+            onClick={() => setPaletteOpen((v) => !v)}
+          />
+          <RowIconButton
+            icon={Trash2}
+            title="Remove route"
+            tone="danger"
+            onClick={onRemove}
+          />
+        </div>
       </div>
 
       {paletteOpen ? (
@@ -648,10 +664,11 @@ function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
   );
 }
 
-// Compact icon-only button used across the row action cluster.
-// Stops event propagation so tapping it doesn't also fire the row's
-// select handler. forwardRef because the palette variant is used as
-// the anchor for the popover-positioning code below.
+// Compact icon-only button used across the row action cluster. Same
+// silhouette across every row so Focus / Palette / Trash line up
+// vertically. Stops event propagation so tapping it doesn't also
+// fire the row's select handler. forwardRef because the palette
+// variant is used as the anchor for the popover-positioning code.
 const RowIconButton = forwardRef(function RowIconButton(
   { icon: Icon, title, onClick, active, tone },
   ref,
@@ -664,7 +681,10 @@ const RowIconButton = forwardRef(function RowIconButton(
       aria-label={title}
       title={title}
       className={cn(
-        'inline-flex items-center justify-center h-7 w-7 rounded-md shrink-0 transition-colors',
+        // Tighter — 24 px squares clustered flush together so the
+        // cluster reads as one action group instead of stealing
+        // space from the route name / feature count above.
+        'inline-flex items-center justify-center h-6 w-6 rounded shrink-0 transition-colors',
         tone === 'danger'
           ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40'
           : active
@@ -672,10 +692,41 @@ const RowIconButton = forwardRef(function RowIconButton(
             : 'text-day-text dark:text-night-text hover:bg-day-border dark:hover:bg-night-border',
       )}
     >
-      <Icon style={{ width: 14, height: 14 }} />
+      <Icon style={{ width: 13, height: 13 }} />
     </button>
   );
 });
+
+// ColorRadio — filled circle in the route's colour that doubles as
+// the "is this the focused route?" indicator. When `selected` is
+// true a white check overlays the fill; when false the fill stays
+// bare. Replaces the previous separate radio + colour-dot pair.
+function ColorRadio({ color, selected, small }) {
+  const size = small ? 12 : 16;
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'inline-flex items-center justify-center rounded-full shrink-0',
+        'ring-1 ring-black/25 dark:ring-white/30',
+        selected && 'ring-2 ring-[#84cc16]',
+      )}
+      style={{ width: size, height: size, backgroundColor: color }}
+    >
+      {selected ? (
+        <Check
+          style={{
+            width: small ? 8 : 10,
+            height: small ? 8 : 10,
+            color: '#ffffff',
+            filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.9))',
+          }}
+          strokeWidth={3}
+        />
+      ) : null}
+    </span>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Origin row — sits under the style controls of the selected route.
@@ -771,6 +822,7 @@ function FeaturesUploadCard({ value, style, onStyleChange, onFile, onZoomTo, onC
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+  const { rememberFullscreen, restoreFullscreen } = useFullscreenSafeUpload();
 
   const handle = async (file) => {
     if (!file) return;
@@ -837,10 +889,11 @@ function FeaturesUploadCard({ value, style, onStyleChange, onFile, onZoomTo, onC
         ref={inputRef}
         type="file"
         accept=".geojson,.json,.zip,.kml,.kmz,application/json,application/geo+json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz"
-        onChange={(e) => {
+        onChange={async (e) => {
           const file = e.target.files?.[0];
           e.target.value = '';
-          if (file) handle(file);
+          if (file) await handle(file);
+          await restoreFullscreen();
         }}
         className="hidden"
       />
@@ -881,24 +934,26 @@ function FeaturesRow({ value, style, KindIcon, onZoomTo, onClear, onStyleChange 
           {value.fc.features.length} feature{value.fc.features.length === 1 ? '' : 's'} · {value.kind}
         </div>
       </div>
-      <RowIconButton
-        icon={Focus}
-        title="Zoom to layer"
-        onClick={onZoomTo}
-      />
-      <RowIconButton
-        ref={paletteRef}
-        icon={Palette}
-        title="Edit layer style"
-        active={paletteOpen}
-        onClick={() => setPaletteOpen((v) => !v)}
-      />
-      <RowIconButton
-        icon={Trash2}
-        title="Remove features"
-        tone="danger"
-        onClick={onClear}
-      />
+      <div className="flex items-center shrink-0 -mr-0.5">
+        <RowIconButton
+          icon={Focus}
+          title="Zoom to layer"
+          onClick={onZoomTo}
+        />
+        <RowIconButton
+          ref={paletteRef}
+          icon={Palette}
+          title="Edit layer style"
+          active={paletteOpen}
+          onClick={() => setPaletteOpen((v) => !v)}
+        />
+        <RowIconButton
+          icon={Trash2}
+          title="Remove features"
+          tone="danger"
+          onClick={onClear}
+        />
+      </div>
       {paletteOpen ? (
         <StylePopover
           anchorRef={rowRef}
@@ -1219,6 +1274,7 @@ function UploadDropZone({ hint, onFile, inputRef, busy, error, dragOver, setDrag
   const [localBusy, setLocalBusy] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [localDrag, setLocalDrag] = useState(false);
+  const { rememberFullscreen, restoreFullscreen } = useFullscreenSafeUpload();
 
   // If parent didn't wire a ref/handler, run our own upload flow —
   // that's the routes empty state, where the parent just needs the
@@ -1230,7 +1286,7 @@ function UploadDropZone({ hint, onFile, inputRef, busy, error, dragOver, setDrag
 
   const runHandle = async (file) => {
     if (!file) return;
-    if (handle) return handle(file);
+    if (handle) { await handle(file); return; }
     setLocalBusy(true);
     setLocalError(null);
     try {
@@ -1245,6 +1301,7 @@ function UploadDropZone({ hint, onFile, inputRef, busy, error, dragOver, setDrag
   };
 
   const setDrag = setDragOver ?? setLocalDrag;
+  const openPicker = () => { rememberFullscreen(); rootRef.current?.click(); };
 
   return (
     <>
@@ -1262,10 +1319,10 @@ function UploadDropZone({ hint, onFile, inputRef, busy, error, dragOver, setDrag
           'text-center cursor-pointer transition-colors',
           isDrag ? 'bg-[#84cc16]/10' : 'hover:bg-day-bg dark:hover:bg-night-bg',
         )}
-        onClick={() => rootRef.current?.click()}
+        onClick={openPicker}
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') rootRef.current?.click(); }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') openPicker(); }}
       >
         <Upload className="h-4 w-4 text-day-muted dark:text-night-muted" />
         <div className="text-[11px] text-day-text dark:text-night-text">
@@ -1286,10 +1343,11 @@ function UploadDropZone({ hint, onFile, inputRef, busy, error, dragOver, setDrag
           ref={localRef}
           type="file"
           accept=".geojson,.json,.zip,.kml,.kmz,application/json,application/geo+json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz"
-          onChange={(e) => {
+          onChange={async (e) => {
             const file = e.target.files?.[0];
             e.target.value = '';
-            if (file) runHandle(file);
+            if (file) await runHandle(file);
+            await restoreFullscreen();
           }}
           className="hidden"
         />
