@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Check,
@@ -466,17 +466,25 @@ function AddRouteButton({ onAdd }) {
 
 // ---------------------------------------------------------------------------
 // StylePopover — portal-based popover that hosts the layer style
-// controls (COLOR, OUTLINE, WIDTH, OPACITY) with Cancel / Apply
-// buttons. Positioned to the right of the anchor row via
-// getBoundingClientRect, and re-positions on scroll / resize so it
-// stays glued to its row when the panel scrolls.
+// controls (COLOR, OUTLINE, WIDTH, OPACITY). Positioned to the
+// right of the anchor row via getBoundingClientRect, and re-
+// positions on scroll / resize so it stays glued to its row when
+// the panel scrolls.
 //
-// Draft state lives inside the popover — Apply commits, Cancel /
-// click-outside discards. This keeps the panel free of preview
-// churn while the operator is fiddling with sliders.
+// Live preview: every knob change is pushed to `onApply` the
+// instant it happens, so the map reflects the tweak in real time
+// (colour swatches especially — the operator wants to see the fill
+// blend against the terrain while they slide). The initial style is
+// captured on open so Cancel / Escape can revert to it; Apply /
+// click-outside keep whatever is currently on the map.
 // ---------------------------------------------------------------------------
 function StylePopover({ anchorRef, initialStyle, title, onApply, onClose }) {
   const [draft, setDraft] = useState(initialStyle);
+  // Snapshot of the style at the moment the popover opened — Cancel
+  // and Escape restore this so the operator can back out of a live
+  // experiment. Captured via useRef so a later prop change (e.g.
+  // parent re-render) doesn't clobber the baseline mid-session.
+  const originalStyleRef = useRef(initialStyle);
   const popoverRef = useRef(null);
   const [pos, setPos] = useState(null);
   // Portal target — in fullscreen only descendants of the fullscreen
@@ -508,6 +516,15 @@ function StylePopover({ anchorRef, initialStyle, title, onApply, onClose }) {
     };
   }, [anchorRef]);
 
+  // Cancel = revert to the snapshot AND close. Used by Cancel button
+  // + Escape. Click-outside is treated as "commit as-is" (same as
+  // Apply) since accidental dismissal is more disruptive than
+  // leaving whatever the operator was previewing on the map.
+  const cancel = useCallback(() => {
+    onApply(originalStyleRef.current);
+    onClose();
+  }, [onApply, onClose]);
+
   useEffect(() => {
     const onDown = (e) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target)
@@ -515,18 +532,30 @@ function StylePopover({ anchorRef, initialStyle, title, onApply, onClose }) {
         onClose();
       }
     };
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e) => { if (e.key === 'Escape') cancel(); };
     document.addEventListener('mousedown', onDown);
     window.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDown);
       window.removeEventListener('keydown', onKey);
     };
-  }, [anchorRef, onClose]);
+  }, [anchorRef, onClose, cancel]);
 
   if (!pos) return null;
 
-  const patch = (partial) => setDraft((d) => ({ ...d, ...partial }));
+  // Every patch does two things: updates the local draft (so the
+  // popover controls reflect the new value instantly) AND pushes
+  // the merged style up to the parent so the map layer repaints
+  // live. No debounce — colour picker inputs already fire at
+  // roughly repaint cadence and the map handles per-tick style
+  // updates cheaply.
+  const patch = (partial) => {
+    setDraft((d) => {
+      const next = { ...d, ...partial };
+      onApply(next);
+      return next;
+    });
+  };
 
   const popover = (
     <div
@@ -575,10 +604,14 @@ function StylePopover({ anchorRef, initialStyle, title, onApply, onClose }) {
         />
       </div>
 
+      {/* Cancel reverts to the pre-open snapshot (useful when the
+          operator was experimenting and doesn't want to keep it);
+          Apply / Done just closes because every knob change has
+          already flowed to the map layer via patch(). */}
       <div className="grid grid-cols-2 gap-1.5 px-2 pb-2 pt-1 border-t border-day-border dark:border-night-border">
         <button
           type="button"
-          onClick={onClose}
+          onClick={cancel}
           className={cn(
             'inline-flex items-center justify-center gap-1 h-7 rounded-md text-[11px] font-semibold',
             'bg-day-bg dark:bg-night-bg',
@@ -586,19 +619,21 @@ function StylePopover({ anchorRef, initialStyle, title, onApply, onClose }) {
             'border border-day-border dark:border-night-border',
             'hover:bg-day-border dark:hover:bg-night-border transition-colors',
           )}
+          title="Revert to the style at the moment this popover opened"
         >
           Cancel
         </button>
         <button
           type="button"
-          onClick={() => { onApply(draft); onClose(); }}
+          onClick={onClose}
           className={cn(
             'inline-flex items-center justify-center gap-1 h-7 rounded-md text-[11px] font-semibold',
             'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d] transition-colors',
           )}
+          title="Keep the current preview and close"
         >
           <Check style={{ width: 12, height: 12 }} />
-          Apply
+          Done
         </button>
       </div>
     </div>
