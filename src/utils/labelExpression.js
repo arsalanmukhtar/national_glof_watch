@@ -3,8 +3,10 @@
 // natural to QGIS / ArcGIS users:
 //
 //   name                              → the value of the "name" field
-//   name || ' - ' || area             → concatenation with a literal
-//   'Lake: ' || name                  → literal prefix
+//   "Lake Area" || ' - ' || area      → double-quoted for identifiers
+//                                        that have spaces / punctuation
+//                                        / non-ASCII chars.
+//   'Lake: ' || name                  → single-quoted for string literals.
 //   name || ' (' || area || ')'       → multi-segment
 //
 // It compiles to a Mapbox `text-field` expression (a `concat` array),
@@ -12,12 +14,16 @@
 // accepts.
 //
 // Supported tokens:
-//   • Bare identifiers  → treated as attribute keys (map `get`).
-//   • Single / double-quoted string literals with `\` escapes.
+//   • Bare identifiers matching [A-Za-z0-9_\-.:] → attribute keys.
+//   • Double-quoted identifiers "…"              → attribute keys.
+//     Use this form for any attribute name a shapefile / GeoJSON
+//     source produced that contains spaces, punctuation, or non-
+//     ASCII characters (`"Lake Area"`, `"Volume (m³)"`, `"عمق"`).
+//   • Single-quoted literals '…'                 → string literals.
+//     Common escapes: \n \t \r \\ \'
 //   • `||` concatenation operator.
 //   • Whitespace is ignored between tokens.
-// Anything else (parentheses, arithmetic, functions) is intentionally
-// out of scope; users needing that can shape the data upstream.
+// Anything else (arithmetic, functions) is intentionally out of scope.
 
 // -------------------------------------------------------------------
 // Unit catalog. Suffixes use real unicode super/subscript glyphs
@@ -98,35 +104,40 @@ export function parseLabelExpression(expr) {
     // `||` concat operator — skipped; it's implicit in the segment list.
     if (s[i] === '|' && s[i + 1] === '|') { i += 2; continue; }
 
-    // Quoted literal. Escape sequences follow JS conventions:
-    //   \n → newline, \t → tab, \r → CR, \\ → \, \' \" → the quote.
-    // Anything else after \ passes through as the literal character.
-    // Newline support matters because the default multi-attribute
-    // separator is '\n', which needs to render as an actual line
-    // break in the Mapbox text-field.
+    // Quoted token. Two flavours:
+    //   '…'  → string literal (renders as text in the label)
+    //   "…"  → attribute identifier (looked up on each feature)
+    // The QGIS / SQL convention. Escape sequences follow JS: \n \t
+    // \r \\ \' \". Anything else after \ passes through raw.
     if (s[i] === "'" || s[i] === '"') {
       const q = s[i]; i++;
-      let lit = '';
+      let buf = '';
       while (i < s.length && s[i] !== q) {
         if (s[i] === '\\' && i + 1 < s.length) {
           const esc = s[i + 1];
-          if      (esc === 'n')  lit += '\n';
-          else if (esc === 't')  lit += '\t';
-          else if (esc === 'r')  lit += '\r';
-          else                   lit += esc;
+          if      (esc === 'n')  buf += '\n';
+          else if (esc === 't')  buf += '\t';
+          else if (esc === 'r')  buf += '\r';
+          else                   buf += esc;
           i += 2;
         } else {
-          lit += s[i];
+          buf += s[i];
           i++;
         }
       }
       if (s[i] === q) i++;
-      segments.push({ type: 'literal', value: lit });
+      if (q === '"') {
+        segments.push({ type: 'attr',    value: buf });
+      } else {
+        segments.push({ type: 'literal', value: buf });
+      }
       continue;
     }
 
     // Bare identifier → attribute name. Allow letters, digits, `_`,
     // and `.` / `:` for prefixed keys (some sources use "raster:val").
+    // Attributes with any other character (space, parens, non-ASCII)
+    // must use the "double-quoted" form above.
     const start = i;
     while (i < s.length && /[A-Za-z0-9_\-.:]/.test(s[i])) i++;
     if (i > start) {
@@ -193,12 +204,30 @@ function attributeGetterExpr(attrName) {
 // -------------------------------------------------------------------
 export function appendAttributeToExpression(expr, attrName) {
   const trimmed = String(expr ?? '').trim();
-  if (!trimmed) return attrName;
+  const token = attrTokenFor(attrName);
+  if (!trimmed) return token;
   // '\n' separator so each subsequent attribute lands on its own
   // line under the previous one — makes multi-attribute labels
   // scannable on the map instead of running everything onto a single
   // line separated by dashes.
-  return `${trimmed} || '\\n' || ${attrName}`;
+  return `${trimmed} || '\\n' || ${token}`;
+}
+
+// Serialise an attribute name to source form. Bare identifier when
+// the name is a safe [A-Za-z0-9_\-.:] run; double-quoted (with
+// escapes) otherwise, so shapefile attributes like "Lake Area",
+// "Volume (m³)", or non-ASCII names still round-trip through the
+// expression cleanly.
+function attrTokenFor(attrName) {
+  const s = String(attrName ?? '');
+  if (s && /^[A-Za-z0-9_\-.:]+$/.test(s)) return s;
+  const escaped = s
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g,  '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
+  return `"${escaped}"`;
 }
 
 // -------------------------------------------------------------------
@@ -253,7 +282,9 @@ function rebuildSegment(seg) {
       .replace(/\t/g, '\\t');
     return `'${escaped}'`;
   }
-  return seg.value;
+  // Attribute — bare when safe, "quoted" when the name has spaces
+  // or any other character outside [A-Za-z0-9_\-.:].
+  return attrTokenFor(seg.value);
 }
 
 // -------------------------------------------------------------------
