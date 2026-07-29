@@ -49,6 +49,7 @@ import FlypathDigitizer from './FlypathDigitizer';
 import FlypathOriginSelector from './FlypathOriginSelector';
 import FlypathRouteLabel from './FlypathRouteLabel';
 import FlypathFullscreenOverlay from './FlypathFullscreenOverlay';
+import FlypathExportRecorder from './FlypathExportRecorder';
 import ElevationFullscreenOverlay from './ElevationFullscreenOverlay';
 import StationsTable from './StationsTable';
 import { cn } from '@/utils/cn';
@@ -1078,6 +1079,7 @@ export default function MapPanel({ className, onMapReady }) {
         <FlypathOriginSelector map={mapInstance} />
         <FlypathRouteLabel />
         <FlypathFullscreenOverlay />
+        <FlypathExportRecorder map={mapInstance} />
         <ElevationFullscreenOverlay />
         <AnimatePresence>
           {isLoading ? (

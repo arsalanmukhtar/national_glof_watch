@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Contrast,
+  Globe2,
   Layers,
   Map,
   Moon,
@@ -17,6 +18,7 @@ const OPTIONS = [
   { id: 'outdoors',  label: 'Outdoors',  icon: Mountain },
   { id: 'light',     label: 'Light',     icon: Sun },
   { id: 'dark',      label: 'Dark',      icon: Moon },
+  { id: 'esri',      label: 'ESRI',      icon: Globe2 },
 ];
 
 // Collapsible basemap chooser. Layout when expanded:

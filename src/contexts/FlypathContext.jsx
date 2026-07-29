@@ -170,6 +170,20 @@ export function FlypathProvider({ children }) {
   const [awaitingTerrain, setAwaitingTerrain] = useState(false);
 
   // ---------------------------------------------------------------
+  // Export animation.
+  //   The panel dispatches `requestExport()` when the operator clicks
+  //   the "Export animation" button. `exportTick` increments so the
+  //   FlypathExportRecorder — which lives inside the map wrapper —
+  //   sees the request via a useEffect on the counter and enters its
+  //   bounding-box selection state. Using a tick rather than a
+  //   boolean means every click is a fresh request even if the
+  //   recorder is already in the middle of a session (it will just
+  //   restart).
+  // ---------------------------------------------------------------
+  const [exportTick, setExportTick] = useState(0);
+  const requestExport = useCallback(() => setExportTick((n) => n + 1), []);
+
+  // ---------------------------------------------------------------
   // Digitize (on-map draw) state.
   //   • digitizing    — true while the user is actively drawing a
   //                     new route on the map. The FlypathDigitizer
@@ -421,6 +435,10 @@ export function FlypathProvider({ children }) {
     awaitingTerrain,
     setAwaitingTerrain,
 
+    // Export animation
+    exportTick,
+    requestExport,
+
     // Digitize
     digitizing,
     drawnCoords,
@@ -447,6 +465,7 @@ export function FlypathProvider({ children }) {
     loop, setLoop, toggleLoop,
     flightMode, setFlightMode,
     awaitingTerrain,
+    exportTick, requestExport,
     digitizing, drawnCoords, pendingDrawn,
     startDigitize, cancelDigitize, finishDigitize,
     addDrawnVertex, undoDrawnVertex, replaceDrawnCoords,

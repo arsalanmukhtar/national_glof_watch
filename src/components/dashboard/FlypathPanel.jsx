@@ -28,6 +28,7 @@ import {
   Type,
   Undo2,
   Upload,
+  Video,
   Waves,
   X,
 } from 'lucide-react';
@@ -103,6 +104,7 @@ export default function FlypathPanel() {
     beginSelectOrigin,
     cancelSelectOrigin,
     setRouteOrigin,
+    requestExport,
   } = useFlypath();
 
   return (
@@ -184,8 +186,41 @@ export default function FlypathPanel() {
         <ModeRow />
         <SpeedControl />
         <LoopControl />
+        <ExportAnimationButton
+          hasRoute={hasRoute}
+          onExport={requestExport}
+        />
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Export Animation — one-click entry into the FlypathExportRecorder
+// flow living inside the map wrapper. Disabled until at least one
+// route is loaded; a click bumps `exportTick` and the recorder over
+// on the map picks up the request via context.
+// ---------------------------------------------------------------------------
+function ExportAnimationButton({ hasRoute, onExport }) {
+  return (
+    <button
+      type="button"
+      onClick={onExport}
+      disabled={!hasRoute}
+      title={hasRoute
+        ? 'Draw a region and record the flypath as a video'
+        : 'Add a flypath route to enable export'}
+      className={cn(
+        'inline-flex items-center justify-center gap-1.5 h-8 w-full rounded-md',
+        'text-[12px] font-semibold transition-colors',
+        hasRoute
+          ? 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]'
+          : 'bg-day-bg dark:bg-night-bg text-day-muted dark:text-night-muted border border-day-border dark:border-night-border cursor-not-allowed',
+      )}
+    >
+      <Video style={{ width: 13, height: 13 }} />
+      Export animation
+    </button>
   );
 }
 
