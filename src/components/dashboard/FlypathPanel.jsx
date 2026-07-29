@@ -407,11 +407,19 @@ function AddRouteButton({ onAdd }) {
       <input
         ref={inputRef}
         type="file"
+        multiple
         accept=".geojson,.json,.zip,.kml,.kmz,application/json,application/geo+json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz"
         onChange={async (e) => {
-          const file = e.target.files?.[0];
+          // Multiple-select allowed — process each file in order so
+          // the first one lands in the focused slot and the rest
+          // pile into the compact list. All go through the same
+          // `handle` path so parse errors are surfaced per file.
+          const files = Array.from(e.target.files || []);
           e.target.value = '';
-          if (file) await handle(file);
+          for (const file of files) {
+            // eslint-disable-next-line no-await-in-loop
+            await handle(file);
+          }
           await restoreFullscreen();
         }}
         className="hidden"
@@ -1308,11 +1316,14 @@ function UploadDropZone({ hint, onFile, inputRef, busy, error, dragOver, setDrag
       <div
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
-        onDrop={(e) => {
+        onDrop={async (e) => {
           e.preventDefault();
           setDrag(false);
-          const file = e.dataTransfer?.files?.[0];
-          if (file) runHandle(file);
+          const files = Array.from(e.dataTransfer?.files || []);
+          for (const file of files) {
+            // eslint-disable-next-line no-await-in-loop
+            await runHandle(file);
+          }
         }}
         className={cn(
           'flex flex-col items-center justify-center gap-1 px-2 py-3',
@@ -1342,11 +1353,15 @@ function UploadDropZone({ hint, onFile, inputRef, busy, error, dragOver, setDrag
         <input
           ref={localRef}
           type="file"
+          multiple
           accept=".geojson,.json,.zip,.kml,.kmz,application/json,application/geo+json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz"
           onChange={async (e) => {
-            const file = e.target.files?.[0];
+            const files = Array.from(e.target.files || []);
             e.target.value = '';
-            if (file) await runHandle(file);
+            for (const file of files) {
+              // eslint-disable-next-line no-await-in-loop
+              await runHandle(file);
+            }
             await restoreFullscreen();
           }}
           className="hidden"

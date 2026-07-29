@@ -35,28 +35,32 @@ export default function FlypathRouteLabel() {
           >
             <span
               style={{
-                // System stack — SF Pro on Apple, Segoe UI on Windows,
-                // Roboto on Android/Linux. All ship with a clean bold
-                // weight that renders crisply at large sizes without
-                // the stroke-outline artefacts the previous
-                // -webkit-text-stroke was baking in.
+                // Same font family the Mapbox symbol layer uses for
+                // the on-map feature labels — DIN falls back through
+                // DIN Alternate (macOS system), then a condensed
+                // Helvetica / Arial, then Inter and the system
+                // stack. Keeps the two label surfaces feeling like
+                // one typography system.
                 fontFamily:
-                  'system-ui, -apple-system, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-                fontSize: '28px',
-                fontWeight: 700,
+                  '"DIN Pro", "DIN Alternate", "DIN Condensed", ' +
+                  '"Helvetica Neue Condensed", "Arial Narrow", ' +
+                  '"Inter", "Segoe UI", system-ui, sans-serif',
+                fontSize: '26px',
+                fontWeight: 500,
                 color: '#ffffff',
                 lineHeight: 1.15,
-                letterSpacing: '0.005em',
-                // Directional halo — four solid pixel offsets give a
-                // crisp 1 px outline, then two soft blurs deepen the
-                // contrast against bright basemap patches (snow, sand).
+                letterSpacing: '0.015em',
+                // Softer halo — with the lighter weight a heavy
+                // outline started reading as chunky. Four 1 px
+                // offsets at 75 % opacity + a single 4 px blur is
+                // enough to hold contrast on snow / sand.
                 textShadow:
-                  '-1px -1px 0 rgba(0,0,0,0.9),' +
-                  ' 1px -1px 0 rgba(0,0,0,0.9),' +
-                  '-1px  1px 0 rgba(0,0,0,0.9),' +
-                  ' 1px  1px 0 rgba(0,0,0,0.9),' +
-                  ' 0 0 6px rgba(0,0,0,0.75),' +
-                  ' 0 2px 10px rgba(0,0,0,0.55)',
+                  '-1px -1px 0 rgba(0,0,0,0.75),' +
+                  ' 1px -1px 0 rgba(0,0,0,0.75),' +
+                  '-1px  1px 0 rgba(0,0,0,0.75),' +
+                  ' 1px  1px 0 rgba(0,0,0,0.75),' +
+                  ' 0 0 4px rgba(0,0,0,0.55),' +
+                  ' 0 2px 6px rgba(0,0,0,0.45)',
               }}
             >
               {name}
