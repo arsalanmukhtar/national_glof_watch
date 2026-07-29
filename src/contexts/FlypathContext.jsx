@@ -116,8 +116,10 @@ export function FlypathProvider({ children }) {
 
   // Fly-to nonces per layer group.
   const [routesFlyTick,   setRoutesFlyTick]   = useState(0);
+  const [selectedRouteFlyTick, setSelectedRouteFlyTick] = useState(0);
   const [featuresFlyTick, setFeaturesFlyTick] = useState(0);
   const requestFlyToRoutes   = useCallback(() => setRoutesFlyTick((n) => n + 1), []);
+  const requestFlyToSelectedRoute = useCallback(() => setSelectedRouteFlyTick((n) => n + 1), []);
   const requestFlyToFeatures = useCallback(() => setFeaturesFlyTick((n) => n + 1), []);
 
   // Panel-open broadcast for the chart tab auto-switch.
@@ -235,10 +237,13 @@ export function FlypathProvider({ children }) {
           name: parsed.name,
           kind: parsed.kind,
           fc:   parsed.fc,
-          style: {
-            ...DEFAULT_ROUTE_STYLE_BASE,
-            color: ROUTE_COLOR_CYCLE[prev.length % ROUTE_COLOR_CYCLE.length],
-          },
+          style: (() => {
+            const c = ROUTE_COLOR_CYCLE[prev.length % ROUTE_COLOR_CYCLE.length];
+            // Fill and outline default to the same colour so a new
+            // route reads as a single crisp line — matching outline
+            // triggers the casingWidth=0 code path in buildRoutesFC.
+            return { ...DEFAULT_ROUTE_STYLE_BASE, color: c, outlineColor: c };
+          })(),
           // Manual origin override. When set to 'first' the raw coord
           // order is kept as-is; 'last' reverses. null falls back to
           // DEM-based automatic detection.
@@ -386,8 +391,10 @@ export function FlypathProvider({ children }) {
 
     // Fly-to
     routesFlyTick,
+    selectedRouteFlyTick,
     featuresFlyTick,
     requestFlyToRoutes,
+    requestFlyToSelectedRoute,
     requestFlyToFeatures,
 
     // Panel + chart wiring
@@ -432,8 +439,8 @@ export function FlypathProvider({ children }) {
     features, featuresStyle,
     setFeatures, clearFeatures, setFeaturesStyle,
     featuresLabelStyle, setFeaturesLabelStyle, featureAttributes,
-    routesFlyTick, featuresFlyTick,
-    requestFlyToRoutes, requestFlyToFeatures,
+    routesFlyTick, selectedRouteFlyTick, featuresFlyTick,
+    requestFlyToRoutes, requestFlyToSelectedRoute, requestFlyToFeatures,
     active, setActive, elevationProfile,
     playState, start, pause, resume, stop, togglePlayPause,
     flightDuration, setFlightDuration,

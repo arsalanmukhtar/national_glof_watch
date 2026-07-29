@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Check,
   ChevronDown,
@@ -11,6 +12,7 @@ import {
   Gauge,
   Info,
   Loader2,
+  Palette,
   Pause,
   Pencil,
   Plane,
@@ -121,7 +123,6 @@ export default function FlypathPanel() {
           onSelect={selectRoute}
           onRemove={removeRoute}
           onStyleChange={setRouteStyleFor}
-          onZoomAll={requestFlyToRoutes}
           onCreate={startDigitize}
           digitizing={digitizing}
         />
@@ -191,7 +192,7 @@ export default function FlypathPanel() {
 // ---------------------------------------------------------------------------
 // Routes container — list of every uploaded route + add button.
 // ---------------------------------------------------------------------------
-function RoutesContainer({ routes, selectedId, onAdd, onSelect, onRemove, onStyleChange, onZoomAll, onCreate, digitizing }) {
+function RoutesContainer({ routes, selectedId, onAdd, onSelect, onRemove, onStyleChange, onCreate, digitizing }) {
   return (
     <div className="rounded-md border border-day-border dark:border-night-border overflow-hidden">
       <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-day-bg dark:bg-night-bg border-b border-day-border dark:border-night-border">
@@ -205,21 +206,6 @@ function RoutesContainer({ routes, selectedId, onAdd, onSelect, onRemove, onStyl
           </span>
         ) : null}
         <div className="ml-auto flex items-center gap-1">
-          {routes.length > 0 ? (
-            <button
-              type="button"
-              onClick={onZoomAll}
-              className={cn(
-                'inline-flex items-center justify-center h-8 w-8 rounded-md',
-                'text-day-text dark:text-night-text',
-                'hover:bg-day-border dark:hover:bg-night-border transition-colors',
-              )}
-              aria-label="Zoom to all routes"
-              title="Zoom to all routes"
-            >
-              <Focus style={{ width: 18, height: 18 }} />
-            </button>
-          ) : null}
           <button
             type="button"
             onClick={onCreate}
@@ -416,12 +402,145 @@ function AddRouteButton({ onAdd }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// StylePopover — portal-based popover that hosts the layer style
+// controls (COLOR, OUTLINE, WIDTH, OPACITY) with Cancel / Apply
+// buttons. Positioned to the right of the anchor row via
+// getBoundingClientRect, and re-positions on scroll / resize so it
+// stays glued to its row when the panel scrolls.
+//
+// Draft state lives inside the popover — Apply commits, Cancel /
+// click-outside discards. This keeps the panel free of preview
+// churn while the operator is fiddling with sliders.
+// ---------------------------------------------------------------------------
+function StylePopover({ anchorRef, initialStyle, title, onApply, onClose }) {
+  const [draft, setDraft] = useState(initialStyle);
+  const popoverRef = useRef(null);
+  const [pos, setPos] = useState(null);
+
+  useLayoutEffect(() => {
+    const el = anchorRef.current;
+    if (!el) return undefined;
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      // 8 px gutter to the right; align top-edge with the row.
+      setPos({ top: rect.top, left: rect.right + 8 });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('scroll', measure, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', measure, true);
+    };
+  }, [anchorRef]);
+
+  useEffect(() => {
+    const onDown = (e) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target)
+          && !anchorRef.current?.contains(e.target)) {
+        onClose();
+      }
+    };
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [anchorRef, onClose]);
+
+  if (!pos) return null;
+
+  const patch = (partial) => setDraft((d) => ({ ...d, ...partial }));
+
+  const popover = (
+    <div
+      ref={popoverRef}
+      role="dialog"
+      className={cn(
+        'fixed z-[60] w-64 rounded-lg overflow-hidden',
+        'bg-day-surface dark:bg-night-surface',
+        'border border-day-border dark:border-night-border shadow-2xl',
+      )}
+      style={{ top: pos.top, left: pos.left }}
+    >
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-day-border dark:border-night-border bg-day-bg dark:bg-night-bg">
+        <Palette className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
+        <span className="text-[11px] font-semibold text-day-text dark:text-night-text truncate">
+          {title || 'Style'}
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="ml-auto btn-icon btn-ghost h-6 w-6"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+
+      <div className="px-2 py-2 flex flex-col gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
+          <SwatchRow label="Color"   value={draft.color}
+            onChange={(color) => patch({ color })} />
+          <SwatchRow label="Outline" value={draft.outlineColor}
+            onChange={(outlineColor) => patch({ outlineColor })} />
+        </div>
+        <SliderRow
+          label="Width" min={0.5} max={8} step={0.5}
+          value={draft.width}
+          onChange={(width) => patch({ width })}
+          display={`${draft.width}px`}
+        />
+        <SliderRow
+          label="Opacity" min={0} max={1} step={0.05}
+          value={draft.opacity}
+          onChange={(opacity) => patch({ opacity })}
+          display={`${Math.round(draft.opacity * 100)}%`}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-1.5 px-2 pb-2 pt-1 border-t border-day-border dark:border-night-border">
+        <button
+          type="button"
+          onClick={onClose}
+          className={cn(
+            'inline-flex items-center justify-center gap-1 h-7 rounded-md text-[11px] font-semibold',
+            'bg-day-bg dark:bg-night-bg',
+            'text-day-text dark:text-night-text',
+            'border border-day-border dark:border-night-border',
+            'hover:bg-day-border dark:hover:bg-night-border transition-colors',
+          )}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => { onApply(draft); onClose(); }}
+          className={cn(
+            'inline-flex items-center justify-center gap-1 h-7 rounded-md text-[11px] font-semibold',
+            'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d] transition-colors',
+          )}
+        >
+          <Check style={{ width: 12, height: 12 }} />
+          Apply
+        </button>
+      </div>
+    </div>
+  );
+
+  return createPortal(popover, document.body);
+}
+
 function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
   const {
     selectingOrigin,
     beginSelectOrigin,
     cancelSelectOrigin,
     setRouteOrigin,
+    requestFlyToSelectedRoute,
   } = useFlypath();
 
   const KindIcon = route.kind === 'shapefile' ? FileArchive
@@ -438,18 +557,24 @@ function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
   );
 
   const hasManualOrigin = route.originVertex === 'first' || route.originVertex === 'last';
+  const rowRef = useRef(null);
+  const paletteRef = useRef(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   return (
     <div
+      ref={rowRef}
       className={cn(
         'transition-colors',
         selected ? 'bg-[#84cc16]/10' : 'hover:bg-day-bg dark:hover:bg-night-bg',
       )}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onSelect}
-        className="w-full flex items-center gap-2 px-2.5 py-2 text-left"
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(); } }}
+        className="w-full flex items-center gap-2 px-2.5 py-2 text-left cursor-pointer"
         aria-pressed={selected}
         title={selected ? 'Selected for animation' : 'Click to select for animation'}
       >
@@ -480,36 +605,77 @@ function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
             {lengthLabel ? ` · ${lengthLabel}` : ''}
           </div>
         </div>
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onRemove(); }
-          }}
-          className="btn-icon btn-ghost h-8 w-8 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
-          aria-label={`Remove ${route.name}`}
+        <RowIconButton
+          icon={Focus}
+          title="Zoom to this route"
+          onClick={requestFlyToSelectedRoute}
+        />
+        <RowIconButton
+          ref={paletteRef}
+          icon={Palette}
+          title="Edit route style"
+          active={paletteOpen}
+          onClick={() => setPaletteOpen((v) => !v)}
+        />
+        <RowIconButton
+          icon={Trash2}
           title="Remove route"
-        >
-          <Trash2 style={{ width: 18, height: 18 }} />
-        </span>
-      </button>
+          tone="danger"
+          onClick={onRemove}
+        />
+      </div>
+
+      {paletteOpen ? (
+        <StylePopover
+          anchorRef={rowRef}
+          initialStyle={route.style}
+          title={`${route.name} · Style`}
+          onApply={(next) => onStyleChange(next)}
+          onClose={() => setPaletteOpen(false)}
+        />
+      ) : null}
 
       {selected ? (
-        <>
-          <StyleControls style={route.style} onChange={onStyleChange} />
-          <OriginRow
-            active={selectingOrigin}
-            hasManualOrigin={hasManualOrigin}
-            onActivate={beginSelectOrigin}
-            onCancel={cancelSelectOrigin}
-            onClear={() => setRouteOrigin(route.id, null)}
-          />
-        </>
+        <OriginRow
+          active={selectingOrigin}
+          hasManualOrigin={hasManualOrigin}
+          onActivate={beginSelectOrigin}
+          onCancel={cancelSelectOrigin}
+          onClear={() => setRouteOrigin(route.id, null)}
+        />
       ) : null}
     </div>
   );
 }
+
+// Compact icon-only button used across the row action cluster.
+// Stops event propagation so tapping it doesn't also fire the row's
+// select handler. forwardRef because the palette variant is used as
+// the anchor for the popover-positioning code below.
+const RowIconButton = forwardRef(function RowIconButton(
+  { icon: Icon, title, onClick, active, tone },
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onClick?.(e); }}
+      aria-label={title}
+      title={title}
+      className={cn(
+        'inline-flex items-center justify-center h-7 w-7 rounded-md shrink-0 transition-colors',
+        tone === 'danger'
+          ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40'
+          : active
+            ? 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]'
+            : 'text-day-text dark:text-night-text hover:bg-day-border dark:hover:bg-night-border',
+      )}
+    >
+      <Icon style={{ width: 14, height: 14 }} />
+    </button>
+  );
+});
 
 // ---------------------------------------------------------------------------
 // Origin row — sits under the style controls of the selected route.
@@ -638,43 +804,14 @@ function FeaturesUploadCard({ value, style, onStyleChange, onFile, onZoomTo, onC
       </div>
 
       {value ? (
-        <>
-          <div className="flex items-center gap-2 px-2.5 py-2">
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-              style={{ backgroundColor: style.color }}
-              aria-hidden
-            />
-            <KindIcon className="h-3.5 w-3.5 text-day-muted dark:text-night-muted shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="text-[11.5px] font-medium truncate text-day-text dark:text-night-text">
-                {value.name}
-              </div>
-              <div className="text-[10.5px] text-day-muted dark:text-night-muted">
-                {value.fc.features.length} feature{value.fc.features.length === 1 ? '' : 's'} · {value.kind}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onZoomTo}
-              className="btn-icon btn-ghost h-8 w-8"
-              aria-label="Zoom to features"
-              title="Zoom to layer"
-            >
-              <Focus style={{ width: 18, height: 18 }} />
-            </button>
-            <button
-              type="button"
-              onClick={onClear}
-              className="btn-icon btn-ghost h-8 w-8 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
-              aria-label="Remove features"
-              title="Remove"
-            >
-              <Trash2 style={{ width: 18, height: 18 }} />
-            </button>
-          </div>
-          <StyleControls style={style} onChange={onStyleChange} />
-        </>
+        <FeaturesRow
+          value={value}
+          style={style}
+          KindIcon={KindIcon}
+          onZoomTo={onZoomTo}
+          onClear={onClear}
+          onStyleChange={onStyleChange}
+        />
       ) : (
         <UploadDropZone
           hint="Polygons or points visualised along the flypath"
@@ -720,6 +857,61 @@ function FeaturesUploadCard({ value, style, onStyleChange, onFile, onZoomTo, onC
 // a unit suffix that uses real superscript unicode (m² / m³ / etc)
 // so the map label renders correctly at every zoom.
 // ---------------------------------------------------------------------------
+// Compact row for the loaded Lakes / features layer. Mirrors the
+// RouteRow action-cluster shape: colour dot + kind icon + name + zoom
+// + palette + trash. Palette opens the shared StylePopover so the
+// style config stays out of the panel body.
+function FeaturesRow({ value, style, KindIcon, onZoomTo, onClear, onStyleChange }) {
+  const rowRef = useRef(null);
+  const paletteRef = useRef(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  return (
+    <div ref={rowRef} className="flex items-center gap-2 px-2.5 py-2">
+      <span
+        className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+        style={{ backgroundColor: style.color }}
+        aria-hidden
+      />
+      <KindIcon className="h-3.5 w-3.5 text-day-muted dark:text-night-muted shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="text-[11.5px] font-medium truncate text-day-text dark:text-night-text">
+          {value.name}
+        </div>
+        <div className="text-[10.5px] text-day-muted dark:text-night-muted truncate">
+          {value.fc.features.length} feature{value.fc.features.length === 1 ? '' : 's'} · {value.kind}
+        </div>
+      </div>
+      <RowIconButton
+        icon={Focus}
+        title="Zoom to layer"
+        onClick={onZoomTo}
+      />
+      <RowIconButton
+        ref={paletteRef}
+        icon={Palette}
+        title="Edit layer style"
+        active={paletteOpen}
+        onClick={() => setPaletteOpen((v) => !v)}
+      />
+      <RowIconButton
+        icon={Trash2}
+        title="Remove features"
+        tone="danger"
+        onClick={onClear}
+      />
+      {paletteOpen ? (
+        <StylePopover
+          anchorRef={rowRef}
+          initialStyle={style}
+          title={`${value.name} · Style`}
+          onApply={(next) => onStyleChange(next)}
+          onClose={() => setPaletteOpen(false)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function FeaturesLabelsCard() {
   const {
     featureAttributes,

@@ -88,6 +88,7 @@ export default function FlypathMapLayer({ map }) {
     featuresLabelStyle,
     playState,
     routesFlyTick,
+    selectedRouteFlyTick,
     featuresFlyTick,
     elevationProfile,
     phaseRef,
@@ -457,6 +458,11 @@ export default function FlypathMapLayer({ map }) {
     if (!map || routesFlyTick === 0) return;
     fitToRoutes(map, routes);
   }, [map, routesFlyTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!map || selectedRouteFlyTick === 0) return;
+    if (selectedRoute?.fc) fitToFeatureCollection(map, selectedRoute.fc);
+  }, [map, selectedRouteFlyTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!map || featuresFlyTick === 0) return;
