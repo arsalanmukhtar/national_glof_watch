@@ -42,13 +42,13 @@ import { cn } from '@/utils/cn';
 
 const MIN_BBOX_PX      = 80;   // reject accidental tiny drags
 const COUNTDOWN_START  = 5;    // seconds shown centred on the map
-// 60 fps target with a generous bitrate — the recorded stream at
-// 30 fps read as visibly juddery next to the 60 Hz on-screen
-// playback. VP9 at ~16 Mbps holds detail on the mountain terrain at
-// this rate; increase if the operator's monitor is > 1080p and the
-// output looks soft.
-const RECORDING_FPS    = 60;
-const RECORDING_BPS    = 16_000_000;
+// 120 fps target — the browser will clamp to what the display and
+// encoder can actually deliver, but we ask for the ceiling so
+// operators on high-refresh monitors get everything the compositor
+// can hand us. Bitrate bumped to match — 120 fps at 24 Mbps VP9
+// keeps detail on mountain terrain without a soft frame.
+const RECORDING_FPS    = 120;
+const RECORDING_BPS    = 24_000_000;
 
 export default function FlypathExportRecorder({ map }) {
   const {
@@ -197,10 +197,27 @@ export default function FlypathExportRecorder({ map }) {
 
   // --------- recording lifecycle ---------
   const beginRecording = async () => {
-    // Ask for screen-share permission first — the browser picker
-    // interrupts anything on-screen, so it's cleaner to resolve
-    // permission up-front and then run the countdown once we know
-    // the stream is ready to go.
+    // Remember which element (if any) was in fullscreen at the moment
+    // of the click — the browser exits fullscreen the instant we
+    // call getDisplayMedia (the picker needs to paint over the tab).
+    // We re-request fullscreen on this element the moment the picker
+    // resolves so the operator's fullscreen view isn't lost.
+    const fsTargetBefore =
+      typeof document !== 'undefined' ? document.fullscreenElement : null;
+
+    // Start the flypath IMMEDIATELY with the currently-configured
+    // origin / style / camera mode. The operator sees the animation
+    // kick off from the moment they click Record, confirming the
+    // Manually-pinned origin (or any other setting) actually took
+    // effect. It also means the map is already animating underneath
+    // the picker + countdown so the recorder captures a moving
+    // frame the instant recording turns on.
+    try { stop(); } catch { /* ignore */ }
+    await sleep(30);
+    try { start(); } catch { /* ignore */ }
+
+    // Ask for screen-share permission next. The picker exits
+    // fullscreen — we restore it once the stream is granted.
     setPhase('preparing');
     let displayStream;
     try {
@@ -218,6 +235,15 @@ export default function FlypathExportRecorder({ map }) {
       return;
     }
 
+    // Restore fullscreen if we lost it to the picker. Best-effort:
+    // the transient user activation from the picker's Share click
+    // usually persists long enough for requestFullscreen to be
+    // honoured; if it doesn't, the operator can hit F again after
+    // the recording completes.
+    if (fsTargetBefore && !document.fullscreenElement) {
+      try { await fsTargetBefore.requestFullscreen(); } catch { /* activation expired */ }
+    }
+
     // Cache the stream + track. Track.onended fires on native
     // "Stop sharing" — wire that to stopRecording so the flow ends
     // gracefully in that path too.
@@ -226,7 +252,10 @@ export default function FlypathExportRecorder({ map }) {
     displayTrackRef.current = displayTrack;
     displayTrack.addEventListener('ended', onDisplayTrackEnded);
 
-    // Countdown — animation begins the moment countdown lands on 0.
+    // Countdown — animation is already running from the beginRecording
+    // start() call above, so all this does is give the operator a
+    // visible ready-set-go before the actual capture pipeline latches
+    // on.
     setPhase('countdown');
     for (let s = COUNTDOWN_START; s >= 1; s--) {
       if (cancelledRef.current) {
@@ -384,12 +413,9 @@ export default function FlypathExportRecorder({ map }) {
     };
     rafRef.current = requestAnimationFrame(pump);
 
-    // Reset + start the flypath so the recording captures the whole
-    // run from t=0.
-    try { stop(); } catch { /* ignore */ }
-    await sleep(80);
-    try { start(); } catch { /* ignore */ }
-
+    // The flypath is already running (beginRecording start() call
+    // fires at click time so the operator's picker/countdown wait
+    // isn't dead air). Just flip the phase.
     setPhase('recording');
   };
 
@@ -627,7 +653,7 @@ async function requestDisplayMedia() {
   }
   return navigator.mediaDevices.getDisplayMedia({
     video: {
-      frameRate: { ideal: 60, max: 60 },
+      frameRate: { ideal: RECORDING_FPS, max: RECORDING_FPS },
     },
     audio: false,
     preferCurrentTab: true,

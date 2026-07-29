@@ -25,7 +25,6 @@ import {
   Save,
   Square,
   Tag,
-  Target,
   Trash2,
   Type,
   Undo2,
@@ -795,6 +794,10 @@ function OriginRow({ active, hasManualOrigin, onActivate, onCancel, onClear }) {
     // so the two sit flush without a subtle offset. `min-h-9` locks
     // the vertical rhythm even when the Reset button is absent, so
     // the row height doesn't shift as the operator toggles states.
+    // Layout: [ORIGIN label] [status text] [reset?] [Crosshair action]
+    // — no leading icon, and the Crosshair (which used to sit on the
+    // left as a decorative marker) is now the primary action button
+    // at the right end.
     <div
       className={cn(
         'px-2.5 py-2 min-h-9 border-t border-day-border dark:border-night-border',
@@ -802,7 +805,6 @@ function OriginRow({ active, hasManualOrigin, onActivate, onCancel, onClear }) {
         'flex items-center gap-2',
       )}
     >
-      <Crosshair className="h-3.5 w-3.5 text-brand-700 dark:text-brand-200 shrink-0" />
       <span className="text-[10px] uppercase tracking-wide text-day-muted dark:text-night-muted w-12 shrink-0">
         Origin
       </span>
@@ -840,7 +842,7 @@ function OriginRow({ active, hasManualOrigin, onActivate, onCancel, onClear }) {
           {active ? (
             <X style={{ width: 13, height: 13 }} strokeWidth={2.5} />
           ) : (
-            <Target style={{ width: 13, height: 13 }} strokeWidth={2.25} />
+            <Crosshair style={{ width: 13, height: 13 }} strokeWidth={2.25} />
           )}
         </button>
       </div>
