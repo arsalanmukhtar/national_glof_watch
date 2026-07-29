@@ -418,4 +418,108 @@ export const TOURS = [
       },
     ],
   },
+
+  // -----------------------------------------------------------------
+  // Lake Flypath tour — opens the panel, walks through routes /
+  // features / labels / playback controls / camera modes / speed /
+  // export. Every uploaded route + style + label config + speed /
+  // mode / loop toggle persists to localStorage, so the tour ends
+  // with an explicit callout that a refresh restores everything.
+  // -----------------------------------------------------------------
+  {
+    id: 'flypath',
+    name: 'Lake Flypath tour',
+    description: 'Upload a melt path, style it, label supporting lakes, and cinematic-fly the camera along it. Panels open automatically.',
+    steps: [
+      {
+        id: 'fly-intro',
+        target: null,
+        side: 'center',
+        title: 'The Lake Flypath surface',
+        body:
+          'A cinematic tool for melt-path storytelling. Upload one or more line routes, drop supporting lake / feature polygons under them, style everything, then fly the camera along the selected route in either a chase-cam (Focused) or top-down (Drone) view — and record the result as a video.',
+      },
+      {
+        id: 'fly-open',
+        target: '[data-tour-id="flypath-panel-icon"]',
+        side: 'right',
+        title: 'Opening the panel',
+        body:
+          'The helicopter icon on the left rail opens the Flypath panel. We\'ll open it for you now.',
+        onEnter: () => ensurePanelOpen('flypath-panel-icon'),
+      },
+      {
+        id: 'fly-routes',
+        target: '[data-tour-id="flypath-routes"]',
+        side: 'right',
+        title: 'Flypath routes',
+        body:
+          'Upload one or more LineString routes (GeoJSON, KML, KMZ, shapefile .zip). Multi-select works — drop several files at once. Each route can be drawn on the map too via the pencil icon. The focused route sits at the top with the full style + origin controls; extras stack below in a scrollable list and swap on click.',
+      },
+      {
+        id: 'fly-features',
+        target: '[data-tour-id="flypath-features"]',
+        side: 'right',
+        title: 'Lakes / features overlay',
+        body:
+          'A single contextual polygon layer that renders under every route — typically the source lakes. Same upload behaviour as routes; the palette icon opens a live-preview style popover for fill / outline / width / opacity.',
+      },
+      {
+        id: 'fly-labels',
+        target: '[data-tour-id="flypath-labels"]',
+        side: 'right',
+        title: 'Labels — SQL-style expression',
+        body:
+          'Pick attributes from the checklist to build a label expression (Name, Area, Volume, …). The default separator is \'\\n\', so each attribute lands on its own line. Advanced: hand-edit the expression, add a unit suffix (m² / m³ / °C / …), tune size / halo / colours — every change previews on the map immediately.',
+      },
+      {
+        id: 'fly-playback',
+        target: '[data-tour-id="flypath-playback"]',
+        side: 'top',
+        title: 'Playback dock',
+        body:
+          'The pinned bottom row. Green Play kicks off the chase-cam flight; the amber Pause / red Stop share the row. When the DEM tiles under the route start aren\'t loaded yet the Play button reads "Preparing" until they stream in.',
+      },
+      {
+        id: 'fly-mode',
+        target: '[data-tour-id="flypath-mode"]',
+        side: 'top',
+        title: 'Focused vs Drone',
+        body:
+          'Focused mode is a chase-cam: adaptive pitch that tilts to near-nadir over cliffs, bearing snaps responsively to the path tangent. Drone mode locks the pitch at ~10° and heavily damps the bearing for a smooth drone-glide feel — better for wide overviews.',
+      },
+      {
+        id: 'fly-speed',
+        target: '[data-tour-id="flypath-speed"]',
+        side: 'top',
+        title: 'Speed — distance-relative',
+        body:
+          'Slider is a multiplier over a duration derived from the selected route\'s length (baseline ≈ 8 s + 0.55 s per km at 1×). Drag right for faster, left for slower; double-click to snap back to 1×. Long Pakistan-scale routes need the low end so the basemap tiles have time to stream.',
+      },
+      {
+        id: 'fly-loop',
+        target: '[data-tour-id="flypath-loop"]',
+        side: 'top',
+        title: 'Loop',
+        body:
+          'Toggle chip that decides what happens at the end of a flight: transition to stopped (default) or restart from phase 0. Useful for demo / kiosk viewing.',
+      },
+      {
+        id: 'fly-export',
+        target: '[data-tour-id="flypath-export"]',
+        side: 'top',
+        title: 'Export animation',
+        body:
+          'Records the whole tab as a 120 fps video. Draw a bounding box on the map, hit the red Record chip, share the tab in the browser picker, and let the 5-second countdown roll. Every DOM overlay (marker, legend, geocoder, elevation profile) ends up in the recording. Stop via the browser\'s native "Stop sharing" chip or Esc — the file lands as MP4 where MediaRecorder supports it, else WebM.',
+      },
+      {
+        id: 'fly-persistence',
+        target: null,
+        side: 'center',
+        title: 'Refresh-safe',
+        body:
+          'Everything you set up on this surface — uploaded routes and features, styles, label expressions, speed multiplier, camera mode, loop toggle — persists to localStorage automatically. Refresh the tab and your Flypath configuration comes back exactly where you left it.',
+      },
+    ],
+  },
 ];

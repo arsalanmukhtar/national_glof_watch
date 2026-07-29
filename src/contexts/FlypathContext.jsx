@@ -2,12 +2,50 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import { extractFeatureAttributes } from '@/utils/labelExpression';
 import { featureCollectionLengthMeters } from '@/utils/spatialUpload';
+
+// Persistence key — bumped whenever the on-disk shape changes so a
+// stale snapshot from an older version doesn't crash the app on
+// rehydration.
+const STORAGE_KEY = 'flypath.v1';
+
+// Debounce writes so slider drags in the style popover don't hammer
+// localStorage with per-frame JSON.stringify + setItem calls.
+const PERSIST_DEBOUNCE_MS = 300;
+
+function loadPersisted() {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function savePersisted(snapshot) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  } catch (err) {
+    // Uploaded shapefiles can push the payload past the ~5 MB per-origin
+    // quota; log once and continue rather than crashing the panel.
+    if (err && err.name === 'QuotaExceededError') {
+      console.warn('Flypath: localStorage quota exceeded — configuration not persisted');
+    } else {
+      console.warn('Flypath: failed to persist configuration', err);
+    }
+  }
+}
 
 // FlypathContext — global state for the Lake Flypath surface.
 // ---------------------------------------------------------------------------
@@ -89,15 +127,29 @@ function genId() {
 }
 
 export function FlypathProvider({ children }) {
-  const [routes, setRoutes] = useState([]);
-  const [selectedRouteId, setSelectedRouteId] = useState(null);
+  // Load the persisted snapshot ONCE on mount. Subsequent renders
+  // reuse the same object via useMemo's empty deps.
+  const persisted = useMemo(() => loadPersisted() ?? {}, []);
 
-  const [features, setFeaturesRaw] = useState(null);
-  const [featuresStyle, setFeaturesStyleRaw] = useState(DEFAULT_FEATURES_STYLE);
+  const [routes, setRoutes] = useState(() =>
+    Array.isArray(persisted.routes) ? persisted.routes : [],
+  );
+  const [selectedRouteId, setSelectedRouteId] = useState(
+    () => persisted.selectedRouteId ?? null,
+  );
+
+  const [features, setFeaturesRaw] = useState(() => persisted.features ?? null);
+  const [featuresStyle, setFeaturesStyleRaw] = useState(() => ({
+    ...DEFAULT_FEATURES_STYLE,
+    ...(persisted.featuresStyle ?? {}),
+  }));
   const setFeaturesStyle = useCallback((partial) =>
     setFeaturesStyleRaw((prev) => ({ ...prev, ...partial })), []);
 
-  const [featuresLabelStyle, setFeaturesLabelStyleRaw] = useState(DEFAULT_FEATURES_LABEL_STYLE);
+  const [featuresLabelStyle, setFeaturesLabelStyleRaw] = useState(() => ({
+    ...DEFAULT_FEATURES_LABEL_STYLE,
+    ...(persisted.featuresLabelStyle ?? {}),
+  }));
   const setFeaturesLabelStyle = useCallback((partial) =>
     setFeaturesLabelStyleRaw((prev) => ({ ...prev, ...partial })), []);
   const resetFeaturesLabelStyle = useCallback(
@@ -146,7 +198,10 @@ export function FlypathProvider({ children }) {
   // baseline makes "1 ×" feel consistent regardless of extent, and
   // the operator still gets one obvious knob (Nx) rather than
   // having to eyeball the right absolute duration.
-  const [speedMultiplier, setSpeedMultiplierRaw] = useState(1);
+  const [speedMultiplier, setSpeedMultiplierRaw] = useState(() => {
+    const v = Number(persisted.speedMultiplier);
+    return Number.isFinite(v) && v > 0 ? Math.max(0.1, Math.min(10, v)) : 1;
+  });
   const setSpeedMultiplier = useCallback((n) => {
     const num = Number(n);
     if (!Number.isFinite(num)) return;
@@ -157,7 +212,7 @@ export function FlypathProvider({ children }) {
   // instead of transitioning to 'stopped' at phase 1. Handy for demo
   // / kiosk viewing so an operator doesn't have to hit Play every
   // minute-and-a-half.
-  const [loop, setLoopRaw] = useState(false);
+  const [loop, setLoopRaw] = useState(() => Boolean(persisted.loop));
   const setLoop    = useCallback((v) => setLoopRaw(Boolean(v)), []);
   const toggleLoop = useCallback(() => setLoopRaw((v) => !v), []);
 
@@ -168,7 +223,9 @@ export function FlypathProvider({ children }) {
   //               damped bearing so the marker glides above the
   //               route like a drone rather than snapping around
   //               every bend.
-  const [flightMode, setFlightModeRaw] = useState('focused');
+  const [flightMode, setFlightModeRaw] = useState(() =>
+    persisted.flightMode === 'drone' ? 'drone' : 'focused',
+  );
   const setFlightMode = useCallback((mode) => {
     if (mode !== 'focused' && mode !== 'drone') return;
     setFlightModeRaw(mode);
@@ -409,6 +466,37 @@ export function FlypathProvider({ children }) {
       return s;
     });
   }, [hasRoute]);
+
+  // Debounced persist. Every change to a persisted field bumps this
+  // effect, which schedules a single localStorage write 300 ms later
+  // — a slider drag that fires 30 updates/s collapses down to one
+  // write once the operator releases. Playback state, elevation
+  // profile, digitize buffers, and export ticks are intentionally
+  // NOT persisted (they're ephemeral to the current session).
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      savePersisted({
+        routes,
+        selectedRouteId,
+        features,
+        featuresStyle,
+        featuresLabelStyle,
+        speedMultiplier,
+        flightMode,
+        loop,
+      });
+    }, PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(timeoutId);
+  }, [
+    routes,
+    selectedRouteId,
+    features,
+    featuresStyle,
+    featuresLabelStyle,
+    speedMultiplier,
+    flightMode,
+    loop,
+  ]);
 
   const value = useMemo(() => ({
     // Route collection

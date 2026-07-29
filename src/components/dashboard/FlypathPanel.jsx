@@ -114,21 +114,23 @@ export default function FlypathPanel() {
     // wrapper in LeftSidebar was tweaked to hand us the full height
     // without applying its own overflow-y-auto, so the internal
     // scroll region works cleanly.
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0" data-tour-id="flypath-panel">
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
-        <RoutesContainer
-          routes={routes}
-          selectedId={selectedRouteId}
-          onAdd={(parsed) => {
-            addRoute(parsed);
-            requestFlyToRoutes();
-          }}
-          onSelect={selectRoute}
-          onRemove={removeRoute}
-          onStyleChange={setRouteStyleFor}
-          onCreate={startDigitize}
-          digitizing={digitizing}
-        />
+        <div data-tour-id="flypath-routes">
+          <RoutesContainer
+            routes={routes}
+            selectedId={selectedRouteId}
+            onAdd={(parsed) => {
+              addRoute(parsed);
+              requestFlyToRoutes();
+            }}
+            onSelect={selectRoute}
+            onRemove={removeRoute}
+            onStyleChange={setRouteStyleFor}
+            onCreate={startDigitize}
+            digitizing={digitizing}
+          />
+        </div>
 
         {digitizing ? (
           <DigitizeToolbar
@@ -155,26 +157,35 @@ export default function FlypathPanel() {
           />
         ) : null}
 
-        <FeaturesUploadCard
-          value={features}
-          style={featuresStyle}
-          onStyleChange={setFeaturesStyle}
-          onFile={(parsed) => {
-            setFeatures(parsed);
-            requestFlyToFeatures();
-          }}
-          onZoomTo={requestFlyToFeatures}
-          onClear={clearFeatures}
-        />
+        <div data-tour-id="flypath-features">
+          <FeaturesUploadCard
+            value={features}
+            style={featuresStyle}
+            onStyleChange={setFeaturesStyle}
+            onFile={(parsed) => {
+              setFeatures(parsed);
+              requestFlyToFeatures();
+            }}
+            onZoomTo={requestFlyToFeatures}
+            onClear={clearFeatures}
+          />
+        </div>
 
-        {features ? <FeaturesLabelsCard /> : null}
+        {features ? (
+          <div data-tour-id="flypath-labels">
+            <FeaturesLabelsCard />
+          </div>
+        ) : null}
       </div>
 
       {/* Fixed-bottom playback dock — visually separated with a top
           border. Stays put while the middle scrolls. Compact vertical
           spacing so the mode row + speed + loop all fit without
           pushing the label card off-screen. */}
-      <div className="shrink-0 flex flex-col gap-1.5 pt-1.5 mt-1.5 border-t border-day-border dark:border-night-border">
+      <div
+        className="shrink-0 flex flex-col gap-1.5 pt-1.5 mt-1.5 border-t border-day-border dark:border-night-border"
+        data-tour-id="flypath-playback"
+      >
         <PlaybackRow
           playState={playState}
           awaitingTerrain={awaitingTerrain}
@@ -184,13 +195,15 @@ export default function FlypathPanel() {
           onResume={resume}
           onStop={stop}
         />
-        <ModeRow />
-        <SpeedControl />
-        <LoopControl />
-        <ExportAnimationButton
-          hasRoute={hasRoute}
-          onExport={requestExport}
-        />
+        <div data-tour-id="flypath-mode"><ModeRow /></div>
+        <div data-tour-id="flypath-speed"><SpeedControl /></div>
+        <div data-tour-id="flypath-loop"><LoopControl /></div>
+        <div data-tour-id="flypath-export">
+          <ExportAnimationButton
+            hasRoute={hasRoute}
+            onExport={requestExport}
+          />
+        </div>
       </div>
     </div>
   );
