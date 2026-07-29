@@ -73,19 +73,73 @@ export function unitById(id) {
 }
 
 // -------------------------------------------------------------------
-// Attribute discovery — union of every property key across features.
+// Attribute discovery — union of every property key across every
+// feature, regardless of geometry type (Point / LineString / Polygon
+// / Multi*). Robust to:
+//   • Features with null / missing / non-object `properties`.
+//   • Feature-level property keys wrapped one layer deep as
+//     `properties.attributes` (some ArcGIS EsriJSON→GeoJSON converters
+//     produce this shape).
+//   • Exotic property bags (proxies, prototype-heavy) — walks both
+//     Object.keys and for..in with hasOwnProperty for full coverage.
+//   • Whitespace / control-char noise in keys (trimmed before storing
+//     so `"volume_MAF "` and `"volume_MAF"` don't appear as two rows).
+// Returns the sorted, deduplicated list.
 // -------------------------------------------------------------------
 export function extractFeatureAttributes(fc) {
   const set = new Set();
   const features = fc?.features;
   if (!Array.isArray(features)) return [];
+
+  const collect = (bag) => {
+    if (!bag || typeof bag !== 'object') return;
+    // Own enumerable string keys via both Object.keys and for..in +
+    // hasOwnProperty. Redundant on plain objects; catches Proxy-
+    // backed / prototype-heavy bags that Object.keys alone misses.
+    for (const k of Object.keys(bag)) addKey(k);
+    for (const k in bag) {
+      if (Object.prototype.hasOwnProperty.call(bag, k)) addKey(k);
+    }
+  };
+  const addKey = (k) => {
+    if (typeof k !== 'string') return;
+    // Strip zero-width / BOM characters (U+200B..U+200D, U+FEFF)
+    // that some export pipelines sneak into column names, then
+    // trim outer whitespace. Do NOT collapse internal spaces --
+    // "Lake Area" is a legitimate attribute name that must
+    // round-trip byte-for-byte so Mapbox get still hits it.
+    // eslint-disable-next-line no-misleading-character-class, no-control-regex
+    const clean = k.replace(/[\u0000\u200B\u200C\u200D\uFEFF]/g, '').trim();
+    if (clean.length > 0) set.add(clean);
+  };
+
   for (const f of features) {
-    const props = f?.properties;
-    if (props && typeof props === 'object') {
-      for (const k of Object.keys(props)) set.add(k);
+    if (!f) continue;
+    const props = f.properties;
+    collect(props);
+    // Some Esri→GeoJSON exports nest the attribute bag one layer
+    // deep under an `attributes` key. Peek in so operators using
+    // that pipeline still see their columns.
+    if (props && typeof props === 'object' && props.attributes) {
+      collect(props.attributes);
     }
   }
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
+
+  const result = Array.from(set).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' }),
+  );
+
+  // One-time dev diagnostic: if the caller's feature count is high
+  // but we only surfaced a handful of attributes, log both counts +
+  // the discovered list so a missing column shows up in devtools.
+  if (typeof console !== 'undefined' && features.length > 0) {
+    console.info(
+      `[flypath] discovered ${result.length} attribute(s) across ${features.length} feature(s):`,
+      result,
+    );
+  }
+
+  return result;
 }
 
 // -------------------------------------------------------------------
