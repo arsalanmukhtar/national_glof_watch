@@ -722,9 +722,31 @@ export default function FlypathMapLayer({ map }) {
     // tile can never freeze play permanently.
     const beginRaf = () => {
       setAwaitingTerrain(false);
+      // Defensive: cancel any RAF that's still queued from a prior
+      // call before starting a new one. Prevents two concurrent tick
+      // loops from ever running, which would double-advance the
+      // phase every frame and manifest as an unexplained speed-up.
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      }
       lastFrameRef.current = performance.now();
       rafRef.current = requestAnimationFrame(tick);
     };
+
+    // Fullscreen enter/exit and tab visibility flips can pause RAF
+    // for a beat while the browser recomposites. Without this
+    // handler, the first frame after the pause carries a large dt
+    // (the wall-clock time we spent NOT running) and pushes the
+    // phase forward more than a single frame's worth — perceived by
+    // the operator as an animation speed-up when they close the
+    // fullscreen view. Rebase lastFrameRef so post-transition frames
+    // resume from "now" rather than accumulating the paused gap.
+    const rebaseFrameClock = () => {
+      lastFrameRef.current = performance.now();
+    };
+    document.addEventListener('fullscreenchange', rebaseFrameClock);
+    document.addEventListener('visibilitychange',  rebaseFrameClock);
     const isTerrainReady = () => {
       try {
         return map.isSourceLoaded(DEM_SRC) && map.areTilesLoaded();
@@ -757,6 +779,8 @@ export default function FlypathMapLayer({ map }) {
     return () => {
       clearWait();
       setAwaitingTerrain(false);
+      document.removeEventListener('fullscreenchange', rebaseFrameClock);
+      document.removeEventListener('visibilitychange',  rebaseFrameClock);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
     };
