@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Square } from 'lucide-react';
+import { Circle, RotateCcw, Square, X } from 'lucide-react';
 import { useFlypath } from '@/contexts/FlypathContext';
 import { cn } from '@/utils/cn';
 
@@ -342,47 +342,14 @@ export default function FlypathExportRecorder({ map }) {
         </div>
       )}
 
-      {/* Armed — bbox stays, plus a bottom-anchored floating toolbar */}
+      {/* Armed — bbox outline stays, action buttons live in the
+          vertical right-mid rail (see ActionRail below) so they
+          don't cover the region the user just framed. */}
       {phase === 'armed' && bbox && (
-        <>
-          <div
-            className="absolute border-2 border-[#84cc16] pointer-events-none"
-            style={{ left: bbox.x, top: bbox.y, width: bbox.w, height: bbox.h }}
-          />
-          <div
-            className="absolute pointer-events-auto flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-black/85 backdrop-blur border border-white/20 shadow-2xl"
-            style={armedToolbarPos(bbox)}
-          >
-            <button
-              type="button"
-              onClick={beginCountdown}
-              disabled={!hasRoute}
-              className={cn(
-                'inline-flex items-center h-7 px-2.5 rounded text-[12px] font-semibold',
-                hasRoute
-                  ? 'bg-[#84cc16] text-[#1a2e05] hover:bg-[#65a30d]'
-                  : 'bg-white/20 text-white/60 cursor-not-allowed',
-              )}
-              title={hasRoute ? 'Start 5-second countdown, then record' : 'Add a flypath route first'}
-            >
-              Start recording
-            </button>
-            <button
-              type="button"
-              onClick={() => { setBbox(null); setPhase('selecting'); }}
-              className="inline-flex items-center h-7 px-2.5 rounded text-[12px] font-medium bg-white/15 text-white hover:bg-white/25"
-            >
-              Redraw
-            </button>
-            <button
-              type="button"
-              onClick={cancelSession}
-              className="inline-flex items-center h-7 px-2.5 rounded text-[12px] font-medium text-white/80 hover:bg-white/10"
-            >
-              Cancel
-            </button>
-          </div>
-        </>
+        <div
+          className="absolute border-2 border-[#84cc16] pointer-events-none"
+          style={{ left: bbox.x, top: bbox.y, width: bbox.w, height: bbox.h }}
+        />
       )}
 
       {/* Countdown — big centred number with white fill + black halo */}
@@ -428,7 +395,8 @@ export default function FlypathExportRecorder({ map }) {
         </>
       )}
 
-      {/* Recording / saving — bbox outline + stop button + REC pip */}
+      {/* Recording / saving — bbox outline + REC pip. The Stop &
+          save action button lives in the right-mid ActionRail. */}
       {(phase === 'recording' || phase === 'saving') && bbox && (
         <>
           <div
@@ -442,25 +410,23 @@ export default function FlypathExportRecorder({ map }) {
               className="inline-block h-2 w-2 rounded-full bg-red-500"
               aria-hidden
             />
-            REC
+            {phase === 'saving' ? 'SAVING' : 'REC'}
           </div>
-          <button
-            type="button"
-            onClick={stopRecording}
-            disabled={phase === 'saving'}
-            className={cn(
-              'absolute top-3 right-3 pointer-events-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md',
-              'text-white text-[12px] font-semibold shadow-2xl',
-              phase === 'saving'
-                ? 'bg-red-700/70 cursor-wait'
-                : 'bg-red-600 hover:bg-red-700',
-            )}
-          >
-            <Square style={{ width: 12, height: 12 }} fill="currentColor" />
-            {phase === 'saving' ? 'Saving…' : 'Stop & save'}
-          </button>
         </>
       )}
+
+      {/* ActionRail — vertical column of icon-only buttons pinned to
+          the right-middle of the map wrapper. Same silhouette across
+          armed / recording / saving so the operator's hand doesn't
+          have to hunt for the next control. */}
+      <ActionRail
+        phase={phase}
+        hasRoute={hasRoute}
+        onStart={beginCountdown}
+        onRedraw={() => { setBbox(null); setPhase('selecting'); }}
+        onCancel={cancelSession}
+        onStop={stopRecording}
+      />
 
       {/* Selection hint — the pill at the top */}
       {hintText ? (
@@ -538,16 +504,96 @@ function bboxClipPath(bbox) {
   );
 }
 
-// Position the armed-state toolbar below the bbox if there's room,
-// otherwise above. Anchored to the left edge of the bbox.
-function armedToolbarPos(bbox) {
-  const belowTop = bbox.y + bbox.h + 8;
-  const room = 320;                        // rough toolbar height budget
-  const useBelow = belowTop + room < window.innerHeight;
-  if (useBelow) {
-    return { left: bbox.x, top: belowTop };
-  }
-  return { left: bbox.x, top: Math.max(8, bbox.y - 44) };
+// ActionRail — vertical column of icon-only chips pinned to the
+// right-middle of the map wrapper. Renders nothing during selection
+// (the drag surface owns the whole map) and nothing at idle / error;
+// during armed / recording / saving it presents phase-appropriate
+// buttons. Icon-only per the operator's request — every button has
+// a native `title` tooltip so the action is still discoverable.
+function ActionRail({ phase, hasRoute, onStart, onRedraw, onCancel, onStop }) {
+  if (phase !== 'armed' && phase !== 'recording' && phase !== 'saving') return null;
+
+  const armed = phase === 'armed';
+  const saving = phase === 'saving';
+
+  return (
+    <div
+      className="absolute right-3 top-1/2 -translate-y-1/2 z-10 pointer-events-auto flex flex-col gap-1.5"
+      role="toolbar"
+      aria-label="Export animation controls"
+    >
+      {armed ? (
+        <>
+          <RailButton
+            icon={Circle}
+            iconFill
+            onClick={onStart}
+            disabled={!hasRoute}
+            title={hasRoute
+              ? 'Start recording (5-second countdown)'
+              : 'Add a flypath route first'}
+            ariaLabel="Start recording"
+            tone="record"
+          />
+          <RailButton
+            icon={RotateCcw}
+            onClick={onRedraw}
+            title="Redraw the region"
+            ariaLabel="Redraw the region"
+            tone="neutral"
+          />
+          <RailButton
+            icon={X}
+            onClick={onCancel}
+            title="Cancel export"
+            ariaLabel="Cancel export"
+            tone="neutral"
+          />
+        </>
+      ) : (
+        <RailButton
+          icon={Square}
+          iconFill
+          onClick={onStop}
+          disabled={saving}
+          title={saving ? 'Saving…' : 'Stop recording and save'}
+          ariaLabel={saving ? 'Saving' : 'Stop recording and save'}
+          tone="stop"
+        />
+      )}
+    </div>
+  );
+}
+
+// Single button in the ActionRail. `tone` chooses the palette:
+//   record  → filled red circle (Start recording)
+//   stop    → filled red square (Stop & save)
+//   neutral → dark chrome, subtle border, white icon
+function RailButton({ icon: Icon, iconFill, onClick, disabled, title, ariaLabel, tone }) {
+  const base = 'inline-flex items-center justify-center h-9 w-9 rounded-md shadow-2xl transition-colors';
+  const palette = disabled
+    ? 'bg-black/60 text-white/40 border border-white/10 cursor-not-allowed'
+    : tone === 'record'
+      ? 'bg-red-600 text-white hover:bg-red-700'
+      : tone === 'stop'
+        ? 'bg-red-600 text-white hover:bg-red-700'
+        : 'bg-black/80 text-white border border-white/20 hover:bg-black/90';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={ariaLabel}
+      className={cn(base, palette)}
+    >
+      <Icon
+        style={{ width: 15, height: 15 }}
+        fill={iconFill ? 'currentColor' : 'none'}
+        strokeWidth={2.25}
+      />
+    </button>
+  );
 }
 
 // Suggested output filename. Includes the route name (sanitised) and
