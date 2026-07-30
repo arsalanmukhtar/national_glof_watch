@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Crosshair,
   Eye,
+  EyeOff,
   FileArchive,
   FileCode2,
   FileJson,
@@ -21,6 +22,7 @@ import {
   Repeat,
   RotateCcw,
   Ruler,
+  SkipBack,
   Route,
   Save,
   Square,
@@ -663,6 +665,7 @@ function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
     cancelSelectOrigin,
     setRouteOrigin,
     requestFlyToSelectedRoute,
+    toggleRouteVisibility,
   } = useFlypath();
 
   const KindIcon = route.kind === 'shapefile' ? FileArchive
@@ -712,6 +715,12 @@ function RouteRow({ route, selected, onSelect, onRemove, onStyleChange }) {
           </div>
         </div>
         <div className="flex items-center shrink-0 -mr-0.5">
+          <RowIconButton
+            icon={route.hidden ? EyeOff : Eye}
+            title={route.hidden ? 'Show route on map' : 'Hide route from map'}
+            active={route.hidden}
+            onClick={() => toggleRouteVisibility(route.id)}
+          />
           <RowIconButton
             icon={Focus}
             title="Zoom to this route"
@@ -1578,9 +1587,14 @@ function SliderRow({ label, min, max, step, value, onChange, display }) {
 }
 
 // ---------------------------------------------------------------------------
-// Playback row — combined Play/Pause + separate Stop.
+// Playback row — Play/Pause + Rewind + Stop, followed by a scrubbable
+// progress bar showing route progress (0 → 100 %). The rewind button
+// snaps the marker back to origin without stopping playback; the
+// progress bar accepts click-to-seek so the operator can jump to any
+// point on the route mid-flight.
 // ---------------------------------------------------------------------------
 function PlaybackRow({ playState, awaitingTerrain, hasRoute, onStart, onPause, onResume, onStop }) {
+  const { currentPhase, rewind, seekPhase } = useFlypath();
   const isPlaying = playState === 'playing';
   const isPaused  = playState === 'paused';
   const isStopped = playState === 'stopped';
@@ -1606,24 +1620,104 @@ function PlaybackRow({ playState, awaitingTerrain, hasRoute, onStart, onPause, o
                                  : 'Start flypath';
 
   return (
-    <div className="grid grid-cols-2 gap-1.5">
-      <PlaybackButton
-        icon={PrimaryIcon}
-        onClick={onPrimary}
-        disabled={!hasRoute}
-        title={!hasRoute ? 'Upload a flypath route first' : primaryLabel}
-        ariaLabel={primaryLabel}
-        tone={primaryTone}
-        spinning={waiting}
+    <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-[1fr_auto_1fr] gap-1.5">
+        <PlaybackButton
+          icon={PrimaryIcon}
+          onClick={onPrimary}
+          disabled={!hasRoute}
+          title={!hasRoute ? 'Upload a flypath route first' : primaryLabel}
+          ariaLabel={primaryLabel}
+          tone={primaryTone}
+          spinning={waiting}
+        />
+        <PlaybackButton
+          icon={SkipBack}
+          onClick={rewind}
+          disabled={!hasRoute}
+          title="Rewind to route origin"
+          ariaLabel="Rewind"
+          tone="slate"
+          compact
+        />
+        <PlaybackButton
+          icon={Square}
+          onClick={onStop}
+          disabled={isStopped}
+          title="Stop and reset flypath (camera pose preserved)"
+          ariaLabel="Stop flypath"
+          tone="red"
+        />
+      </div>
+      <PlaybackProgress
+        phase={currentPhase}
+        onSeek={hasRoute ? seekPhase : null}
       />
-      <PlaybackButton
-        icon={Square}
-        onClick={onStop}
-        disabled={isStopped}
-        title="Stop and reset flypath"
-        ariaLabel="Stop flypath"
-        tone="red"
+    </div>
+  );
+}
+
+// Slim horizontal progress bar showing route completion (0 → 100 %).
+// Click / drag along the track seeks the animation to that phase; the
+// map layer's tick loop picks up the new phaseRef on the next frame,
+// so scrubbing works whether the animation is playing, paused, or
+// stopped. Disabled when no route is loaded (onSeek === null).
+function PlaybackProgress({ phase, onSeek }) {
+  const trackRef = useRef(null);
+  const draggingRef = useRef(false);
+  const pct = Math.max(0, Math.min(1, Number(phase) || 0)) * 100;
+  const readonly = !onSeek;
+
+  const seekFromEvent = (clientX) => {
+    const track = trackRef.current;
+    if (!track || !onSeek) return;
+    const rect = track.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const p = (clientX - rect.left) / rect.width;
+    onSeek(Math.max(0, Math.min(1, p)));
+  };
+
+  const onMouseDown = (e) => {
+    if (readonly) return;
+    draggingRef.current = true;
+    seekFromEvent(e.clientX);
+    const onMove = (ev) => { if (draggingRef.current) seekFromEvent(ev.clientX); };
+    const onUp   = () => {
+      draggingRef.current = false;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup',   onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup',   onUp);
+  };
+
+  return (
+    <div
+      ref={trackRef}
+      role={readonly ? undefined : 'slider'}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(pct)}
+      aria-label="Flypath progress"
+      title={readonly ? undefined : `Progress: ${Math.round(pct)}% — click to seek`}
+      onMouseDown={onMouseDown}
+      className={cn(
+        'relative h-2 rounded-full overflow-hidden',
+        'bg-day-border/60 dark:bg-night-border/60',
+        readonly ? 'cursor-not-allowed' : 'cursor-pointer',
+      )}
+    >
+      <div
+        className="absolute inset-y-0 left-0 bg-[#84cc16] transition-[width] duration-100"
+        style={{ width: `${pct}%` }}
       />
+      {!readonly && pct > 0 && pct < 100 ? (
+        <div
+          className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-white shadow ring-2 ring-[#84cc16]"
+          style={{ left: `calc(${pct}% - 6px)` }}
+          aria-hidden
+        />
+      ) : null}
     </div>
   );
 }
@@ -1632,9 +1726,12 @@ const TONE_CLASSES = {
   emerald: 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:bg-emerald-600/40',
   amber:   'bg-amber-500  hover:bg-amber-600  active:bg-amber-700  disabled:bg-amber-500/40',
   red:     'bg-red-600    hover:bg-red-700    active:bg-red-800    disabled:bg-red-600/40',
+  // Neutral chrome for utility actions like Rewind — reads as an
+  // auxiliary control rather than a primary action.
+  slate:   'bg-slate-600  hover:bg-slate-700  active:bg-slate-800  disabled:bg-slate-600/40',
 };
 
-function PlaybackButton({ icon: Icon, onClick, disabled, title, ariaLabel, tone, spinning }) {
+function PlaybackButton({ icon: Icon, onClick, disabled, title, ariaLabel, tone, spinning, compact }) {
   return (
     <button
       type="button"
@@ -1644,6 +1741,9 @@ function PlaybackButton({ icon: Icon, onClick, disabled, title, ariaLabel, tone,
       aria-label={ariaLabel}
       className={cn(
         'flex items-center justify-center h-8 rounded-md text-white',
+        // Compact variant is a narrow icon-only chip (utility action
+        // between two full-width buttons).
+        compact ? 'w-9' : '',
         'disabled:cursor-not-allowed transition-colors',
         TONE_CLASSES[tone] ?? TONE_CLASSES.red,
       )}

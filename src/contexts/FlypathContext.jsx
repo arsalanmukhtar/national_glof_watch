@@ -185,6 +185,33 @@ export function FlypathProvider({ children }) {
   // Shared animation phase.
   const phaseRef = useRef(0);
 
+  // Broadcast copy of phaseRef.current updated on a ~10 Hz throttle
+  // by FlypathMapLayer's tick loop. Anything React-rendered that
+  // wants to reflect flight progress (playback progress bar, distance
+  // readout) reads this instead of the ref, so it re-renders at a
+  // human-perceivable cadence without every animation frame flushing
+  // the tree.
+  const [currentPhase, setCurrentPhase] = useState(0);
+
+  // Rewind to the start of the current route without changing
+  // playState — if we were playing we keep playing (from t=0);
+  // if paused / stopped, the marker snaps back to origin.
+  const rewind = useCallback(() => {
+    phaseRef.current = 0;
+    setCurrentPhase(0);
+  }, []);
+
+  // Scrubbing — clamp to [0, 1] and update both the ref (which the
+  // animation loop reads next tick) and the broadcast state (so the
+  // progress bar reflects the jump instantly).
+  const seekPhase = useCallback((p) => {
+    const num = Number(p);
+    if (!Number.isFinite(num)) return;
+    const clamped = Math.max(0, Math.min(1, num));
+    phaseRef.current = clamped;
+    setCurrentPhase(clamped);
+  }, []);
+
   // Speed model — the operator sets a relative multiplier (0.25 × …
   // 8 ×) and the actual flight duration is derived from the selected
   // route's length. Baseline is a soft linear curve: short routes
@@ -330,6 +357,9 @@ export function FlypathProvider({ children }) {
           // order is kept as-is; 'last' reverses. null falls back to
           // DEM-based automatic detection.
           originVertex: null,
+          // Per-route visibility on the map. Every route ships visible;
+          // the operator toggles via the Eye button in the RouteRow.
+          hidden: false,
         },
       ];
       return next;
@@ -369,6 +399,12 @@ export function FlypathProvider({ children }) {
   const setRouteStyleFor = useCallback((id, partial) => {
     setRoutes((prev) => prev.map((r) =>
       r.id === id ? { ...r, style: { ...r.style, ...partial } } : r,
+    ));
+  }, []);
+
+  const toggleRouteVisibility = useCallback((id) => {
+    setRoutes((prev) => prev.map((r) =>
+      r.id === id ? { ...r, hidden: !r.hidden } : r,
     ));
   }, []);
 
@@ -508,6 +544,7 @@ export function FlypathProvider({ children }) {
     removeRoute,
     selectRoute,
     setRouteStyleFor,
+    toggleRouteVisibility,
     selectingOrigin,
     beginSelectOrigin,
     cancelSelectOrigin,
@@ -537,6 +574,10 @@ export function FlypathProvider({ children }) {
     elevationProfile,
     setElevationProfile,
     phaseRef,
+    currentPhase,
+    setCurrentPhase,
+    rewind,
+    seekPhase,
 
     // Playback
     playState,
@@ -574,7 +615,7 @@ export function FlypathProvider({ children }) {
     clearPendingDrawn,
   }), [
     routes, selectedRoute, effectiveSelectedId, hasRoute,
-    addRoute, removeRoute, selectRoute, setRouteStyleFor,
+    addRoute, removeRoute, selectRoute, setRouteStyleFor, toggleRouteVisibility,
     selectingOrigin, beginSelectOrigin, cancelSelectOrigin, setRouteOrigin,
     features, featuresStyle,
     setFeatures, clearFeatures, setFeaturesStyle,
@@ -582,6 +623,7 @@ export function FlypathProvider({ children }) {
     routesFlyTick, selectedRouteFlyTick, featuresFlyTick,
     requestFlyToRoutes, requestFlyToSelectedRoute, requestFlyToFeatures,
     active, setActive, elevationProfile,
+    currentPhase, rewind, seekPhase,
     playState, start, pause, resume, stop, togglePlayPause,
     flightDuration, baseDurationMs, speedMultiplier, setSpeedMultiplier,
     loop, setLoop, toggleLoop,

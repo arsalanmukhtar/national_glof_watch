@@ -57,7 +57,7 @@ export default function ElevationProfilePanel() {
   const { isDark } = useTheme();
   const palette = isDark ? DARK : LIGHT;
 
-  const { elevationProfile, playState, phaseRef, hasRoute } = useFlypath();
+  const { elevationProfile, playState, phaseRef, hasRoute, currentPhase } = useFlypath();
 
   // Chart instance ref — we drive the phase marker imperatively via
   // `chart.update('none')` from a rAF loop instead of setState. Memoised
@@ -271,6 +271,9 @@ export default function ElevationProfilePanel() {
   // Chart body
   // ---------------------------------------------------------------
   const stats = summarize(elevationProfile.samples);
+  const totalKm = elevationProfile.totalDistance / 1000;
+  const clampedPhase = Math.max(0, Math.min(1, Number(currentPhase) || 0));
+  const coveredKm = totalKm * clampedPhase;
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center gap-3 px-3 pt-2 pb-1 text-[11px]">
@@ -281,18 +284,36 @@ export default function ElevationProfilePanel() {
         <StatChip label="High"   tone="high"   value={`${Math.round(stats.max)} m`} />
         <StatChip label="Low"    tone="low"    value={`${Math.round(stats.min)} m`} />
         <StatChip label="Drop"   tone="drop"   value={`${Math.round(stats.drop)} m`} />
-        <StatChip label="Length" tone="length" value={`${(elevationProfile.totalDistance / 1000).toFixed(2)} km`} />
+        <StatChip label="Length" tone="length" value={`${totalKm.toFixed(2)} km`} />
         {!elevationProfile.complete ? (
           <span className="text-day-muted dark:text-night-muted italic">refining…</span>
         ) : null}
       </div>
-      <div className="flex-1 min-h-0 px-2 pb-2">
+      <div className="flex-1 min-h-0 px-2 pb-1">
         <Line
           ref={chartRef}
           data={chartData}
           options={chartOptions}
           plugins={[phaseMarkerPlugin]}
         />
+      </div>
+      {/* Distance-covered / total progress readout — mirrors the
+          playback progress bar in the flypath panel so the operator
+          can see how far along the route the marker is without
+          hunting for the on-map chevron. Updates on the same ~10 Hz
+          currentPhase broadcast the panel uses; snaps to 0 on Stop
+          and holds the last value on Pause. */}
+      <div className="px-3 pb-2 flex items-center gap-2 text-[10.5px] text-day-muted dark:text-night-muted">
+        <span className="uppercase tracking-wide text-[9.5px]">Progress</span>
+        <div className="relative flex-1 h-1.5 rounded-full overflow-hidden bg-day-border/60 dark:bg-night-border/60">
+          <div
+            className="absolute inset-y-0 left-0 bg-[#84cc16] transition-[width] duration-100"
+            style={{ width: `${clampedPhase * 100}%` }}
+          />
+        </div>
+        <span className="tabular-nums text-day-text dark:text-night-text">
+          {coveredKm.toFixed(2)} / {totalKm.toFixed(2)} km
+        </span>
       </div>
     </div>
   );

@@ -97,6 +97,8 @@ export default function FlypathMapLayer({ map }) {
     flightMode,
     setElevationProfile,
     setAwaitingTerrain,
+    setCurrentPhase,
+    currentPhase,
     stop,
   } = useFlypath();
 
@@ -107,6 +109,16 @@ export default function FlypathMapLayer({ map }) {
 
   const flightDurationRef = useRef(flightDuration);
   flightDurationRef.current = flightDuration;
+
+  // Whenever the operator picks a different route, invalidate the
+  // cached oriented coords so the stop-branch marker doesn't render
+  // at the previous route's origin between route switch and next
+  // Play. The play effect always recomputes coords on Play anyway,
+  // so this only affects the "stopped after switch" moment.
+  useEffect(() => {
+    flightCoordsRef.current = null;
+    orientedCoordsRef.current = null;
+  }, [selectedRoute?.id]);
 
   // Loop flag mirrored to a ref so the RAF tick can decide whether
   // to restart at phase 1 without recreating the effect (which would
@@ -550,17 +562,31 @@ export default function FlypathMapLayer({ map }) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = 0;
       phaseRef.current = 0;
-      removeMarker(markerRef);
-      // Fly camera back to the selected route's extent so the
-      // operator immediately sees where the flight starts, ready to
-      // restart from a familiar view. `pitch: 0` returns from the
-      // chase-cam tilt to a flat overview.
-      if (selectedRoute?.fc) {
-        fitToFeatureCollection(map, selectedRoute.fc, { pitch: 0 });
+      setCurrentPhase(0);
+      // Preserve the current chase-cam pose. Pitch, bearing, and
+      // zoom stay wherever they were (mid-flight or the last Play
+      // jumpTo). Only the pulsating marker rewinds to the route's
+      // origin so the operator can see where the next Play will
+      // resume from. NO fitBounds, NO pitch reset — that used to
+      // snap the camera to a flat overview which threw away the
+      // chase-cam framing.
+      if (flightCoordsRef.current && flightCoordsRef.current.length >= 2) {
+        const startFrame = computeFrame(
+          flightCoordsRef.current,
+          0,
+          flightModeRef.current === 'drone' ? DRONE_BEARING_LOOK : FOCUSED_BEARING_LOOK,
+        );
+        if (startFrame) {
+          ensureMarker(
+            map, markerRef, startFrame,
+            elevationAtPhase(elevationProfileRef.current, 0),
+          );
+        } else {
+          removeMarker(markerRef);
+        }
+      } else {
+        removeMarker(markerRef);
       }
-      // Invalidate cached oriented coords so the next Start
-      // recomputes direction (in case terrain has since loaded).
-      flightCoordsRef.current = null;
       return undefined;
     }
 
@@ -645,6 +671,11 @@ export default function FlypathMapLayer({ map }) {
     }
 
     lastFrameRef.current = performance.now();
+    // Throttle timestamp for the currentPhase broadcast. We update
+    // React state at ~10 Hz so the progress bar + distance readout
+    // move smoothly without every animation frame triggering a
+    // top-of-tree re-render.
+    let lastPhaseBroadcastTs = 0;
     const tick = (now) => {
       // Cap dt so a GC pause, tab-hide, or dropped frame doesn't
       // teleport the marker 30 % down the route on the next tick —
@@ -653,6 +684,11 @@ export default function FlypathMapLayer({ map }) {
       const dt  = raw > 100 ? 100 : raw;
       lastFrameRef.current = now;
       phaseRef.current = Math.min(1, phaseRef.current + dt / flightDurationRef.current);
+
+      if (now - lastPhaseBroadcastTs > 100) {
+        lastPhaseBroadcastTs = now;
+        setCurrentPhase(phaseRef.current);
+      }
 
       const isDrone = flightModeRef.current === 'drone';
       const look = isDrone ? DRONE_BEARING_LOOK : FOCUSED_BEARING_LOOK;
@@ -826,6 +862,10 @@ function hexToRgba(hex, alpha) {
 function buildRoutesFC(routes) {
   const features = [];
   for (const r of routes) {
+    // Per-route visibility. Hidden routes drop out of the source
+    // entirely rather than getting a zero-opacity paint expression
+    // so the map doesn't waste geometry uploads on them.
+    if (r.hidden) continue;
     const s = r.style ?? {};
     // Casing width = 0 when the outline colour matches the fill —
     // suppresses the wider under-line entirely so a "no outline"
