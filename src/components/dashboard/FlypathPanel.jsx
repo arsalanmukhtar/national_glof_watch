@@ -1587,14 +1587,12 @@ function SliderRow({ label, min, max, step, value, onChange, display }) {
 }
 
 // ---------------------------------------------------------------------------
-// Playback row — Play/Pause + Rewind + Stop, followed by a scrubbable
-// progress bar showing route progress (0 → 100 %). The rewind button
-// snaps the marker back to origin without stopping playback; the
-// progress bar accepts click-to-seek so the operator can jump to any
-// point on the route mid-flight.
+// Playback row — Play/Pause + Rewind + Stop.
+// Progress lives in the Elevation Profile panel at the bottom of the
+// dashboard, not here — no need for two bars showing the same phase.
 // ---------------------------------------------------------------------------
 function PlaybackRow({ playState, awaitingTerrain, hasRoute, onStart, onPause, onResume, onStop }) {
-  const { currentPhase, rewind, seekPhase } = useFlypath();
+  const { rewind } = useFlypath();
   const isPlaying = playState === 'playing';
   const isPaused  = playState === 'paused';
   const isStopped = playState === 'stopped';
@@ -1620,104 +1618,33 @@ function PlaybackRow({ playState, awaitingTerrain, hasRoute, onStart, onPause, o
                                  : 'Start flypath';
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="grid grid-cols-[1fr_auto_1fr] gap-1.5">
-        <PlaybackButton
-          icon={PrimaryIcon}
-          onClick={onPrimary}
-          disabled={!hasRoute}
-          title={!hasRoute ? 'Upload a flypath route first' : primaryLabel}
-          ariaLabel={primaryLabel}
-          tone={primaryTone}
-          spinning={waiting}
-        />
-        <PlaybackButton
-          icon={SkipBack}
-          onClick={rewind}
-          disabled={!hasRoute}
-          title="Rewind to route origin"
-          ariaLabel="Rewind"
-          tone="slate"
-          compact
-        />
-        <PlaybackButton
-          icon={Square}
-          onClick={onStop}
-          disabled={isStopped}
-          title="Stop and reset flypath (camera pose preserved)"
-          ariaLabel="Stop flypath"
-          tone="red"
-        />
-      </div>
-      <PlaybackProgress
-        phase={currentPhase}
-        onSeek={hasRoute ? seekPhase : null}
+    <div className="grid grid-cols-[1fr_auto_1fr] gap-1.5">
+      <PlaybackButton
+        icon={PrimaryIcon}
+        onClick={onPrimary}
+        disabled={!hasRoute}
+        title={!hasRoute ? 'Upload a flypath route first' : primaryLabel}
+        ariaLabel={primaryLabel}
+        tone={primaryTone}
+        spinning={waiting}
       />
-    </div>
-  );
-}
-
-// Slim horizontal progress bar showing route completion (0 → 100 %).
-// Click / drag along the track seeks the animation to that phase; the
-// map layer's tick loop picks up the new phaseRef on the next frame,
-// so scrubbing works whether the animation is playing, paused, or
-// stopped. Disabled when no route is loaded (onSeek === null).
-function PlaybackProgress({ phase, onSeek }) {
-  const trackRef = useRef(null);
-  const draggingRef = useRef(false);
-  const pct = Math.max(0, Math.min(1, Number(phase) || 0)) * 100;
-  const readonly = !onSeek;
-
-  const seekFromEvent = (clientX) => {
-    const track = trackRef.current;
-    if (!track || !onSeek) return;
-    const rect = track.getBoundingClientRect();
-    if (rect.width <= 0) return;
-    const p = (clientX - rect.left) / rect.width;
-    onSeek(Math.max(0, Math.min(1, p)));
-  };
-
-  const onMouseDown = (e) => {
-    if (readonly) return;
-    draggingRef.current = true;
-    seekFromEvent(e.clientX);
-    const onMove = (ev) => { if (draggingRef.current) seekFromEvent(ev.clientX); };
-    const onUp   = () => {
-      draggingRef.current = false;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup',   onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup',   onUp);
-  };
-
-  return (
-    <div
-      ref={trackRef}
-      role={readonly ? undefined : 'slider'}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(pct)}
-      aria-label="Flypath progress"
-      title={readonly ? undefined : `Progress: ${Math.round(pct)}% — click to seek`}
-      onMouseDown={onMouseDown}
-      className={cn(
-        'relative h-2 rounded-full overflow-hidden',
-        'bg-day-border/60 dark:bg-night-border/60',
-        readonly ? 'cursor-not-allowed' : 'cursor-pointer',
-      )}
-    >
-      <div
-        className="absolute inset-y-0 left-0 bg-[#84cc16] transition-[width] duration-100"
-        style={{ width: `${pct}%` }}
+      <PlaybackButton
+        icon={SkipBack}
+        onClick={rewind}
+        disabled={!hasRoute}
+        title="Rewind to route origin"
+        ariaLabel="Rewind"
+        tone="slate"
+        compact
       />
-      {!readonly && pct > 0 && pct < 100 ? (
-        <div
-          className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-white shadow ring-2 ring-[#84cc16]"
-          style={{ left: `calc(${pct}% - 6px)` }}
-          aria-hidden
-        />
-      ) : null}
+      <PlaybackButton
+        icon={Square}
+        onClick={onStop}
+        disabled={isStopped}
+        title="Stop and reset flypath (camera pose preserved)"
+        ariaLabel="Stop flypath"
+        tone="red"
+      />
     </div>
   );
 }
