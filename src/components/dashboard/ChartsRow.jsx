@@ -18,6 +18,7 @@ import { Bar, Line } from 'react-chartjs-2';
 import LayerAttributesPanel from '@/components/dashboard/LayerAttributesPanel';
 import FeatureDetailsPanel from '@/components/dashboard/FeatureDetailsPanel';
 import ElevationProfilePanel from '@/components/dashboard/ElevationProfilePanel';
+import AnalysisTab from '@/components/dashboard/AnalysisTab';
 import {
   lakeAreaData,
   chartYears as lakeChartYears,
@@ -27,6 +28,7 @@ import { useParameter } from '@/contexts/ParameterContext';
 import { useAttributeTables } from '@/contexts/AttributeTablesContext';
 import { useCsvDatasets } from '@/contexts/CsvDatasetsContext';
 import { useFlypath } from '@/contexts/FlypathContext';
+import { useAnalysis } from '@/contexts/AnalysisContext';
 import { applyFilters } from '@/utils/csvParser';
 import { colorFor } from '@/config/parameterColors';
 import { buildLegendGradient } from '@/config/parameterLegends';
@@ -564,6 +566,24 @@ export function buildOptions(theme, { unit = '', xLabelFormatter } = {}) {
 //     selection exists) all run through the effect but hit the
 //     "no transition" branch and do nothing.
 // ---------------------------------------------------------------------------
+// Auto-switch to the Analysis tab when a new imagery analysis run
+// succeeds. Same edge-only invariant — we only act on the
+// resultsToken bump, and only when the user isn't already parked on
+// a manual tab choice we shouldn't override (Attributes Table is
+// hands-off because it takes the whole map column).
+function useAnalysisTabAutoSwitch(currentTab, setTab) {
+  const { resultsToken, status } = useAnalysis();
+  const prevTokenRef = useRef(resultsToken);
+  useEffect(() => {
+    if (resultsToken !== prevTokenRef.current) {
+      prevTokenRef.current = resultsToken;
+      if (status === 'success' && currentTab !== 'attributes') {
+        setTab('analysis');
+      }
+    }
+  }, [resultsToken, status, currentTab, setTab]);
+}
+
 // Auto-switch to Elevation Profile when the Flypath panel opens; snap
 // back when it closes. Same edge-only invariant as the PMD hook — if
 // the user manually switches away, we respect that.
@@ -650,6 +670,9 @@ export default function ChartsRow() {
   // Same pattern for the Flypath panel — open the panel and the
   // Elevation Profile tab pops up on its own.
   useFlypathTabAutoSwitch(tab, setTab);
+  // And again for the imagery / index analysis flow — a successful
+  // /api/analysis/sentinel run pops the Analysis tab automatically.
+  useAnalysisTabAutoSwitch(tab, setTab);
 
   return (
     <motion.div
@@ -697,6 +720,8 @@ export default function ChartsRow() {
           <LakesAreaPanel theme={theme} />
         ) : tab === 'elevation' ? (
           <ElevationProfilePanel />
+        ) : tab === 'analysis' ? (
+          <AnalysisTab />
         ) : (
           <FeatureDetailsPanel />
         )}
@@ -713,6 +738,7 @@ function Tabs({ tab, onChange, collapsed, onToggleCollapse }) {
     { id: 'feature',    label: 'Feature Details' },
     { id: 'lakesArea',  label: 'Lakes Area' },
     { id: 'elevation',  label: 'Elevation Profile' },
+    { id: 'analysis',   label: 'Analysis' },
   ];
   // The Attributes Table is the only tab that collapses the map — it
   // takes the whole column so the table can breathe. When the user is

@@ -9,6 +9,7 @@ import { CsvDatasetsProvider } from '@/contexts/CsvDatasetsContext';
 import { RasterProvider } from '@/contexts/RasterContext';
 import { MonitoringProvider } from '@/contexts/MonitoringContext';
 import { FlypathProvider } from '@/contexts/FlypathContext';
+import { AnalysisProvider } from '@/contexts/AnalysisContext';
 import { TourProvider } from '@/contexts/TourContext';
 import AppShell from '@/components/layout/AppShell';
 import Dashboard from '@/components/dashboard/Dashboard';
@@ -42,11 +43,13 @@ export default function App() {
                           <RasterProvider>
                             <MonitoringProvider>
                               <FlypathProvider>
-                                <TourProvider>
-                                  <AppShell>
-                                    <Dashboard />
-                                  </AppShell>
-                                </TourProvider>
+                                <AnalysisProvider>
+                                  <TourProvider>
+                                    <AppShell>
+                                      <Dashboard />
+                                    </AppShell>
+                                  </TourProvider>
+                                </AnalysisProvider>
                               </FlypathProvider>
                             </MonitoringProvider>
                           </RasterProvider>

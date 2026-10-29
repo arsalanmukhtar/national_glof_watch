@@ -10,6 +10,7 @@ import { regionRouter } from './routes/region.js';
 import { csvRouter } from './routes/csv.js';
 import { rastersRouter } from './routes/rasters.js';
 import { tilesRouter } from './routes/tiles.js';
+import { analysisRouter } from './routes/analysis.js';
 import { ensureSchema, pool } from './lib/db.js';
 import { storeAllStations } from './lib/store.js';
 import { refreshAllThresholds } from './lib/thresholds.js';
@@ -66,6 +67,7 @@ app.use('/api/region', regionRouter);
 app.use('/api/csv', csvRouter);
 app.use('/api/rasters', rastersRouter);
 app.use('/api/tiles', tilesRouter);
+app.use('/api/analysis', analysisRouter);
 
 // Guard against an overrunning value cycle being re-entered by the next
 // scheduled tick — ~279 sequential station calls can run a few minutes.

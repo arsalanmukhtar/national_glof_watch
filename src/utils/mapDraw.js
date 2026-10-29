@@ -254,6 +254,132 @@ export function drawRectangle(map, { onComplete } = {}) {
   return cancel;
 }
 
+// Freehand draw — hold mouse down and drag; the ring is captured
+// at ~60 fps (mousemove throttled to the browser's paint), simplified
+// by a Douglas-Peucker-style tolerance so we don't ship 10k vertices,
+// then closed on mouseup. The visual style matches the other draw
+// helpers; the returned FeatureCollection has the same shape.
+//
+// Simplification runs in-place with a 1e-4 deg tolerance (~11 m at the
+// equator, tighter at Pakistan latitudes). Fine enough that the ring
+// still hugs the freehand path visually; coarse enough that a full-
+// screen drag stays under ~500 points.
+export function drawFreehand(map, { onComplete, onCancel } = {}) {
+  if (!map) return () => {};
+  ensureDrawLayers(map);
+  setDrawData(map, []);
+  setCrosshair(map, true);
+  map.dragPan.disable();
+  map.doubleClickZoom.disable();
+
+  let active = true;
+  let drawing = false;
+  const points = []; // [[lng, lat], ...]
+
+  const refreshPreview = () => {
+    if (points.length < 2) {
+      setDrawData(map, []);
+      return;
+    }
+    if (points.length < 3) {
+      setDrawData(map, [{
+        type: 'Feature', properties: { working: true },
+        geometry: { type: 'LineString', coordinates: points },
+      }]);
+      return;
+    }
+    // Preview as a closed polygon while drawing so the fill reads live.
+    const ring = [...points, points[0]];
+    setDrawData(map, [{
+      type: 'Feature', properties: { working: true },
+      geometry: { type: 'Polygon', coordinates: [ring] },
+    }]);
+  };
+
+  const onDown = (e) => {
+    if (!active) return;
+    drawing = true;
+    points.length = 0;
+    points.push([e.lngLat.lng, e.lngLat.lat]);
+    e.preventDefault();
+  };
+  const onMove = (e) => {
+    if (!active || !drawing) return;
+    const last = points[points.length - 1];
+    const p = [e.lngLat.lng, e.lngLat.lat];
+    // Skip near-duplicate points — mousemove fires much faster than
+    // pixel resolution needs. ~5e-6 deg = 0.5 m at the equator; below
+    // that we'd just be inflating vertex count for no visual gain.
+    if (last && Math.hypot(p[0] - last[0], p[1] - last[1]) < 5e-6) return;
+    points.push(p);
+    refreshPreview();
+  };
+  const onUp = () => {
+    if (!active || !drawing) return;
+    drawing = false;
+    finish();
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') cancel();
+  };
+
+  const simplifyRing = (pts, tol = 1e-4) => {
+    if (pts.length <= 4) return pts;
+    // Radial-distance pre-filter — fast, and enough for what freehand
+    // input produces. Douglas-Peucker would be more shape-preserving
+    // but the vertex counts we're dealing with don't justify the code.
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      const [x, y] = pts[i];
+      const [px, py] = out[out.length - 1];
+      if (Math.hypot(x - px, y - py) >= tol) out.push(pts[i]);
+    }
+    if (out.length < 3) return pts;
+    return out;
+  };
+
+  const finish = () => {
+    if (!active) return;
+    if (points.length < 3) {
+      cancel();
+      onCancel?.();
+      return;
+    }
+    const simplified = simplifyRing(points);
+    const fc = ringToFeatureCollection(simplified);
+    cleanup();
+    if (fc) {
+      setDrawData(map, fc.features);
+      onComplete?.(fc);
+    }
+  };
+
+  const cancel = () => {
+    if (!active) return;
+    cleanup();
+    setDrawData(map, []);
+    onCancel?.();
+  };
+
+  const cleanup = () => {
+    if (!active) return;
+    active = false;
+    map.off('mousedown', onDown);
+    map.off('mousemove', onMove);
+    map.off('mouseup', onUp);
+    document.removeEventListener('keydown', onKey);
+    setCrosshair(map, false);
+    map.dragPan.enable();
+    map.doubleClickZoom.enable();
+  };
+
+  map.on('mousedown', onDown);
+  map.on('mousemove', onMove);
+  map.on('mouseup', onUp);
+  document.addEventListener('keydown', onKey);
+  return cancel;
+}
+
 // Polygon draw — click to add vertices, double-click (or Enter) to
 // finalise. Right-click or Escape cancels.
 export function drawPolygon(map, { onComplete, onCancel } = {}) {

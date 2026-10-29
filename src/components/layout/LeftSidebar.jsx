@@ -1,12 +1,11 @@
 import { Fragment, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  CloudDownload,
   FileSpreadsheet,
   Grid3x3,
-  Hammer,
   HardDriveDownload,
   Layers,
+  Satellite,
   Shapes,
   SlidersHorizontal,
   X,
@@ -16,8 +15,7 @@ import Tooltip from '@/components/ui/Tooltip';
 import CsvDataPanel from '@/components/dashboard/CsvDataPanel';
 import ExportLayersModal from '@/components/dashboard/ExportLayersModal';
 import FlypathPanel from '@/components/dashboard/FlypathPanel';
-import GeeImageryPanel from '@/components/dashboard/GeeImageryPanel';
-import GeoAnalysisPanel from '@/components/dashboard/GeoAnalysisPanel';
+import ImageryAnalysisPanel from '@/components/dashboard/ImageryAnalysisPanel';
 import LayerMenu from '@/components/dashboard/LayerMenu';
 import MonitoringPanel from '@/components/dashboard/MonitoringPanel';
 import ParametersPanel from '@/components/dashboard/ParametersPanel';
@@ -35,10 +33,12 @@ const MONITORING_ID = 'monitoring';
 const FLYPATH_ID    = 'flypath';
 const CSV_ID        = 'csv';
 const RASTER_ID     = 'raster';
-const GEE_ID        = 'gee';
-const TOOLBOX_ID    = 'toolbox';
+// Imagery & Analysis merges the old GEE Imagery + Toolbox slots into
+// one panel — Sentinel-2 fetch on top, local zonal-stats underneath,
+// selectable via a mode tab inside the panel itself.
+const IMAGERY_ID    = 'imagery';
 const PRIMARY_IDS   = ['parameters', 'layers'];
-const SOLO_IDS      = [SECONDARY_ID, MONITORING_ID, FLYPATH_ID, CSV_ID, RASTER_ID, GEE_ID, TOOLBOX_ID];
+const SOLO_IDS      = [SECONDARY_ID, MONITORING_ID, FLYPATH_ID, CSV_ID, RASTER_ID, IMAGERY_ID];
 
 const SECTIONS = [
   {
@@ -98,20 +98,12 @@ const SECTIONS = [
     render: () => <RasterLayersPanel />,
   },
   {
-    id: GEE_ID,
-    label: 'GEE Imagery',
-    headerIcon: CloudDownload,
-    title: 'GEE Imagery',
+    id: IMAGERY_ID,
+    label: 'Imagery & Analysis',
+    headerIcon: Satellite,
+    title: 'Imagery & Analysis',
     grow: true,
-    render: () => <GeeImageryPanel />,
-  },
-  {
-    id: TOOLBOX_ID,
-    label: 'Geospatial Analysis Toolbox',
-    headerIcon: Hammer,
-    title: 'Toolbox',
-    grow: true,
-    render: () => <GeoAnalysisPanel />,
+    render: () => <ImageryAnalysisPanel />,
   },
 ];
 
@@ -127,8 +119,7 @@ const ICON_BUTTONS = [
   { id: FLYPATH_ID,     label: 'Lake Flypath',     icon: TbHelicopter,             tourId: 'flypath-panel-icon'    },
   { id: CSV_ID,         label: 'CSV Data',         icon: FileSpreadsheet,        tourId: 'csv-panel-icon'        },
   { id: RASTER_ID,      label: 'Raster Layers',    icon: Grid3x3,                tourId: 'raster-panel-icon'     },
-  { id: GEE_ID,         label: 'GEE Imagery',      icon: CloudDownload,          tourId: 'gee-panel-icon'        },
-  { id: TOOLBOX_ID,     label: 'Geospatial Analysis Toolbox', icon: Hammer,      tourId: 'toolbox-panel-icon'    },
+  { id: IMAGERY_ID,     label: 'Imagery & Analysis', icon: Satellite,            tourId: 'imagery-panel-icon'    },
   { id: EXPORT_ID,      label: 'Export Layers',    icon: HardDriveDownload,      tourId: 'export-panel-icon'     },
 ];
 

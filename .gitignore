@@ -35,6 +35,12 @@ data/geojsons/
 backups/
 *.sql.bak
 
+# On-demand Sentinel-2 analysis cache. Keyed by request hash, written
+# by scripts/python/sentinel_analysis.py and served via
+# /api/analysis/cog/<hash>/<name>. Regenerable by re-posting the same
+# AOI + windows + index, so there's no reason to commit the COGs.
+data/rasters/analysis/
+
 # SSH keys — should live under ~/.ssh, never in the repo. Belt-and-
 # suspenders in case someone runs ssh-keygen with a relative filename.
 id_ed25519*
